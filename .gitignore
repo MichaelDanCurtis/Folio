@@ -1,0 +1,42 @@
+# Local machine metadata and editor state
+.DS_Store
+.AppleDouble/
+._*
+.idea/
+*.iml
+*.swp
+*.log
+__pycache__/
+*.pyc
+
+# Dependencies, generated builds, packages, and historical build snapshots
+node_modules/
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+target/
+dist/
+release/
+runtime/
+coverage/
+Pods/
+**/Flutter/ephemeral/
+**/xcuserdata/
+**/scripts/verification/openxml/bin/
+**/scripts/verification/openxml/obj/
+.venv/
+venv/
+
+# Credentials, local settings, signing keys, and personal workspaces
+.env
+.env.*
+!.env.example
+!.env.sample
+*.p12
+*.pfx
+*.key
+*.pem
+workspace.folio
+workspace.folio.*

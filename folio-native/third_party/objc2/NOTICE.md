@@ -1,0 +1,1 @@
+Folio uses objc2 0.6.4, objc2-foundation 0.3.2 and objc2-encode 4.1.0 for macOS Foundation file writing. Author metadata: Mads Marquart <mads@marquart.dk>. Upstream MIT licensing notices, retrieved from the source revisions recorded in the published crates, are included here, together with the standard MIT license text. Source: https://github.com/madsmtm/objc2

@@ -1,0 +1,6 @@
+include: package:flutter_lints/flutter.yaml
+# Upstream 11.6.0 lint findings, unchanged by this fork. Keep errors enabled.
+analyzer:
+  errors:
+    strict_top_level_inference: ignore
+    unnecessary_underscores: ignore

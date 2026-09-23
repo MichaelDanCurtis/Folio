@@ -1,0 +1,148 @@
+{
+  "format": "folio",
+  "version": 1,
+  "id": "b7d7e632-8e8c-4ce2-a6da-248a0b98dfa5",
+  "title": "A little room to think",
+  "revision": 0,
+  "document": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 1
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Good ideas start here."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "A document, a spreadsheet, and an assistant. Together in one quiet workspace."
+          }
+        ]
+      },
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Make something meaningful"
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "Use this space for your next proposal, a project plan, or the first draft of something new. Your workbook is right next door."
+          }
+        ]
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Shape your thoughts with headings and lists."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Explore the example budget in your workbook."
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Ask the assistant to turn your numbers into a narrative."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "marks": [
+              {
+                "type": "italic"
+              }
+            ],
+            "text": "This is a sample workspace. Everything here is yours to change."
+          }
+        ]
+      }
+    ]
+  },
+  "sheets": [
+    {
+      "id": "budget",
+      "name": "Project budget",
+      "cells": {
+        "A1": "PROJECT BUDGET",
+        "A3": "Category",
+        "B3": "Planned",
+        "C3": "Actual",
+        "D3": "Remaining",
+        "A4": "Research",
+        "B4": "2400",
+        "C4": "1850",
+        "D4": "=B4-C4",
+        "A5": "Design",
+        "B5": "4800",
+        "C5": "4200",
+        "D5": "=B5-C5",
+        "A6": "Development",
+        "B6": "9600",
+        "C6": "7200",
+        "D6": "=B6-C6",
+        "A7": "Launch",
+        "B7": "3200",
+        "C7": "1500",
+        "D7": "=B7-C7",
+        "A9": "Total",
+        "B9": "=SUM(B4:B7)",
+        "C9": "=SUM(C4:C7)",
+        "D9": "=B9-C9"
+      }
+    }
+  ]
+}

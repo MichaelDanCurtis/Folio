@@ -1,0 +1,598 @@
+{
+  "before": {
+    "attrs": {
+      "wordStyles": {
+        "defaultStyle": "Normal",
+        "defaults": {
+          "paragraph": {
+            "after": 180,
+            "before": 0,
+            "line": 336,
+            "lineRule": "auto"
+          },
+          "run": {
+            "color": {
+              "val": "242424"
+            },
+            "rFonts": {
+              "ascii": "Aptos",
+              "hAnsi": "Aptos"
+            },
+            "sz": 24
+          },
+          "tabs": []
+        },
+        "styles": [
+          {
+            "customStyle": false,
+            "default": true,
+            "id": "Normal",
+            "name": "Normal",
+            "properties": {
+              "paragraph": {},
+              "run": {},
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading1",
+            "name": "Heading 1",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 0,
+              "paragraph": {
+                "after": 270,
+                "before": 0
+              },
+              "run": {
+                "sz": 48
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading2",
+            "name": "Heading 2",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 1,
+              "paragraph": {
+                "after": 180,
+                "before": 270
+              },
+              "run": {
+                "sz": 36
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading3",
+            "name": "Heading 3",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 2,
+              "paragraph": {
+                "after": 180,
+                "before": 210
+              },
+              "run": {
+                "sz": 29
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading4",
+            "name": "Heading 4",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 3,
+              "paragraph": {
+                "after": 0,
+                "before": 120
+              },
+              "run": {
+                "bold": true,
+                "sz": 30
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading5",
+            "name": "Heading 5",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 4,
+              "paragraph": {
+                "after": 0,
+                "before": 120
+              },
+              "run": {
+                "bold": true,
+                "sz": 27
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading6",
+            "name": "Heading 6",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 5,
+              "paragraph": {
+                "after": 0,
+                "before": 120
+              },
+              "run": {
+                "bold": true,
+                "sz": 24
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          }
+        ]
+      }
+    },
+    "content": [
+      {
+        "attrs": {
+          "officeId": "word-0",
+          "paragraphFormat": {
+            "direct": {},
+            "inherited": {
+              "after": 180,
+              "before": 0,
+              "line": 336,
+              "lineRule": "auto"
+            },
+            "inheritedRun": {
+              "color": {
+                "val": "242424"
+              },
+              "rFonts": {
+                "ascii": "Aptos",
+                "hAnsi": "Aptos"
+              },
+              "sz": 24
+            },
+            "styleId": "Normal"
+          }
+        },
+        "content": [
+          {
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ],
+            "text": "Quarterly planning update",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "officeId": "word-1",
+          "paragraphFormat": {
+            "direct": {},
+            "inherited": {
+              "after": 180,
+              "before": 0,
+              "line": 336,
+              "lineRule": "auto"
+            },
+            "inheritedRun": {
+              "color": {
+                "val": "242424"
+              },
+              "rFonts": {
+                "ascii": "Aptos",
+                "hAnsi": "Aptos"
+              },
+              "sz": 24
+            },
+            "styleId": "Normal"
+          }
+        },
+        "content": [
+          {
+            "text": "The revenue forecast is 141000.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "officeId": "word-2",
+          "paragraphFormat": {
+            "direct": {},
+            "inherited": {
+              "after": 180,
+              "before": 0,
+              "line": 336,
+              "lineRule": "auto"
+            },
+            "inheritedRun": {
+              "color": {
+                "val": "242424"
+              },
+              "rFonts": {
+                "ascii": "Aptos",
+                "hAnsi": "Aptos"
+              },
+              "sz": 24
+            },
+            "styleId": "Normal"
+          }
+        },
+        "content": [
+          {
+            "text": "Delivery remains our priority.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      },
+      {
+        "attrs": {
+          "officeId": "word-3",
+          "paragraphFormat": {
+            "direct": {},
+            "inherited": {
+              "after": 180,
+              "before": 0,
+              "line": 336,
+              "lineRule": "auto"
+            },
+            "inheritedRun": {
+              "color": {
+                "val": "242424"
+              },
+              "rFonts": {
+                "ascii": "Aptos",
+                "hAnsi": "Aptos"
+              },
+              "sz": 24
+            },
+            "styleId": "Normal"
+          }
+        },
+        "content": [
+          {
+            "text": "Review due Friday.",
+            "type": "text"
+          }
+        ],
+        "type": "paragraph"
+      }
+    ],
+    "type": "doc"
+  },
+  "after": {
+    "type": "doc",
+    "attrs": {
+      "wordStyles": {
+        "defaultStyle": "Normal",
+        "defaults": {
+          "paragraph": {
+            "after": 180,
+            "before": 0,
+            "line": 336,
+            "lineRule": "auto"
+          },
+          "run": {
+            "color": {
+              "val": "242424"
+            },
+            "rFonts": {
+              "ascii": "Aptos",
+              "hAnsi": "Aptos"
+            },
+            "sz": 24
+          },
+          "tabs": []
+        },
+        "styles": [
+          {
+            "customStyle": false,
+            "default": true,
+            "id": "Normal",
+            "name": "Normal",
+            "properties": {
+              "paragraph": {},
+              "run": {},
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading1",
+            "name": "Heading 1",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 0,
+              "paragraph": {
+                "after": 270,
+                "before": 0
+              },
+              "run": {
+                "sz": 48
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading2",
+            "name": "Heading 2",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 1,
+              "paragraph": {
+                "after": 180,
+                "before": 270
+              },
+              "run": {
+                "sz": 36
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading3",
+            "name": "Heading 3",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 2,
+              "paragraph": {
+                "after": 180,
+                "before": 210
+              },
+              "run": {
+                "sz": 29
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading4",
+            "name": "Heading 4",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 3,
+              "paragraph": {
+                "after": 0,
+                "before": 120
+              },
+              "run": {
+                "bold": true,
+                "sz": 30
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading5",
+            "name": "Heading 5",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 4,
+              "paragraph": {
+                "after": 0,
+                "before": 120
+              },
+              "run": {
+                "bold": true,
+                "sz": 27
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          },
+          {
+            "basedOn": "Normal",
+            "customStyle": false,
+            "id": "Heading6",
+            "name": "Heading 6",
+            "next": "Normal",
+            "properties": {
+              "outlineLevel": 5,
+              "paragraph": {
+                "after": 0,
+                "before": 120
+              },
+              "run": {
+                "bold": true,
+                "sz": 24
+              },
+              "tabs": []
+            },
+            "type": "paragraph"
+          }
+        ]
+      }
+    },
+    "content": [
+      {
+        "type": "paragraph",
+        "attrs": {
+          "officeId": "word-0",
+          "paragraphFormat": {
+            "direct": {},
+            "inherited": {
+              "after": 180,
+              "before": 0,
+              "line": 336,
+              "lineRule": "auto"
+            },
+            "inheritedRun": {
+              "color": {
+                "val": "242424"
+              },
+              "rFonts": {
+                "ascii": "Aptos",
+                "hAnsi": "Aptos"
+              },
+              "sz": 24
+            },
+            "styleId": "Normal"
+          }
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Quarterly planning update",
+            "marks": [
+              {
+                "type": "bold"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "officeId": "word-1",
+          "paragraphFormat": {
+            "direct": {},
+            "inherited": {
+              "after": 180,
+              "before": 0,
+              "line": 336,
+              "lineRule": "auto"
+            },
+            "inheritedRun": {
+              "color": {
+                "val": "242424"
+              },
+              "rFonts": {
+                "ascii": "Aptos",
+                "hAnsi": "Aptos"
+              },
+              "sz": 24
+            },
+            "styleId": "Normal"
+          }
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "The revenue forecast is 141000."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "officeId": "word-2",
+          "paragraphFormat": {
+            "direct": {},
+            "inherited": {
+              "after": 180,
+              "before": 0,
+              "line": 336,
+              "lineRule": "auto"
+            },
+            "inheritedRun": {
+              "color": {
+                "val": "242424"
+              },
+              "rFonts": {
+                "ascii": "Aptos",
+                "hAnsi": "Aptos"
+              },
+              "sz": 24
+            },
+            "styleId": "Normal"
+          }
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Delivery remains our priority."
+          }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "attrs": {
+          "officeId": "word-3",
+          "paragraphFormat": {
+            "direct": {},
+            "inherited": {
+              "after": 180,
+              "before": 0,
+              "line": 336,
+              "lineRule": "auto"
+            },
+            "inheritedRun": {
+              "color": {
+                "val": "242424"
+              },
+              "rFonts": {
+                "ascii": "Aptos",
+                "hAnsi": "Aptos"
+              },
+              "sz": 24
+            },
+            "styleId": "Normal"
+          }
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Review due Friday."
+          }
+        ]
+      },
+      {
+        "type": "paragraph"
+      }
+    ]
+  },
+  "textEdits": [
+    {
+      "start": 108,
+      "end": 108,
+      "text": "\n"
+    }
+  ]
+}

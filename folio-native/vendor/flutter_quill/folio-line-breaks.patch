@@ -1,0 +1,122 @@
+--- folio-0.73/lib/src/document/nodes/embeddable.dart
++++ folio-line-breaks/lib/src/document/nodes/embeddable.dart
+@@ -7,6 +7,10 @@
+ /// * [BlockEmbed] which represents a block embed.
+ class Embeddable {
+   const Embeddable(this.type, this.data);
++
++  /// A one-character inline line break, distinct from a paragraph's newline.
++  /// Its opaque payload is retained by the document and rich clipboard.
++  static const String lineBreakType = 'lineBreak';
+ 
+   /// The type of this object.
+   final String type;
+--- folio-0.73/lib/src/document/nodes/leaf.dart
++++ folio-line-breaks/lib/src/document/nodes/leaf.dart
+@@ -285,6 +285,7 @@
+     Iterable<EmbedBuilder>? embedBuilders,
+     EmbedBuilder? unknownEmbedBuilder,
+   ]) {
++    if (value.type == Embeddable.lineBreakType) return '\u2028';
+     final builders = embedBuilders;
+ 
+     if (builders != null) {
+--- folio-0.73/lib/src/editor/widgets/text/text_line.dart
++++ folio-line-breaks/lib/src/editor/widgets/text/text_line.dart
+@@ -1,4 +1,3 @@
+-import 'dart:collection';
+ import 'dart:math' as math;
+ 
+ import 'package:flutter/foundation.dart' show kIsWeb;
+@@ -144,7 +143,10 @@
+   Widget build(BuildContext context) {
+     assert(debugCheckHasMediaQuery(context));
+ 
+-    if (widget.line.hasEmbed && widget.line.childCount == 1) {
++    if (widget.line.hasEmbed &&
++        widget.line.childCount == 1 &&
++        (widget.line.children.single as Embed).value.type !=
++            Embeddable.lineBreakType) {
+       // Single child embeds can be expanded
+       var embed = widget.line.children.single as Embed;
+       // Creates correct node for custom embed
+@@ -215,7 +217,7 @@
+ 
+     // The line could contain more than one Embed & more than one Text
+     final textSpanChildren = <InlineSpan>[];
+-    var textNodes = LinkedList<Node>();
++    var textNodes = <Node>[];
+     for (var child in widget.line.children) {
+       if (child is Embed) {
+         if (textNodes.isNotEmpty) {
+@@ -227,7 +229,25 @@
+               widget.textSpanBuilder,
+             ),
+           );
+-          textNodes = LinkedList<Node>();
++          textNodes = <Node>[];
++        }
++        if (child.value.type == Embeddable.lineBreakType) {
++          // Text shaping and editing use the same one-character projection.
++          // A WidgetSpan would reserve space but could not break the line.
++          textSpanChildren.add(
++            TextSpan(
++              text: '\u2028',
++              style: lineStyle.merge(
++                _getInlineTextStyle(
++                  child.style,
++                  widget.styles,
++                  widget.line.style,
++                  false,
++                ),
++              ),
++            ),
++          );
++          continue;
+         }
+         // Creates correct node for custom embed
+         if (child.value.type == BlockEmbed.customType) {
+@@ -264,8 +284,9 @@
+         continue;
+       }
+ 
+-      // here child is Text node and its value is cloned
+-      textNodes.add(child.clone());
++      // Keep original nodes so proofreading, links and IME composition use
++      // their real document offsets after inline atoms.
++      textNodes.add(child);
+     }
+ 
+     if (textNodes.isNotEmpty) {
+@@ -301,12 +322,12 @@
+ 
+   InlineSpan _buildTextSpan(
+     DefaultStyles defaultStyles,
+-    LinkedList<Node> nodes,
++    Iterable<Node> nodes,
+     TextStyle lineStyle,
+     TextSpanBuilder textSpanBuilder,
+   ) {
+     if (nodes.isEmpty && kIsWeb) {
+-      nodes = LinkedList<Node>()..add(leaf.QuillText());
++      nodes = [leaf.QuillText()];
+     }
+ 
+     final isComposingRangeOutOfLine =
+--- folio-0.73/lib/src/rules/insert.dart
++++ folio-line-breaks/lib/src/rules/insert.dart
+@@ -574,10 +574,12 @@
+           prev?.attributes?.containsKey(Attribute.link.key) == true;
+ 
+       /// Trap for previous is not text
+-      if (prev?.data is! String) {
++      if (prev?.data is! String &&
++          !(prev?.data is Map &&
++              (prev!.data as Map).containsKey(Embeddable.lineBreakType))) {
+         prev = currLine;
+         excludeLink = true;
+-      } else {
++      } else if (prev?.data is String) {
+         final prevData = prev!.data as String;
+         if (prevData.endsWith('\n')) {
+           /// If current line is empty get attributes from a prior line

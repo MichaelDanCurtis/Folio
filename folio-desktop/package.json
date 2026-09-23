@@ -1,0 +1,31 @@
+{
+  "name": "folio-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A local document and spreadsheet workspace powered by Codex app-server",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "start": "npm run build && electron .",
+    "preview": "vite --host 127.0.0.1",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test:desktop": "node tests/desktop.cjs",
+    "package:mac": "npm run build && electron-packager . Folio --platform=darwin --arch=arm64 --out=release --overwrite --ignore='^/(release|tests)' --asar.unpackDir='node_modules/@openai' --app-bundle-id=com.folio.desktop.prototype"
+  },
+  "dependencies": {
+    "@openai/codex": "0.154.0",
+    "@tiptap/core": "^3.0.0",
+    "@tiptap/extension-table": "^3.0.0",
+    "@tiptap/pm": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "lucide": "^0.468.0"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "44.4.1",
+    "playwright": "^1.58.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0"
+  },
+  "type": "module"
+}
