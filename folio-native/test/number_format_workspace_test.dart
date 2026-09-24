@@ -51,7 +51,7 @@ void main() {
           ('.AppleSystemUIFont', '/System/Library/Fonts/SFNS.ttf'),
           (
             'MaterialIcons',
-            '/opt/homebrew/share/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+            '${Platform.environment['FLUTTER_ROOT'] ?? '/opt/homebrew/share/flutter'}/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
           ),
         ]) {
           await (FontLoader(family)..addFont(
