@@ -3,7 +3,7 @@
 //! copy, so a one-cell edit costs a one-cell history entry.
 use serde_json::Value;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Key {
     Field(String),
     Index(usize),
@@ -119,6 +119,14 @@ fn apply_op(target: &mut Value, op: Op) -> Result<Op, String> {
     })
 }
 
+/// The value at `path`, if any.
+pub fn get<'a>(target: &'a Value, path: &[Key]) -> Option<&'a Value> {
+    path.iter().try_fold(target, |node, key| match key {
+        Key::Field(k) => node.get(k),
+        Key::Index(i) => node.get(*i),
+    })
+}
+
 #[cfg(test)]
 pub fn apply(target: &mut Value, patch: &Patch) -> Result<(), String> {
     apply_inverse(target, patch.clone()).map(|_| ())
@@ -137,6 +145,14 @@ pub fn apply_inverse(target: &mut Value, patch: Patch) -> Result<Patch, String> 
 }
 
 impl Patch {
+    pub fn paths(&self) -> Vec<Vec<Key>> {
+        self.ops
+            .iter()
+            .map(|op| match op {
+                Op::Set { path, .. } | Op::Remove { path } => path.clone(),
+            })
+            .collect()
+    }
     #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty()

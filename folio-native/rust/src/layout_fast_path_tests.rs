@@ -32,7 +32,10 @@ fn pair() -> (Core, Core) {
 fn outcome(r: Result<Value, String>) -> Result<Value, String> {
     r.map(|mut v| {
         // The token is a per-engine serial, not content.
-        v.as_object_mut().map(|o| o.remove("layoutToken"));
+        v.as_object_mut().map(|o| {
+            o.remove("layoutToken");
+            o.remove("epoch")
+        });
         v
     })
 }
@@ -120,10 +123,12 @@ fn random_layout_edits_match_the_original_staging() {
                 // A write in between expires the measured edit.
                 let _ = same(&mut fast, &mut slow, json!({"op":"undo"}), step);
                 let s = sizes(&prepared, 20);
-                let a =
-                    fast.dispatch(json!({"op":"commitLayoutEdit","token":token_fast,"sizes":s}));
-                let b =
-                    slow.dispatch(json!({"op":"commitLayoutEdit","token":token_slow,"sizes":s}));
+                let a = outcome(
+                    fast.dispatch(json!({"op":"commitLayoutEdit","token":token_fast,"sizes":s})),
+                );
+                let b = outcome(
+                    slow.dispatch(json!({"op":"commitLayoutEdit","token":token_slow,"sizes":s})),
+                );
                 assert_eq!(a, b, "step {step}: expired commit");
             }
             _ => {

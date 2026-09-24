@@ -28,9 +28,17 @@ fn load(w: Value) -> (Core, Core) {
     (fast, slow)
 }
 
+/// Epochs are process-wide identifiers, different in every engine.
+fn content(r: Result<Value, String>) -> Result<Value, String> {
+    r.map(|mut v| {
+        v.as_object_mut().map(|o| o.remove("epoch"));
+        v
+    })
+}
+
 fn same(fast: &mut Core, slow: &mut Core, request: Value, step: usize) {
-    let a = fast.dispatch(request.clone());
-    let b = slow.dispatch(request.clone());
+    let a = content(fast.dispatch(request.clone()));
+    let b = content(slow.dispatch(request.clone()));
     match (a, b) {
         (Ok(a), Ok(b)) => assert_eq!(a, b, "step {step}: {request}"),
         (Err(a), Err(b)) => assert_eq!(a, b, "step {step}: {request}"),

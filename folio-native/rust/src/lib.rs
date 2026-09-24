@@ -61,6 +61,8 @@ mod text_format_tests;
 mod cells_fast_path_tests;
 mod change_set;
 #[cfg(test)]
+mod delta_tests;
+#[cfg(test)]
 mod document_bookmark_tests;
 mod document_bookmarks;
 mod document_comments;
