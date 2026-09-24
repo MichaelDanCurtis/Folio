@@ -46,15 +46,39 @@ void main() {
         roundTrip.add(watch.elapsedMicroseconds / 1000);
       }
       expect(last['calculated']['s1']['B1'], edits * 2);
+      // What the app does: WorkspaceModel.mutate stages the edit, measures
+      // row heights, commits, and applies the delta responses.
+      final folder = await Directory.systemTemp.createTemp('folio-perf');
+      final model = WorkspaceModel(core, '${folder.path}/workspace.folio');
+      model.snapshot = await core.call({'op': 'get'});
+      final modelEdit = <double>[];
+      for (var i = 0; i < edits; i++) {
+        final watch = Stopwatch()..start();
+        await model.mutate({
+          'op': 'cells',
+          'cells': [
+            {'sheetId': 's1', 'address': 'A1', 'value': '${i + 7}'},
+          ],
+        });
+        modelEdit.add(watch.elapsedMicroseconds / 1000);
+      }
+      expect(model.snapshot['calculated']['s1']['B1'], (edits + 6) * 2);
+      model.dispose();
+      await folder.delete(recursive: true);
       final report = {
         'workload': {
           'sheets': sheets,
           'populatedCells': sheets * rows * 2,
           'edits': edits,
         },
+        // Direct `cells` call returning a full snapshot (the Phase 1 measure).
         'roundTripMs': {
           'p50': percentile(roundTrip, 0.5),
           'p95': percentile(roundTrip, 0.95),
+        },
+        'modelEditMs': {
+          'p50': percentile(modelEdit, 0.5),
+          'p95': percentile(modelEdit, 0.95),
         },
       };
       final out =

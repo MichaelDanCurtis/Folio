@@ -54,10 +54,103 @@ class CoreBridge {
   }
 }
 
+/// Keys every full engine snapshot has. Any other key belongs to the one
+/// response that carried it (for example `documentHistoryChange`).
+const _snapshotKeys = {
+  'blankWorkspace',
+  'fileStates',
+  'workspace',
+  'calculated',
+  'formatted',
+  'conditionalWarnings',
+  'date1904',
+  'calculationError',
+  'canUndo',
+  'canRedo',
+  'evaluatedCells',
+  'localCalendarDay',
+  'localUtcOffset',
+  'rows',
+  'columns',
+  'epoch',
+};
+
+/// The engine state after [response], given the state [base] the request was
+/// made against. A `{"delta": …}` response lists only what changed; parts of
+/// [base] it doesn't touch are shared, never modified, so earlier snapshots
+/// stay valid. Deltas omit `fileStates`, which keep [base]'s value.
+@visibleForTesting
+Map<String, dynamic> applyEngineDelta(
+  Map<String, dynamic> base,
+  Map<String, dynamic> response,
+) {
+  final delta = response['delta'] as Map?;
+  if (delta == null) return response;
+  final next = <String, dynamic>{
+    for (final key in _snapshotKeys)
+      if (base.containsKey(key)) key: base[key],
+  };
+  // Containers already copied for this delta may be written in place.
+  final copied = Set<Object>.identity();
+  T own<T extends Object>(T value) {
+    if (copied.contains(value)) return value;
+    final copy =
+        switch (value) {
+              Map() => Map<String, dynamic>.of(value as Map<String, dynamic>),
+              List() => List<dynamic>.of(value),
+              _ => throw StateError('Cannot edit ${value.runtimeType}'),
+            }
+            as T;
+    copied.add(copy);
+    return copy;
+  }
+
+  next['workspace'] = own(next['workspace'] as Object);
+  for (final op in delta['workspace'] as List) {
+    final path = op['path'] as List;
+    Object node = next['workspace'] as Object;
+    for (final key in path.take(path.length - 1)) {
+      final container = node as dynamic;
+      final child = own(container[key] as Object);
+      container[key] = child;
+      node = child;
+    }
+    final last = path.last;
+    if ((op as Map).containsKey('value')) {
+      (node as dynamic)[last] = op['value'];
+    } else {
+      (node as Map).remove(last);
+    }
+  }
+  for (final key in const ['calculated', 'formatted']) {
+    final all = next[key] = own(next[key] as Object) as Map<String, dynamic>;
+    for (final MapEntry(key: id, value: cells) in (delta[key] as Map).entries) {
+      final sheet = all[id] = own(all[id] as Object? ?? <String, dynamic>{});
+      for (final MapEntry(key: address, value: value)
+          in (cells as Map).entries) {
+        if (value == null) {
+          (sheet as Map).remove(address);
+        } else {
+          (sheet as Map)[address] = value;
+        }
+      }
+    }
+  }
+  next.addAll(Map<String, dynamic>.from(delta['set'] as Map));
+  for (final MapEntry(:key, :value) in response.entries) {
+    if (key != 'delta') next[key] = value;
+  }
+  return next;
+}
+
 class WorkspaceModel extends ChangeNotifier {
   final CoreBridge core;
   final String recoveryPath;
   Map<String, dynamic> snapshot = {};
+  // The epoch whose file-state digests `snapshot['fileStates']` holds.
+  // Deltas don't carry digests; they are fetched shortly after edits.
+  Object? _fileStatesEpoch;
+  Timer? _fileStatesTimer;
   String saveStatus = 'Opening…';
   String? error;
   String? _documentSaveError;
@@ -131,12 +224,22 @@ class WorkspaceModel extends ChangeNotifier {
       'sortRange',
       'autoFilter',
     };
-    snapshot = await core.transaction((dispatch) async {
-      if (!measuredEdits.contains(request['op'])) return dispatch(request);
-      final prepared = await dispatch({
-        'op': 'prepareLayoutEdit',
-        'edit': request,
-      });
+    var viaDelta = false;
+    final result = await core.transaction((dispatch) async {
+      // Ask for changes against the state this model holds. The engine
+      // answers with a full snapshot whenever that state isn't its latest.
+      final base = snapshot;
+      Future<Map<String, dynamic>> send(Map<String, dynamic> r) async {
+        final response = await dispatch({
+          ...r,
+          if (base['epoch'] != null) 'delta': base['epoch'],
+        });
+        viaDelta = response.containsKey('delta');
+        return applyEngineDelta(base, response);
+      }
+
+      if (!measuredEdits.contains(request['op'])) return send(request);
+      final prepared = await send({'op': 'prepareLayoutEdit', 'edit': request});
       final token = prepared['layoutToken'];
       try {
         final sizes =
@@ -149,7 +252,7 @@ class WorkspaceModel extends ChangeNotifier {
         if (_disposed) {
           throw StateError('The workspace closed before the edit completed.');
         }
-        return await dispatch({
+        return await send({
           'op': 'commitLayoutEdit',
           'token': token,
           'sizes': sizes,
@@ -159,6 +262,7 @@ class WorkspaceModel extends ChangeNotifier {
         rethrow;
       }
     });
+    _adopt(result, statesCurrent: !viaDelta);
     if (_disposed) return;
     if (request['op'] == 'document') {
       if (error == _documentSaveError) error = null;
@@ -187,6 +291,37 @@ class WorkspaceModel extends ChangeNotifier {
         _changed();
       }),
     );
+  }
+
+  /// Makes [next] the current snapshot. Full snapshots carry current
+  /// file-state digests; after a delta they are refreshed shortly.
+  void _adopt(Map<String, dynamic> next, {required bool statesCurrent}) {
+    snapshot = next;
+    if (statesCurrent) _fileStatesEpoch = next['epoch'];
+    if (_fileStatesEpoch != next['epoch']) {
+      _fileStatesTimer?.cancel();
+      _fileStatesTimer = Timer(
+        const Duration(milliseconds: 250),
+        () => refreshFileStates().catchError((Object _) {}),
+      );
+    }
+  }
+
+  /// File-state digests for the current snapshot, fetched if a delta left
+  /// them stale. Decisions about saving or leaving files must use these.
+  Future<Map> currentFileStates() async {
+    await refreshFileStates();
+    return snapshot['fileStates'] as Map? ?? {};
+  }
+
+  Future<void> refreshFileStates() async {
+    _fileStatesTimer?.cancel();
+    if (_fileStatesEpoch == snapshot['epoch']) return;
+    final result = await core.call({'op': 'fileStates'});
+    if (_disposed || result['epoch'] != snapshot['epoch']) return;
+    snapshot = {...snapshot, 'fileStates': result['fileStates']};
+    _fileStatesEpoch = result['epoch'];
+    _changed();
   }
 
   /// Publish fresh calculations without a save timer, document replacement or
@@ -272,6 +407,7 @@ class WorkspaceModel extends ChangeNotifier {
   }
 
   Future<void> flush() async {
+    await refreshFileStates();
     _saveTimer?.cancel();
     if (_closedRecovery) return;
     if (_documentSaveError != null) throw StateError(_documentSaveError!);
@@ -330,6 +466,7 @@ class WorkspaceModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _saveTimer?.cancel();
+    _fileStatesTimer?.cancel();
     super.dispose();
   }
 }
