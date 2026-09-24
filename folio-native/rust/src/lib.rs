@@ -170,3 +170,4 @@ mod docx_fields_tests;
 
 #[cfg(test)]
 mod perf_baseline_tests;
+mod perf_stages;

@@ -3,6 +3,7 @@
 //! `cargo test --release perf_baseline -- --ignored --nocapture`.
 use crate::workspace::Core;
 use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::time::Instant;
 
 /// `sheets` sheets, each with numbers in A1:A{rows} and `=A{r}*2` in B1:B{rows}.
@@ -37,6 +38,8 @@ struct Samples {
     response_bytes: usize,
     last: Value,
     last_response_text: String,
+    /// Per-stage durations across all measured edits, from `perf_stages`.
+    stages: BTreeMap<&'static str, Vec<f64>>,
 }
 
 /// Edits s1!A1 `edits` times. Each edit is timed through the engine commit
@@ -55,12 +58,15 @@ fn measure_edits(c: &mut Core, edits: usize) -> Samples {
         response_bytes: 0,
         last: Value::Null,
         last_response_text: String::new(),
+        stages: BTreeMap::new(),
     };
+    crate::perf_stages::enable(true);
     for i in 0..edits {
         let t = Instant::now();
         let v = c
             .dispatch(json!({"op":"cells","cells":[{"sheetId":"s1","address":"A1","value":(i + 1).to_string()}]}))
             .unwrap();
+        record_stages(&mut s.stages);
         let edit_ms = t.elapsed().as_secs_f64() * 1000.0;
         s.edit_ms.push(edit_ms);
 
@@ -78,7 +84,45 @@ fn measure_edits(c: &mut Core, edits: usize) -> Samples {
         s.last = inspect;
         s.last_response_text = text;
     }
+    crate::perf_stages::enable(false);
     s
+}
+
+fn record_stages(stages: &mut BTreeMap<&'static str, Vec<f64>>) {
+    let mut edit: BTreeMap<&'static str, f64> = BTreeMap::new();
+    for (label, ms) in crate::perf_stages::take() {
+        *edit.entry(label).or_default() += ms;
+    }
+    for (label, ms) in edit {
+        stages.entry(label).or_default().push(ms);
+    }
+}
+
+/// Undoes `count` edits, timing engine + api-equivalent response like `total_ms`.
+fn measure_undo(c: &mut Core, count: usize) -> Vec<f64> {
+    (0..count)
+        .map(|_| {
+            let t = Instant::now();
+            let v = c.dispatch(json!({"op":"undo"})).unwrap();
+            let text = json!({"ok":true,"value":v}).to_string();
+            assert!(!text.is_empty());
+            t.elapsed().as_secs_f64() * 1000.0
+        })
+        .collect()
+}
+
+fn stage_report(stages: &BTreeMap<&'static str, Vec<f64>>) -> Value {
+    Value::Object(
+        stages
+            .iter()
+            .map(|(label, v)| {
+                (
+                    label.to_string(),
+                    json!({"p50": percentile(v, 0.5), "p95": percentile(v, 0.95)}),
+                )
+            })
+            .collect(),
+    )
 }
 
 fn percentile(values: &[f64], p: f64) -> f64 {
@@ -94,6 +138,10 @@ fn perf_harness_smoke() {
     assert_eq!(s.edit_ms.len(), 5);
     assert_eq!(s.last["calculated"]["s1"]["B1"], 10.0);
     assert!(s.response_bytes > 0);
+    assert_eq!(s.stages["sync.calc"].len(), 5);
+    assert!(s.stages.contains_key("snapshot.build"));
+    assert_eq!(measure_undo(&mut c, 2).len(), 2);
+    assert_eq!(c.workspace["sheets"][0]["cells"]["A1"], "3");
     // The api-equivalent response text must actually be the wrapped
     // {"ok":true,"value":…} shape that api::dispatch returns, not just the
     // bare engine snapshot.
@@ -112,6 +160,7 @@ fn perf_baseline() {
     let (sheets, rows, edits) = (20, 2_500, 200);
     let (mut c, load_ms) = loaded(sheets, rows);
     let s = measure_edits(&mut c, edits);
+    let undo_ms = measure_undo(&mut c, 50);
     let report = json!({
         "workload": {"sheets": sheets, "populatedCells": sheets * rows * 2, "edits": edits},
         "loadMs": load_ms,
@@ -121,6 +170,8 @@ fn perf_baseline() {
         "serializeMs": {"p50": percentile(&s.serialize_ms, 0.5), "p95": percentile(&s.serialize_ms, 0.95)},
         "totalMs": {"p50": percentile(&s.total_ms, 0.5), "p95": percentile(&s.total_ms, 0.95)},
         "responseBytes": s.response_bytes,
+        "undoMs": {"p50": percentile(&undo_ms, 0.5), "p95": percentile(&undo_ms, 0.95)},
+        "stages": stage_report(&s.stages),
     });
     let out = std::env::var("FOLIO_PERF_OUT").unwrap_or_else(|_| {
         std::env::temp_dir()

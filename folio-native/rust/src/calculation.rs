@@ -1,7 +1,7 @@
 use crate::{calculation_clock::CalculationClock, formula::parse_address};
 use ironcalc_base::{cell::CellValue, Model};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 /// Keeps the calculation model alive across document edits and applies only
 /// changed inputs. IronCalc owns Excel-style formula parsing and evaluation.
@@ -173,6 +173,7 @@ impl WorkbookCalculator {
         }
     }
     fn update(&mut self, sheets: &Value, date1904: bool) -> Result<(), String> {
+        let started = Instant::now();
         let clock = self.clock_override.unwrap_or_else(CalculationClock::system);
         let sheets = sheets.as_array().ok_or("Invalid sheets")?;
         let identity: Vec<_> = sheets
@@ -239,6 +240,8 @@ impl WorkbookCalculator {
             self.model = Some(model);
             self.inputs = vec![HashMap::new(); sheets.len()];
         }
+        crate::perf_stages::record("calc.inputs", started);
+        let started = Instant::now();
         let model = self.model.as_mut().unwrap();
         let table_names: Vec<String> = model.workbook.tables.keys().cloned().collect();
         for (i, cells) in inputs.iter().enumerate() {
@@ -263,7 +266,9 @@ impl WorkbookCalculator {
             }
         }
         model.set_calculation_clock(clock.millis, clock.offset_seconds)?;
-        model.evaluate();
+        crate::perf_stages::record("calc.set", started);
+        crate::perf_stages::time("calc.evaluate", || model.evaluate());
+        let started = Instant::now();
         let mut all = serde_json::Map::new();
         let mut all_errors = serde_json::Map::new();
         for (i, cells) in inputs.iter().enumerate() {
@@ -287,6 +292,7 @@ impl WorkbookCalculator {
             all.insert(identity[i].0.clone(), Value::Object(values));
             all_errors.insert(identity[i].0.clone(), Value::Object(errors));
         }
+        crate::perf_stages::record("calc.collect", started);
         self.values = Value::Object(all);
         self.cell_errors = Value::Object(all_errors);
         self.date1904 = date1904;

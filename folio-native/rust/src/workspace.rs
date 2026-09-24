@@ -1,4 +1,5 @@
 use crate::formula::{address, parse_address, COLS, ROWS};
+use crate::perf_stages::time as stage;
 use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet},
@@ -314,9 +315,15 @@ impl Core {
             .and_then(|id| self.packages.get(id))
             .map(AsRef::as_ref);
         let (date1904, palette) = crate::number_format::settings(pkg);
-        self.calculator
-            .sync_calendar(&self.workspace["sheets"], date1904);
-        let conditional_state = json!({"calculation":self.calculator.generation,"values":self.calculator.values,"errors":self.calculator.cell_errors,"rules":self.workspace["sheets"].as_array().unwrap().iter().map(|s|json!([s["id"],s["name"],s["conditionalFormats"],s["extendedConditionalFormats"],s["conditionalRightToLeft"]])).collect::<Vec<_>>()});
+        stage("sync.calc", || {
+            self.calculator
+                .sync_calendar(&self.workspace["sheets"], date1904)
+        });
+        let conditional_state = stage(
+            "sync.cf_state",
+            || json!({"calculation":self.calculator.generation,"values":self.calculator.values,"errors":self.calculator.cell_errors,"rules":self.workspace["sheets"].as_array().unwrap().iter().map(|s|json!([s["id"],s["name"],s["conditionalFormats"],s["extendedConditionalFormats"],s["conditionalRightToLeft"]])).collect::<Vec<_>>()}),
+        );
+        let cf_started = std::time::Instant::now();
         if conditional_state != self.conditional_state {
             let mut overlays = serde_json::Map::new();
             let mut warnings = serde_json::Map::new();
@@ -352,15 +359,18 @@ impl Core {
             self.conditional_warnings = Value::Object(warnings);
             self.conditional_state = conditional_state;
         }
-        self.calculator.display.sync(
-            &self.workspace["sheets"],
-            &self.calculator.values,
-            &self.calculator.cell_errors,
-            self.calculator.generation,
-            &self.conditional,
-            date1904,
-            palette,
-        );
+        crate::perf_stages::record("sync.cf_eval", cf_started);
+        stage("sync.display", || {
+            self.calculator.display.sync(
+                &self.workspace["sheets"],
+                &self.calculator.values,
+                &self.calculator.cell_errors,
+                self.calculator.generation,
+                &self.conditional,
+                date1904,
+                palette,
+            )
+        });
     }
     #[cfg(test)]
     pub fn freeze_clock(&mut self, rfc3339: &str) {
@@ -416,8 +426,11 @@ impl Core {
             && self.workspace["sheets"] == json!([{"id":"sheet-1","name":"Sheet 1","cells":{}}])
             && self.workspace.get("officeDocument").is_none()
             && self.workspace.get("officeWorkbook").is_none();
-        let file_states = self.file_states();
-        json!({"blankWorkspace":blank,"fileStates":file_states,"workspace":self.workspace,"calculated":self.calculator.values,"formatted":self.calculator.display.values,"conditionalWarnings":self.conditional_warnings,"date1904":self.calculator.display.date1904,"calculationError":self.calculator.error,"canUndo":!self.undo.is_empty(),"canRedo":!self.redo.is_empty(),"evaluatedCells":self.calculator.generation,"localCalendarDay":self.calculator.clock.map(|c|c.local_day),"localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),"rows":ROWS,"columns":COLS})
+        let file_states = stage("snapshot.file_states", || self.file_states());
+        stage(
+            "snapshot.build",
+            || json!({"blankWorkspace":blank,"fileStates":file_states,"workspace":self.workspace,"calculated":self.calculator.values,"formatted":self.calculator.display.values,"conditionalWarnings":self.conditional_warnings,"date1904":self.calculator.display.date1904,"calculationError":self.calculator.error,"canUndo":!self.undo.is_empty(),"canRedo":!self.redo.is_empty(),"evaluatedCells":self.calculator.generation,"localCalendarDay":self.calculator.clock.map(|c|c.local_day),"localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),"rows":ROWS,"columns":COLS}),
+        )
     }
     fn clipboard_package(&self) -> Result<Vec<u8>, String> {
         let pkg = self.workspace["officeWorkbook"]["packageId"]
@@ -621,18 +634,21 @@ impl Core {
         mut next: Value,
         document: Option<crate::document_history::Journal>,
     ) -> Result<Value, String> {
-        validate(&next)?;
+        stage("validate", || validate(&next))?;
         next["revision"] = json!(self.workspace["revision"].as_u64().unwrap() + 1);
         let previous = std::mem::replace(&mut self.workspace, next);
-        self.undo.push(crate::document_history::Entry {
-            workspace: previous.clone(),
-            document,
+        stage("undo.push", || {
+            self.undo.push(crate::document_history::Entry {
+                workspace: previous.clone(),
+                document,
+            })
         });
-        let mut bytes: usize = self
-            .undo
-            .iter()
-            .map(crate::document_history::Entry::bytes)
-            .sum();
+        let mut bytes: usize = stage("undo.account", || {
+            self.undo
+                .iter()
+                .map(crate::document_history::Entry::bytes)
+                .sum()
+        });
         while self.undo.len() > 100 || bytes > HISTORY_BYTES {
             bytes -= self.undo.remove(0).bytes();
         }
@@ -2189,7 +2205,7 @@ impl Core {
             }
             "cells" => {
                 let p = json!({"summary":"Edit cells","baseRevision":self.workspace["revision"],"cells":r["cells"]});
-                let n = self.proposed(&p)?;
+                let n = stage("proposed", || self.proposed(&p))?;
                 self.commit(n)
             }
             "previewNumberFormat" => {
