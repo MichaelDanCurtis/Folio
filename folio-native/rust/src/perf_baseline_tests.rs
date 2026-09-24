@@ -111,6 +111,36 @@ fn measure_undo(c: &mut Core, count: usize) -> Vec<f64> {
         .collect()
 }
 
+/// The app sends cell edits through `prepareLayoutEdit` (staged engine that
+/// returns rows to measure) and `commitLayoutEdit` (applies row sizes and
+/// commits). Times both dispatches plus both api-equivalent response builds.
+fn measure_layout_edits(c: &mut Core, edits: usize) -> Vec<f64> {
+    (0..edits)
+        .map(|i| {
+            let t = Instant::now();
+            let edit = json!({"op":"cells","cells":[{"sheetId":"s1","address":"A2","value":(i + 7).to_string()}]});
+            let prepared = c
+                .dispatch(json!({"op":"prepareLayoutEdit","edit":edit}))
+                .unwrap();
+            let token = prepared["layoutToken"].clone();
+            let mut sizes = json!({});
+            for (id, rows) in prepared["layoutRows"].as_object().unwrap() {
+                sizes[id] = json!({});
+                for row in rows.as_array().unwrap() {
+                    sizes[id][row.to_string()] = json!(20);
+                }
+            }
+            let prepared_text = json!({"ok":true,"value":prepared}).to_string();
+            let v = c
+                .dispatch(json!({"op":"commitLayoutEdit","token":token,"sizes":sizes}))
+                .unwrap();
+            let text = json!({"ok":true,"value":v}).to_string();
+            assert!(!prepared_text.is_empty() && !text.is_empty());
+            t.elapsed().as_secs_f64() * 1000.0
+        })
+        .collect()
+}
+
 fn stage_report(stages: &BTreeMap<&'static str, Vec<f64>>) -> Value {
     Value::Object(
         stages
@@ -141,6 +171,8 @@ fn perf_harness_smoke() {
     assert_eq!(s.stages["sync.calc"].len(), 5);
     assert!(s.stages.contains_key("snapshot.build"));
     assert_eq!(measure_undo(&mut c, 2).len(), 2);
+    assert_eq!(measure_layout_edits(&mut c, 2).len(), 2);
+    assert_eq!(c.workspace["sheets"][0]["cells"]["A2"], "8");
     assert_eq!(c.workspace["sheets"][0]["cells"]["A1"], "3");
     // The api-equivalent response text must actually be the wrapped
     // {"ok":true,"value":…} shape that api::dispatch returns, not just the
@@ -161,6 +193,7 @@ fn perf_baseline() {
     let (mut c, load_ms) = loaded(sheets, rows);
     let s = measure_edits(&mut c, edits);
     let undo_ms = measure_undo(&mut c, 50);
+    let layout_ms = measure_layout_edits(&mut c, 50);
     let report = json!({
         "workload": {"sheets": sheets, "populatedCells": sheets * rows * 2, "edits": edits},
         "loadMs": load_ms,
@@ -171,6 +204,7 @@ fn perf_baseline() {
         "totalMs": {"p50": percentile(&s.total_ms, 0.5), "p95": percentile(&s.total_ms, 0.95)},
         "responseBytes": s.response_bytes,
         "undoMs": {"p50": percentile(&undo_ms, 0.5), "p95": percentile(&undo_ms, 0.95)},
+        "layoutEditMs": {"p50": percentile(&layout_ms, 0.5), "p95": percentile(&layout_ms, 0.95)},
         "stages": stage_report(&s.stages),
     });
     let out = std::env::var("FOLIO_PERF_OUT").unwrap_or_else(|_| {
