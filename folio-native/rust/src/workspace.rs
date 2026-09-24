@@ -1,6 +1,6 @@
 use crate::change_set::ChangeSet;
 use crate::formula::{address, parse_address, COLS, ROWS};
-use crate::json_patch::Op;
+use crate::json_patch::{Key, Op};
 use crate::perf_stages::time as stage;
 use serde_json::{json, Value};
 use std::{
@@ -36,6 +36,8 @@ pub struct Core {
     /// What the last `sync` changed, when that can be sent as a delta.
     last_change: Option<LastChange>,
     file_states_cache: Option<(u64, Value)>,
+    /// A staged engine whose responses nobody reads: `snapshot` returns null.
+    quiet: bool,
     goal_seek: Option<crate::goal_seek::Session>,
     goal_seek_serial: u64,
     scenario_source: Option<crate::scenario_source::Source>,
@@ -569,6 +571,9 @@ impl Core {
         json!({"docx":docx,"xlsx":xlsx,"folio":folio})
     }
     pub fn snapshot(&mut self) -> Value {
+        if self.quiet {
+            return Value::Null;
+        }
         if let Some(delta) = self.delta() {
             return delta;
         }
@@ -1692,7 +1697,11 @@ impl Core {
                     staged.calculator.invalidate();
                 }
                 if !goal_seek.as_ref().is_some_and(|g| g.unchanged) {
-                    staged.dispatch(edit.clone())?;
+                    // Its own response is discarded; don't build a snapshot.
+                    staged.quiet = true;
+                    let edited = staged.dispatch(edit.clone());
+                    staged.quiet = false;
+                    edited?;
                 }
                 if let Some(goal) = &goal_seek {
                     goal.check(&staged.calculator)?;
@@ -1702,6 +1711,26 @@ impl Core {
                     .as_str()
                     .and_then(|id| staged.packages.get(id))
                     .map(AsRef::as_ref);
+                // When the staged engine caught up to this engine's state, only
+                // the cells its edit recorded can differ.
+                let candidates = staged
+                    .last_change
+                    .as_ref()
+                    .filter(|c| Some(c.from) == staged_base)
+                    .map(|c| {
+                        let mut cells = c.cells.clone();
+                        cells.extend(c.paths.iter().filter_map(|path| match path.as_slice() {
+                            [Key::Field(s), Key::Index(i), Key::Field(f), Key::Field(a)]
+                                if s == "sheets" && f == "cells" =>
+                            {
+                                Some((*i, a.clone()))
+                            }
+                            _ => None,
+                        }));
+                        cells
+                    });
+                #[cfg(test)]
+                let candidates = candidates.filter(|_| !self.slow_layout);
                 let rows = stage("layout.targets", || {
                     crate::row_reflow::targets(
                         &self.workspace,
@@ -1711,6 +1740,7 @@ impl Core {
                         &self.calculator.display.values,
                         &staged.calculator.display.values,
                         pkg,
+                        candidates.as_deref(),
                     )
                 })?;
                 self.layout_serial += 1;

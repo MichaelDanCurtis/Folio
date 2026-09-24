@@ -15,9 +15,17 @@ pub fn targets(
     before_display: &Value,
     after_display: &Value,
     package: Option<&Package>,
+    // (sheet index, address) pairs outside of which nothing about cells
+    // differs between `before` and `after`; None means any cell may differ.
+    candidates: Option<&[(usize, String)]>,
 ) -> Result<Targets, String> {
     let mut result = Targets::new();
-    for sheet in after["sheets"].as_array().ok_or("Missing worksheets")? {
+    for (index, sheet) in after["sheets"]
+        .as_array()
+        .ok_or("Missing worksheets")?
+        .iter()
+        .enumerate()
+    {
         let id = sheet["id"].as_str().ok_or("Missing worksheet id")?;
         let old = before["sheets"]
             .as_array()
@@ -59,30 +67,40 @@ pub fn targets(
                 );
             }
         }
-        // Every address in any of these maps, each visited once.
-        let maps: Vec<_> = [
-            &old["cells"],
-            &sheet["cells"],
-            &old["cellStyles"],
-            &sheet["cellStyles"],
-            &before_values[id],
-            &after_values[id],
-        ]
-        .into_iter()
-        .filter_map(Value::as_object)
-        .collect();
-        for (k, map) in maps.iter().enumerate() {
-            for a in map.keys() {
-                if maps[..k].iter().any(|m| m.contains_key(a)) {
-                    continue;
+        let differs = |a: &str| {
+            broad
+                || old["cells"][a] != sheet["cells"][a]
+                || old["cellStyles"][a] != sheet["cellStyles"][a]
+                || before_values[id][a] != after_values[id][a]
+                || before_display[id][a] != after_display[id][a]
+        };
+        match candidates {
+            Some(candidates) if !broad => {
+                for (_, a) in candidates.iter().filter(|(i, _)| *i == index) {
+                    if differs(a) {
+                        rows.insert(parse_address(a)?.0 + 1);
+                    }
                 }
-                if broad
-                    || old["cells"][a] != sheet["cells"][a]
-                    || old["cellStyles"][a] != sheet["cellStyles"][a]
-                    || before_values[id][a] != after_values[id][a]
-                    || before_display[id][a] != after_display[id][a]
-                {
-                    rows.insert(parse_address(a)?.0 + 1);
+            }
+            _ => {
+                // Every address in any of these maps, each visited once.
+                let maps: Vec<_> = [
+                    &old["cells"],
+                    &sheet["cells"],
+                    &old["cellStyles"],
+                    &sheet["cellStyles"],
+                    &before_values[id],
+                    &after_values[id],
+                ]
+                .into_iter()
+                .filter_map(Value::as_object)
+                .collect();
+                for (k, map) in maps.iter().enumerate() {
+                    for a in map.keys() {
+                        if !maps[..k].iter().any(|m| m.contains_key(a)) && differs(a) {
+                            rows.insert(parse_address(a)?.0 + 1);
+                        }
+                    }
                 }
             }
         }

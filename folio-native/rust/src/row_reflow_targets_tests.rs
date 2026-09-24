@@ -167,7 +167,7 @@ fn targets_match_the_original_on_random_workbooks() {
         let shows = |r: &mut Lcg| json!({"s": random_map(r, &display)});
         let (bd, ad) = (shows(&mut r), shows(&mut r));
         assert_eq!(
-            targets(&before, &bv, &after, &av, &bd, &ad, None),
+            targets(&before, &bv, &after, &av, &bd, &ad, None, None),
             targets_reference(&before, &bv, &after, &av, &bd, &ad, None),
             "case {case}"
         );
