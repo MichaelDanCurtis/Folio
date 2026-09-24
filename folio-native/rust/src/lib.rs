@@ -1,4 +1,6 @@
 pub mod api;
+#[cfg(test)]
+mod api_tests;
 mod builtin_styles;
 mod file_state;
 #[cfg(test)]

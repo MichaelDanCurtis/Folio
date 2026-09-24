@@ -1587,6 +1587,22 @@ impl Core {
         self.want_delta = None;
         result
     }
+    /// After a panic interrupted a request: drop staged work and bring the
+    /// calculator, display and caches back in line with the workspace. Ops
+    /// replace the workspace only once they succeed, so it is the last good one.
+    pub(crate) fn recover_after_panic(&mut self) {
+        self.layout = None;
+        self.layout_bundle = None;
+        self.catch_up = None;
+        self.quiet = false;
+        self.want_delta = None;
+        self.pending_paths = None;
+        self.last_change = None;
+        self.stable_document = None;
+        self.calculator = Default::default();
+        self.conditional_state = Value::Null;
+        self.sync(&ChangeSet::Structural);
+    }
     fn dispatch_op(&mut self, r: Value) -> Result<Value, String> {
         let op = text(&r, "op")?;
         // Loading a file may reuse the same workspace id/revision while changing
@@ -1923,6 +1939,11 @@ impl Core {
                 Ok(self.snapshot())
             }
             "get" => Ok(self.snapshot()),
+            #[cfg(test)]
+            "panicForTest" => {
+                self.workspace["title"] = json!("half-finished");
+                panic!("test panic")
+            }
             // Delta responses omit file-state digests; callers fetch them here.
             "fileStates" => {
                 if self
