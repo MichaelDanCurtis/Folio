@@ -83,6 +83,7 @@ pub fn targets(
                 }
             }
             _ => {
+                crate::perf_stages::record("full.targets", std::time::Instant::now());
                 // Every address in any of these maps, each visited once.
                 let maps: Vec<_> = [
                     &old["cells"],

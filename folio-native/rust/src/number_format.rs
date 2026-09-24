@@ -332,6 +332,7 @@ impl Display {
         if self.date1904 != date1904 || self.palette != palette {
             self.cache.clear();
         }
+        crate::perf_stages::record("full.display", std::time::Instant::now());
         self.date1904 = date1904;
         self.palette = palette;
         let mut all = serde_json::Map::new();

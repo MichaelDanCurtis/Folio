@@ -245,6 +245,7 @@ impl WorkbookCalculator {
             sheets[i]["cells"].get(a).map(|v| v.as_str().unwrap_or(""))
         };
         let changed: Vec<(usize, String)> = if rebuild {
+            crate::perf_stages::record("full.calc_rebuild", Instant::now());
             sheets
                 .iter()
                 .enumerate()
@@ -262,6 +263,7 @@ impl WorkbookCalculator {
                 .cloned()
                 .collect()
         } else {
+            crate::perf_stages::record("full.calc_scan", Instant::now());
             let mut changed = vec![];
             for (i, sheet) in sheets.iter().enumerate() {
                 let cells = sheet["cells"].as_object().ok_or("Invalid cells")?;

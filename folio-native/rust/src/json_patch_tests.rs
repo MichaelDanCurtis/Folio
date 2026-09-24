@@ -1,4 +1,4 @@
-use crate::json_patch::{apply, apply_inverse, diff, Key, Op};
+use crate::json_patch::{apply, apply_inverse, apply_inverse_sized, diff, Key, Op};
 use serde_json::{json, Map, Value};
 
 struct Lcg(u64);
@@ -144,4 +144,24 @@ fn without_field_drops_only_that_top_level_field() {
             value: json!("b")
         }]
     );
+}
+
+#[test]
+fn sized_application_tracks_the_serialized_length() {
+    let mut r = Lcg(99);
+    for case in 0..2000 {
+        let before = random_value(&mut r, 0);
+        let mut after = before.clone();
+        for _ in 0..=r.below(4) {
+            mutate(&mut r, &mut after, 0);
+        }
+        let mut target = before.clone();
+        let (_, grown) = apply_inverse_sized(&mut target, diff(&before, &after)).unwrap();
+        assert_eq!(target, after, "case {case}");
+        assert_eq!(
+            before.to_string().len() as isize + grown,
+            after.to_string().len() as isize,
+            "case {case}: {before} -> {after}"
+        );
+    }
 }

@@ -263,3 +263,105 @@ fn perf_baseline() {
         serde_json::to_string_pretty(&report).unwrap()
     );
 }
+
+fn sizes_for(prepared: &Value) -> Value {
+    let mut sizes = json!({});
+    for (id, rows) in prepared["layoutRows"].as_object().unwrap() {
+        sizes[id] = json!({});
+        for row in rows.as_array().unwrap() {
+            sizes[id][row.to_string()] = json!(20);
+        }
+    }
+    sizes
+}
+
+/// CI guard, no timing: after warm-up, edits, undo and staged layout edits
+/// on a mid-size workbook never take a whole-workbook path, and deltas stay
+/// small. Wall-clock numbers come from `perf_baseline` on the baseline Mac.
+#[test]
+fn edit_path_stays_incremental() {
+    let (mut c, _) = loaded(4, 1_500);
+    let full_paths = |labels: &[&'static str]| {
+        labels
+            .iter()
+            .copied()
+            .filter(|l| l.starts_with("full.") || *l == "snapshot.build" || *l == "cells.size")
+            .collect::<Vec<_>>()
+    };
+    let mut base = epoch(&c.dispatch(json!({"op":"get"})).unwrap());
+    // Warm up: the first edits may compute sizes and set up the staged path.
+    for i in 0..3 {
+        let edit =
+            json!({"op":"cells","cells":[{"sheetId":"s2","address":"A1","value":i.to_string()}]});
+        let prepared = c
+            .dispatch(json!({"op":"prepareLayoutEdit","edit":edit,"delta":base}))
+            .unwrap();
+        let sizes = sizes_for(&prepared);
+        let token = prepared["layoutToken"].clone();
+        base = epoch(
+            &c.dispatch(json!({"op":"commitLayoutEdit","token":token,"sizes":sizes,"delta":base}))
+                .unwrap(),
+        );
+    }
+    crate::perf_stages::enable(true);
+    for i in 0..20 {
+        let value = (i + 10).to_string();
+        let edit = json!({"op":"cells","cells":[{"sheetId":"s1","address":"A1","value":value}]});
+        let (response, what) = match i % 4 {
+            0 => (
+                c.dispatch(json!({"op":"undo","delta":base})).unwrap(),
+                "undo",
+            ),
+            1 => (
+                c.dispatch({
+                    let mut e = edit;
+                    e["delta"] = base.clone();
+                    e
+                })
+                .unwrap(),
+                "edit",
+            ),
+            _ => {
+                let prepared = c
+                    .dispatch(json!({"op":"prepareLayoutEdit","edit":edit,"delta":base}))
+                    .unwrap();
+                assert!(
+                    prepared.get("delta").is_some(),
+                    "step {i}: prepare sent a full snapshot"
+                );
+                assert!(
+                    prepared.to_string().len() < 16_000,
+                    "step {i}: prepare response"
+                );
+                let sizes = sizes_for(&prepared);
+                let token = prepared["layoutToken"].clone();
+                (
+                    c.dispatch(
+                        json!({"op":"commitLayoutEdit","token":token,"sizes":sizes,"delta":base}),
+                    )
+                    .unwrap(),
+                    "layout",
+                )
+            }
+        };
+        assert!(
+            response.get("delta").is_some(),
+            "step {i} ({what}): full snapshot"
+        );
+        assert!(
+            response.to_string().len() < 16_000,
+            "step {i} ({what}): response size"
+        );
+        base = epoch(&response);
+        let labels: Vec<_> = crate::perf_stages::take()
+            .into_iter()
+            .map(|(l, _)| l)
+            .collect();
+        assert_eq!(full_paths(&labels), Vec::<&str>::new(), "step {i} ({what})");
+    }
+    crate::perf_stages::enable(false);
+    assert!(
+        c.history_bytes_for_test() < 100_000,
+        "undo history grew with the workbook"
+    );
+}

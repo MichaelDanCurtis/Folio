@@ -168,7 +168,12 @@ pub(crate) fn document_validate(v: &Value, depth: usize, count: &mut usize) -> R
     Ok(())
 }
 pub fn validate(w: &Value) -> Result<(), String> {
-    if w.to_string().len() > MAX_SIZE {
+    validate_sized(w).map(drop)
+}
+/// `validate`, returning the serialized size it checked.
+fn validate_sized(w: &Value) -> Result<usize, String> {
+    let size = w.to_string().len();
+    if size > MAX_SIZE {
         return Err("Workspace exceeds 32 MB".into());
     }
     if w["format"] != "folio"
@@ -216,7 +221,8 @@ pub fn validate(w: &Value) -> Result<(), String> {
             }
         }
     }
-    crate::tables::validate(&w["sheets"])
+    crate::tables::validate(&w["sheets"])?;
+    Ok(size)
 }
 pub fn seed() -> Value {
     let mut v: Value = serde_json::from_str(include_str!("seed.json")).unwrap();
@@ -870,8 +876,10 @@ impl Core {
         mut next: Value,
         document: Option<crate::document_history::Journal>,
     ) -> Result<Value, String> {
-        stage("validate", || validate(&next))?;
-        next["revision"] = json!(self.workspace["revision"].as_u64().unwrap() + 1);
+        let size = stage("validate", || validate_sized(&next))?;
+        let revision = json!(self.workspace["revision"].as_u64().unwrap() + 1);
+        let size = size + revision.to_string().len() - next["revision"].to_string().len();
+        next["revision"] = revision;
         let previous = std::mem::replace(&mut self.workspace, next);
         let back = stage("undo.diff", || {
             crate::json_patch::diff(&self.workspace, &previous).without_field("revision")
@@ -884,6 +892,9 @@ impl Core {
         });
         stage("undo.drop", || drop(previous));
         self.sync(&changes);
+        #[cfg(test)]
+        assert_eq!(size, self.workspace.to_string().len(), "tracked size");
+        self.serialized_size = Some(size);
         Ok(self.snapshot())
     }
     /// Applies plain cell edits in place: no workspace copy, no whole-workspace
@@ -1219,6 +1230,10 @@ impl Core {
             "tracked workspace size"
         );
         Ok(self.snapshot())
+    }
+    #[cfg(test)]
+    pub(crate) fn history_bytes_for_test(&self) -> usize {
+        self.history.bytes()
     }
     #[cfg(test)]
     pub(crate) fn snapshot_for_test(&mut self) -> Value {
@@ -3496,8 +3511,12 @@ impl Core {
                     let revision = json!(previous_revision.as_u64().unwrap() + 1);
                     let changes = ChangeSet::from_patch(&entry.patch);
                     self.pending_paths = Some(entry.patch.paths());
-                    let opposite =
-                        crate::json_patch::apply_inverse(&mut self.workspace, entry.patch)?;
+                    let (opposite, grown) =
+                        crate::json_patch::apply_inverse_sized(&mut self.workspace, entry.patch)?;
+                    let size = self.serialized_size.map(|size| {
+                        (size as isize + grown) as usize + revision.to_string().len()
+                            - previous_revision.to_string().len()
+                    });
                     self.workspace["revision"] = revision;
                     change = entry.document.as_ref().map(|journal| {
                         json!({
@@ -3513,6 +3532,11 @@ impl Core {
                         self.history.push_undo(opposite)
                     }
                     self.sync(&changes);
+                    self.serialized_size = size;
+                    #[cfg(test)]
+                    if let Some(size) = size {
+                        assert_eq!(size, self.workspace.to_string().len(), "tracked size");
+                    }
                 }
                 let mut result = self.snapshot();
                 if let Some(change) = change {

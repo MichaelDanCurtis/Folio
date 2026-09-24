@@ -132,6 +132,43 @@ pub fn apply(target: &mut Value, patch: &Patch) -> Result<(), String> {
     apply_inverse(target, patch.clone()).map(|_| ())
 }
 
+/// Like `apply_inverse`, also returning how much `target.to_string().len()`
+/// changed.
+pub fn apply_inverse_sized(target: &mut Value, patch: Patch) -> Result<(Patch, isize), String> {
+    fn len(v: &Value) -> isize {
+        serde_json::to_string(v).map_or(0, |s| s.len()) as isize
+    }
+    let mut grown = 0;
+    let mut inverse = Vec::with_capacity(patch.ops.len());
+    for op in patch.ops {
+        let (path, new) = match &op {
+            Op::Set { path, value } => (path.clone(), Some(len(value))),
+            Op::Remove { path } => (path.clone(), None),
+        };
+        // Members of the parent object before the change, for the comma.
+        let siblings = path.split_last().and_then(|(last, head)| match last {
+            Key::Field(_) => get(target, head)
+                .and_then(Value::as_object)
+                .map(|o| o.len()),
+            Key::Index(_) => None,
+        });
+        let old = get(target, &path).map(len);
+        let key = match path.last() {
+            Some(Key::Field(k)) => len(&Value::String(k.clone())) + 1,
+            _ => 0,
+        };
+        grown += match (old, new) {
+            (Some(old), Some(new)) => new - old,
+            (None, Some(new)) => key + new + (siblings.unwrap_or(0) > 0) as isize,
+            (Some(old), None) => -(key + old + (siblings.unwrap_or(1) > 1) as isize),
+            (None, None) => 0,
+        };
+        inverse.push(apply_op(target, op)?);
+    }
+    inverse.reverse();
+    Ok((Patch { ops: inverse }, grown))
+}
+
 /// Applies `patch` and returns the patch that undoes it. On error `target`
 /// is left partly patched; callers only apply patches produced by `diff`
 /// against the same value.

@@ -109,6 +109,10 @@ impl History {
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }
+    #[cfg(test)]
+    pub fn bytes(&self) -> usize {
+        self.undo_bytes + self.redo.iter().map(Entry::bytes).sum::<usize>()
+    }
     pub fn undo_len(&self) -> usize {
         self.undo.len()
     }
