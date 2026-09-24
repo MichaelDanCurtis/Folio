@@ -1651,7 +1651,7 @@ impl Core {
                     None => (Default::default(), None, None),
                 };
                 let mut staged = Box::new(Core {
-                    workspace: self.workspace.clone(),
+                    workspace: stage("layout.clone", || self.workspace.clone()),
                     packages: self.packages.clone(),
                     package_digests: self.package_digests.clone(),
                     clipboard: self.clipboard.clone(),
@@ -1677,7 +1677,9 @@ impl Core {
                     clock_override
                         .unwrap_or_else(crate::calculation_clock::CalculationClock::system),
                 );
-                staged.sync(&lag.map_or(ChangeSet::Structural, ChangeSet::Cells));
+                stage("layout.catch_up", || {
+                    staged.sync(&lag.map_or(ChangeSet::Structural, ChangeSet::Cells))
+                });
                 staged.calculator.generation = self.calculator.generation;
                 let same_calendar = matches!(
                     (staged.calculator.clock, self.calculator.clock),
@@ -1700,22 +1702,24 @@ impl Core {
                     .as_str()
                     .and_then(|id| staged.packages.get(id))
                     .map(AsRef::as_ref);
-                let rows = crate::row_reflow::targets(
-                    &self.workspace,
-                    &self.calculator.values,
-                    &staged.workspace,
-                    &staged.calculator.values,
-                    &self.calculator.display.values,
-                    &staged.calculator.display.values,
-                    pkg,
-                )?;
+                let rows = stage("layout.targets", || {
+                    crate::row_reflow::targets(
+                        &self.workspace,
+                        &self.calculator.values,
+                        &staged.workspace,
+                        &staged.calculator.values,
+                        &self.calculator.display.values,
+                        &staged.calculator.display.values,
+                        pkg,
+                    )
+                })?;
                 self.layout_serial += 1;
                 // Relative to this engine's state, which the caught-up staged
                 // engine published exactly (see `staged_base`).
                 if self.want_delta == Some(self.epoch) {
                     staged.want_delta = staged_base;
                 }
-                let mut snapshot = staged.snapshot();
+                let mut snapshot = stage("layout.response", || staged.snapshot());
                 staged.want_delta = None;
                 if snapshot.get("delta").is_some() {
                     snapshot["delta"]["base"] = json!(self.epoch);
@@ -1754,7 +1758,9 @@ impl Core {
                 // directly. (Its revision bump means it always commits.)
                 if direct && !pending.calculation_only && pending.staged.history.undo_len() == 1 {
                     let entry = pending.staged.history.pop_undo().unwrap();
-                    return self.commit_staged(pending, entry, &r["sizes"]);
+                    return stage("layout.commit", || {
+                        self.commit_staged(pending, entry, &r["sizes"])
+                    });
                 }
                 crate::row_reflow::apply(
                     &mut pending.staged.workspace,

@@ -42,15 +42,24 @@ struct Samples {
     stages: BTreeMap<&'static str, Vec<f64>>,
 }
 
+/// The epoch a response publishes, whether full or a delta.
+fn epoch(response: &Value) -> Value {
+    response
+        .get("delta")
+        .map_or(&response["epoch"], |d| &d["set"]["epoch"])
+        .clone()
+}
+
 /// Edits s1!A1 `edits` times. Each edit is timed through the engine commit
 /// (`edit_ms`) and, separately, through exactly the JSON response build that
 /// `api::dispatch` performs — `json!({"ok":true,"value":v}).to_string()`,
-/// which deep-copies the returned snapshot while wrapping it (`serialize_ms`).
+/// which deep-copies the returned value while wrapping it (`serialize_ms`).
 /// `total_ms` is the per-edit sum of the two, i.e. the same engine+response
-/// cost a real `api::dispatch` call pays end to end. The value inspected by
-/// callers (`last`) is cloned *before* the timed response build so the clone
-/// used for inspection never counts toward `serialize_ms`.
-fn measure_edits(c: &mut Core, edits: usize) -> Samples {
+/// cost a real `api::dispatch` call pays end to end. With `delta`, each
+/// request asks for a delta against the previous response, as the app does.
+/// The value inspected by callers (`last`) is cloned *before* the timed
+/// response build so the clone never counts toward `serialize_ms`.
+fn measure_edits(c: &mut Core, edits: usize, delta: bool) -> Samples {
     let mut s = Samples {
         edit_ms: vec![],
         serialize_ms: vec![],
@@ -60,15 +69,19 @@ fn measure_edits(c: &mut Core, edits: usize) -> Samples {
         last_response_text: String::new(),
         stages: BTreeMap::new(),
     };
+    let mut base = epoch(&c.dispatch(json!({"op":"get"})).unwrap());
     crate::perf_stages::enable(true);
     for i in 0..edits {
+        let mut request = json!({"op":"cells","cells":[{"sheetId":"s1","address":"A1","value":(i + 1).to_string()}]});
+        if delta {
+            request["delta"] = base.clone();
+        }
         let t = Instant::now();
-        let v = c
-            .dispatch(json!({"op":"cells","cells":[{"sheetId":"s1","address":"A1","value":(i + 1).to_string()}]}))
-            .unwrap();
-        record_stages(&mut s.stages);
+        let v = c.dispatch(request).unwrap();
         let edit_ms = t.elapsed().as_secs_f64() * 1000.0;
         s.edit_ms.push(edit_ms);
+        record_stages(&mut s.stages);
+        base = epoch(&v);
 
         // Untimed: keep a copy for inspection before `v` is moved into the
         // timed, api::dispatch-equivalent response build below.
@@ -98,12 +111,15 @@ fn record_stages(stages: &mut BTreeMap<&'static str, Vec<f64>>) {
     }
 }
 
-/// Undoes `count` edits, timing engine + api-equivalent response like `total_ms`.
+/// Undoes `count` edits, timing engine + api-equivalent response like
+/// `total_ms`, asking for deltas.
 fn measure_undo(c: &mut Core, count: usize) -> Vec<f64> {
+    let mut base = epoch(&c.dispatch(json!({"op":"get"})).unwrap());
     (0..count)
         .map(|_| {
             let t = Instant::now();
-            let v = c.dispatch(json!({"op":"undo"})).unwrap();
+            let v = c.dispatch(json!({"op":"undo","delta":base})).unwrap();
+            base = epoch(&v);
             let text = json!({"ok":true,"value":v}).to_string();
             assert!(!text.is_empty());
             t.elapsed().as_secs_f64() * 1000.0
@@ -113,14 +129,22 @@ fn measure_undo(c: &mut Core, count: usize) -> Vec<f64> {
 
 /// The app sends cell edits through `prepareLayoutEdit` (staged engine that
 /// returns rows to measure) and `commitLayoutEdit` (applies row sizes and
-/// commits). Times both dispatches plus both api-equivalent response builds.
-fn measure_layout_edits(c: &mut Core, edits: usize) -> Vec<f64> {
-    (0..edits)
+/// commits), asking for deltas. Times both dispatches plus both
+/// api-equivalent response builds; stages go to `stages`.
+fn measure_layout_edits(
+    c: &mut Core,
+    edits: usize,
+    stages: &mut BTreeMap<&'static str, Vec<f64>>,
+) -> (Vec<f64>, usize) {
+    let mut base = epoch(&c.dispatch(json!({"op":"get"})).unwrap());
+    let mut bytes = 0;
+    crate::perf_stages::enable(true);
+    let times = (0..edits)
         .map(|i| {
             let t = Instant::now();
             let edit = json!({"op":"cells","cells":[{"sheetId":"s1","address":"A2","value":(i + 7).to_string()}]});
             let prepared = c
-                .dispatch(json!({"op":"prepareLayoutEdit","edit":edit}))
+                .dispatch(json!({"op":"prepareLayoutEdit","edit":edit,"delta":base}))
                 .unwrap();
             let token = prepared["layoutToken"].clone();
             let mut sizes = json!({});
@@ -132,13 +156,18 @@ fn measure_layout_edits(c: &mut Core, edits: usize) -> Vec<f64> {
             }
             let prepared_text = json!({"ok":true,"value":prepared}).to_string();
             let v = c
-                .dispatch(json!({"op":"commitLayoutEdit","token":token,"sizes":sizes}))
+                .dispatch(json!({"op":"commitLayoutEdit","token":token,"sizes":sizes,"delta":base}))
                 .unwrap();
+            base = epoch(&v);
             let text = json!({"ok":true,"value":v}).to_string();
-            assert!(!prepared_text.is_empty() && !text.is_empty());
-            t.elapsed().as_secs_f64() * 1000.0
+            bytes = prepared_text.len() + text.len();
+            let ms = t.elapsed().as_secs_f64() * 1000.0;
+            record_stages(stages);
+            ms
         })
-        .collect()
+        .collect();
+    crate::perf_stages::enable(false);
+    (times, bytes)
 }
 
 fn stage_report(stages: &BTreeMap<&'static str, Vec<f64>>) -> Value {
@@ -164,14 +193,22 @@ fn percentile(values: &[f64], p: f64) -> f64 {
 #[test]
 fn perf_harness_smoke() {
     let (mut c, _) = loaded(2, 10);
-    let s = measure_edits(&mut c, 5);
+    let full = measure_edits(&mut c, 2, false);
+    assert_eq!(full.last["calculated"]["s1"]["B1"], 4.0);
+    let s = measure_edits(&mut c, 5, true);
     assert_eq!(s.edit_ms.len(), 5);
-    assert_eq!(s.last["calculated"]["s1"]["B1"], 10.0);
+    assert_eq!(s.last["delta"]["calculated"]["s1"]["B1"], 10.0);
     assert!(s.response_bytes > 0);
     assert_eq!(s.stages["sync.calc"].len(), 5);
-    assert!(s.stages.contains_key("snapshot.build"));
+    assert!(
+        !s.stages.contains_key("snapshot.build"),
+        "deltas skip the snapshot"
+    );
     assert_eq!(measure_undo(&mut c, 2).len(), 2);
-    assert_eq!(measure_layout_edits(&mut c, 2).len(), 2);
+    let mut stages = BTreeMap::new();
+    let (layout, bytes) = measure_layout_edits(&mut c, 2, &mut stages);
+    assert_eq!(layout.len(), 2);
+    assert!(bytes > 0 && stages.contains_key("layout.commit"));
     assert_eq!(c.workspace["sheets"][0]["cells"]["A2"], "8");
     assert_eq!(c.workspace["sheets"][0]["cells"]["A1"], "3");
     // The api-equivalent response text must actually be the wrapped
@@ -179,7 +216,7 @@ fn perf_harness_smoke() {
     // bare engine snapshot.
     let parsed: Value = serde_json::from_str(&s.last_response_text).unwrap();
     assert_eq!(parsed["ok"], true);
-    assert_eq!(parsed["value"]["calculated"]["s1"]["B1"], 10.0);
+    assert_eq!(parsed["value"]["delta"]["calculated"]["s1"]["B1"], 10.0);
     // The combined total must never be less than the engine edit alone.
     for (edit, total) in s.edit_ms.iter().zip(s.total_ms.iter()) {
         assert!(total >= edit);
@@ -191,9 +228,12 @@ fn perf_harness_smoke() {
 fn perf_baseline() {
     let (sheets, rows, edits) = (20, 2_500, 200);
     let (mut c, load_ms) = loaded(sheets, rows);
-    let s = measure_edits(&mut c, edits);
+    // The Phase 1 measure: full snapshot per edit.
+    let full = measure_edits(&mut c, 20, false);
+    let s = measure_edits(&mut c, edits, true);
     let undo_ms = measure_undo(&mut c, 50);
-    let layout_ms = measure_layout_edits(&mut c, 50);
+    let mut layout_stages = BTreeMap::new();
+    let (layout_ms, layout_bytes) = measure_layout_edits(&mut c, 50, &mut layout_stages);
     let report = json!({
         "workload": {"sheets": sheets, "populatedCells": sheets * rows * 2, "edits": edits},
         "loadMs": load_ms,
@@ -204,8 +244,12 @@ fn perf_baseline() {
         "totalMs": {"p50": percentile(&s.total_ms, 0.5), "p95": percentile(&s.total_ms, 0.95)},
         "responseBytes": s.response_bytes,
         "undoMs": {"p50": percentile(&undo_ms, 0.5), "p95": percentile(&undo_ms, 0.95)},
+        "fullSnapshotTotalMs": {"p50": percentile(&full.total_ms, 0.5), "p95": percentile(&full.total_ms, 0.95)},
+        "fullSnapshotBytes": full.response_bytes,
         "layoutEditMs": {"p50": percentile(&layout_ms, 0.5), "p95": percentile(&layout_ms, 0.95)},
+        "layoutResponseBytes": layout_bytes,
         "stages": stage_report(&s.stages),
+        "layoutStages": stage_report(&layout_stages),
     });
     let out = std::env::var("FOLIO_PERF_OUT").unwrap_or_else(|_| {
         std::env::temp_dir()
