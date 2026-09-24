@@ -164,7 +164,8 @@ class NumberedParagraphInsertRule extends PreserveBlockStyleOnInsertRule {
       }
       final token = {...metadata};
       if (!first &&
-          !(sectionBoundaries?.call().contains(metadata['officeId']) ?? false)) {
+          !(sectionBoundaries?.call().contains(metadata['officeId']) ??
+              false)) {
         token.remove('officeId');
       }
       final outline = paragraphOutlineLevel(token['paragraphFormat']);

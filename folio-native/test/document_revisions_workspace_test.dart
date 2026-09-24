@@ -122,9 +122,7 @@ void main() {
       await tap(const Key('document-revisions'));
       await waitForRows(2);
       expect(
-        find.text(
-          'Recording is off. Use Record changes to track new edits.',
-        ),
+        find.text('Recording is off. Use Record changes to track new edits.'),
         findsOneWidget,
       );
       expect(find.byType(RevisionPreview), findsWidgets);

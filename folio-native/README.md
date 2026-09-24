@@ -536,6 +536,9 @@ cargo test --manifest-path rust/Cargo.toml
 cargo build --release --manifest-path rust/Cargo.toml
 flutter analyze
 flutter test
+# Performance baseline (opt-in; see docs/PERFORMANCE_BASELINE.md)
+cargo test --release --manifest-path rust/Cargo.toml perf_baseline -- --ignored --nocapture
+FOLIO_PERF=1 flutter test test/perf_baseline_test.dart
 python3 scripts/test_macos_keyboard.py # macOS; in-memory events, no app launch
 python3 scripts/test_macos_lifecycle.py # macOS; synthetic notifications, no app launch
 flutter test test/live_agent_test.dart test/live_grammar_test.dart --dart-define=FOLIO_LIVE_TEST=true

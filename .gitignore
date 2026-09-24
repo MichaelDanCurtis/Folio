@@ -8,6 +8,7 @@
 *.log
 __pycache__/
 *.pyc
+.omc/
 
 # Dependencies, generated builds, packages, and historical build snapshots
 node_modules/
