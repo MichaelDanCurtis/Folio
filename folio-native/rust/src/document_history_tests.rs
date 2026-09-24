@@ -161,3 +161,104 @@ fn history_journals_are_bounded_ephemeral_and_absent_for_untracked_replacements(
         .get("documentHistoryChange")
         .is_none());
 }
+
+/// Patch-based history must land on exactly the workspaces that full
+/// snapshots restored, including after row sizes change outside an edit.
+#[test]
+fn patch_history_matches_full_snapshot_history() {
+    fn state(c: &Core) -> Value {
+        let mut w = c.workspace.clone();
+        w.as_object_mut().unwrap().remove("revision");
+        w
+    }
+    fn layout_edit(c: &mut Core, edit: Value, height: u64) {
+        let prepared = c
+            .dispatch(json!({"op":"prepareLayoutEdit","edit":edit}))
+            .unwrap();
+        let mut sizes = json!({});
+        for (id, rows) in prepared["layoutRows"].as_object().unwrap() {
+            sizes[id] = json!({});
+            for row in rows.as_array().unwrap() {
+                sizes[id][row.to_string()] = json!(height);
+            }
+        }
+        c.dispatch(json!({"op":"commitLayoutEdit","token":prepared["layoutToken"],"sizes":sizes}))
+            .unwrap();
+    }
+    let mut c = core("First line");
+    c.freeze_clock("2025-01-01T12:00:00Z");
+    let sheet = c.workspace["sheets"][0]["id"].clone();
+    let cell = |address: &str, value: &str| json!({"op":"cells","cells":[{"sheetId":sheet,"address":address,"value":value}]});
+    let steps = vec![
+        cell("A1", "1"),
+        cell("A2", "=A1*2"),
+        cell("E1", "=TODAY()"),
+        json!({"op":"document","document":doc("First line\nSecond line")}),
+        json!({"op":"title","title":"Patched history"}),
+        json!({"op":"formatCells","sheetId":sheet,"addresses":["A2"],"style":{"numFmt":"0.00"}}),
+        json!({"op":"structure","sheetId":sheet,"action":"insertRows","at":1,"count":1}),
+        json!({"undo":true}),
+        json!({"undo":true}),
+        json!({"redo":true}),
+        json!({"layout":cell("B1", "wrapped text that needs a taller row")}),
+        json!({"layout":{"op":"refreshCalendar"}}),
+        json!({"undo":true}),
+        json!({"layout":{"op":"refreshCalendar"}}),
+        json!({"redo":true}),
+        cell("C3", "=SUM(A1:A3)"),
+        json!({"undo":true}),
+        json!({"undo":true}),
+        json!({"undo":true}),
+        cell("D4", "after undo"),
+        json!({"redo":true}),
+        json!({"undo":true}),
+        json!({"undo":true}),
+        json!({"redo":true}),
+        json!({"redo":true}),
+    ];
+    let (mut undo, mut redo): (Vec<Value>, Vec<Value>) = (vec![], vec![]);
+    for (i, step) in steps.into_iter().enumerate() {
+        let before = state(&c);
+        let revision = c.workspace["revision"].as_u64().unwrap();
+        if step.get("undo").is_some() || step.get("redo").is_some() {
+            let back = step.get("undo").is_some();
+            let (from, to) = if back {
+                (&mut undo, &mut redo)
+            } else {
+                (&mut redo, &mut undo)
+            };
+            let op = if back { "undo" } else { "redo" };
+            c.dispatch(json!({ "op": op })).unwrap();
+            if let Some(expected) = from.pop() {
+                assert_eq!(state(&c), expected, "step {i}: {op}");
+                assert_eq!(c.workspace["revision"], revision + 1, "step {i}");
+                to.push(before);
+            } else {
+                assert_eq!(state(&c), before, "step {i}: empty {op}");
+            }
+        } else if let Some(edit) = step.get("layout") {
+            let calculation_only = edit["op"] == "refreshCalendar";
+            if calculation_only {
+                // A new day changes =TODAY()'s display, so its row is re-measured.
+                c.freeze_clock(&format!("2025-02-{:02}T12:00:00Z", i));
+            }
+            layout_edit(&mut c, edit.clone(), 41 + i as u64);
+            if calculation_only {
+                // Row sizes changed without an edit; full snapshots restored
+                // the neighbouring workspaces as they were.
+                assert_ne!(state(&c), before, "step {i}: row sizes must change");
+                assert_eq!(c.workspace["revision"], revision, "step {i}");
+            } else {
+                undo.push(before);
+                redo.clear();
+            }
+        } else {
+            c.dispatch(step.clone()).unwrap();
+            undo.push(before);
+            redo.clear();
+        }
+        let snapshot = c.snapshot();
+        assert_eq!(snapshot["canUndo"], !undo.is_empty(), "step {i}");
+        assert_eq!(snapshot["canRedo"], !redo.is_empty(), "step {i}");
+    }
+}

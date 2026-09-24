@@ -8,12 +8,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 const MAX_SIZE: usize = 32_000_000;
-const HISTORY_BYTES: usize = 24_000_000;
 #[derive(Default)]
 pub struct Core {
     pub workspace: Value,
-    undo: Vec<crate::document_history::Entry>,
-    redo: Vec<crate::document_history::Entry>,
+    history: crate::document_history::History,
     calculator: crate::calculation::WorkbookCalculator,
     packages: HashMap<String, Arc<crate::office::Package>>,
     clipboard: Option<Arc<crate::sheet_clipboard::Snapshot>>,
@@ -429,7 +427,7 @@ impl Core {
         let file_states = stage("snapshot.file_states", || self.file_states());
         stage(
             "snapshot.build",
-            || json!({"blankWorkspace":blank,"fileStates":file_states,"workspace":self.workspace,"calculated":self.calculator.values,"formatted":self.calculator.display.values,"conditionalWarnings":self.conditional_warnings,"date1904":self.calculator.display.date1904,"calculationError":self.calculator.error,"canUndo":!self.undo.is_empty(),"canRedo":!self.redo.is_empty(),"evaluatedCells":self.calculator.generation,"localCalendarDay":self.calculator.clock.map(|c|c.local_day),"localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),"rows":ROWS,"columns":COLS}),
+            || json!({"blankWorkspace":blank,"fileStates":file_states,"workspace":self.workspace,"calculated":self.calculator.values,"formatted":self.calculator.display.values,"conditionalWarnings":self.conditional_warnings,"date1904":self.calculator.display.date1904,"calculationError":self.calculator.error,"canUndo":self.history.can_undo(),"canRedo":self.history.can_redo(),"evaluatedCells":self.calculator.generation,"localCalendarDay":self.calculator.clock.map(|c|c.local_day),"localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),"rows":ROWS,"columns":COLS}),
         )
     }
     fn clipboard_package(&self) -> Result<Vec<u8>, String> {
@@ -637,23 +635,15 @@ impl Core {
         stage("validate", || validate(&next))?;
         next["revision"] = json!(self.workspace["revision"].as_u64().unwrap() + 1);
         let previous = std::mem::replace(&mut self.workspace, next);
+        let back = stage("undo.diff", || {
+            crate::json_patch::diff(&self.workspace, &previous).without_field("revision")
+        });
         stage("undo.push", || {
-            self.undo.push(crate::document_history::Entry {
-                workspace: previous.clone(),
-                document,
-            })
+            self.history
+                .record(crate::document_history::Entry::new(back, document))
         });
-        let mut bytes: usize = stage("undo.account", || {
-            self.undo
-                .iter()
-                .map(crate::document_history::Entry::bytes)
-                .sum()
-        });
-        while self.undo.len() > 100 || bytes > HISTORY_BYTES {
-            bytes -= self.undo.remove(0).bytes();
-        }
-        self.redo.clear();
-        self.sync(&previous);
+        stage("undo.drop", || drop(previous));
+        self.sync(&Value::Null);
         Ok(self.snapshot())
     }
     fn sheet_mut<'a>(w: &'a mut Value, id: &str) -> Result<&'a mut Value, String> {
@@ -1173,6 +1163,8 @@ impl Core {
                 if pending.calculation_only {
                     // Derived values and automatic row sizes do not create edits,
                     // consume Undo/Redo or advance the document revision.
+                    self.history
+                        .rebase(&self.workspace, &pending.staged.workspace)?;
                     self.workspace = pending.staged.workspace;
                     let restore_clock = self.calculator.clock_override;
                     self.calculator.clock_override = self.calculator.clock;
@@ -1182,8 +1174,8 @@ impl Core {
                 } else {
                     let journal = pending
                         .staged
-                        .undo
-                        .last()
+                        .history
+                        .last_undo()
                         .and_then(|entry| entry.document.clone());
                     self.commit_journal(pending.staged.workspace, journal)
                 }
@@ -1212,8 +1204,7 @@ impl Core {
                     self.workspace["sheets"] =
                         json!([{"id":"sheet-1","name":"Sheet 1","cells":{}}]);
                 }
-                self.undo.clear();
-                self.redo.clear();
+                self.history.clear();
                 self.packages.clear();
                 self.package_digests.clear();
                 self.sync(&previous);
@@ -1393,8 +1384,7 @@ impl Core {
                 self.packages = packages;
                 self.package_digests.clear();
                 let old = std::mem::replace(&mut self.workspace, w);
-                self.undo.clear();
-                self.redo.clear();
+                self.history.clear();
                 self.calculator.invalidate();
                 self.sync(&old);
                 Ok(self.snapshot())
@@ -1675,8 +1665,8 @@ impl Core {
                     .err());
                     list["workspaceId"] = self.workspace["id"].clone();
                     list["baseRevision"] = self.workspace["revision"].clone();
-                    list["canUndo"] = json!(!self.undo.is_empty());
-                    list["canRedo"] = json!(!self.redo.is_empty());
+                    list["canUndo"] = json!(self.history.can_undo());
+                    list["canRedo"] = json!(self.history.can_redo());
                     if op == "documentReviewView" {
                         let view = crate::docx_revisions::display(&baked, text(&r, "mode")?)?;
                         list["view"] = view;
@@ -2752,33 +2742,31 @@ impl Core {
             "undo" | "redo" => {
                 let back = r["op"] == "undo";
                 let next = if back {
-                    self.undo.pop()
+                    self.history.pop_undo()
                 } else {
-                    self.redo.pop()
+                    self.history.pop_redo()
                 };
                 let mut change = None;
                 if let Some(entry) = next {
-                    let mut n = entry.workspace;
                     let previous_revision = self.workspace["revision"].clone();
-                    n["revision"] = json!(self.workspace["revision"].as_u64().unwrap() + 1);
+                    let revision = json!(previous_revision.as_u64().unwrap() + 1);
+                    let opposite =
+                        crate::json_patch::apply_inverse(&mut self.workspace, entry.patch)?;
+                    self.workspace["revision"] = revision;
                     change = entry.document.as_ref().map(|journal| {
                         json!({
-                            "workspaceId":n["id"], "beforeRevision":previous_revision,
-                            "afterRevision":n["revision"],
+                            "workspaceId":self.workspace["id"], "beforeRevision":previous_revision,
+                            "afterRevision":self.workspace["revision"],
                             "textEdits":if back { &journal.reverse } else { &journal.forward },
                         })
                     });
-                    let old = std::mem::replace(&mut self.workspace, n);
-                    let opposite = crate::document_history::Entry {
-                        workspace: old.clone(),
-                        document: entry.document,
-                    };
+                    let opposite = crate::document_history::Entry::new(opposite, entry.document);
                     if back {
-                        self.redo.push(opposite)
+                        self.history.push_redo(opposite)
                     } else {
-                        self.undo.push(opposite)
+                        self.history.push_undo(opposite)
                     }
-                    self.sync(&old);
+                    self.sync(&Value::Null);
                 }
                 let mut result = self.snapshot();
                 if let Some(change) = change {
@@ -2900,7 +2888,7 @@ impl Core {
                     .and_then(|s| s.to_str())
                     .unwrap_or("Untitled"));
                 staged.workspace["revision"] = json!(0);
-                staged.undo.clear();
+                staged.history.clear();
                 if op == "inspectTemplate" {
                     let mut preview = workspace_description(&staged.workspace);
                     preview["format"] = json!(format);

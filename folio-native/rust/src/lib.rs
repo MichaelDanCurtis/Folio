@@ -112,6 +112,9 @@ mod docx_track_properties;
 mod docx_tracking;
 #[cfg(test)]
 mod docx_tracking_tests;
+mod json_patch;
+#[cfg(test)]
+mod json_patch_tests;
 mod office;
 mod xlsx;
 mod xlsx_alignment;
