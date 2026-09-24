@@ -257,7 +257,7 @@ Decisions (2026-09-24): keep measure-then-commit for layout edits; accept a brie
 | 3. Change set | Done | Row heights and modes don't make a commit structural; they affect layout only. |
 | 4. Incremental calculator | Done | Full and incremental paths share one routine driven by a changed-input list. No IronCalc accessor was needed: published values only cover input cells, so reading back edited and formula cells is complete. |
 | 5. Incremental display + CF | Done | CF skips sheets without rules exactly (early return in `conditional_format::evaluate`). The CF cache keys on a per-calculator update counter; see finding 3. |
-| 6. File states on demand | Done | Deltas omit digests. `WorkspaceModel` fetches them 250 ms after a delta edit, in `flush()`, and through `currentFileStates()` before leave-file decisions. Engine side: `fileStates` op, cached per epoch. |
+| 6. File states on demand | Done | Deltas omit digests. `WorkspaceModel.flush()` fetches them in the same engine turn as the recovery save; the save timer runs `flush()` 350 ms after edits. `currentFileStates()` fetches them before leave-file decisions. Engine side: `fileStates` op, cached per epoch. |
 | 7. In-place cell fast path | Done | Covers `cells`, `enterCell`, `validationEntryCheck`. Workbooks with any table take the general path, because `tables::after_cells` can rewrite table metadata. The document-normalization check is cached. |
 | 7b. Incremental layout staging (new) | Done | See finding 1. The staged engine reuses the lagging calculator with its CF state and catches up in the same evaluation as the edit. Commits come from the staged undo patch. Row targets are checked only for changed cells. The staged engine builds no snapshot of its own. |
 | 8. Delta responses | Done | Requests carry `"delta": <epoch>`. Epochs come from a process-wide counter, so a stale or foreign base always gets a full snapshot. Dart's `applyEngineDelta` shares unchanged subtrees and never mutates earlier snapshots. |
@@ -283,7 +283,7 @@ Largest remaining costs (layout path, p95): IronCalc `evaluate` 85 and formula r
 
 ### Finding 2: file-state digests are read on every frame
 
-`fileSaveStatus` is a synchronous getter over `snapshot['fileStates']`. With deltas, those digests are refreshed after a 250 ms pause, so the status text can lag an edit that briefly (decision above). Save and leave decisions use `currentFileStates()`, which is always current.
+`fileSaveStatus` is a synchronous getter over `snapshot['fileStates']`. With deltas, those digests are refreshed by the next `flush()`, which the save timer runs 350 ms after edits stop, so the status text can lag an edit that briefly (decision above). Save and leave decisions use `currentFileStates()`, which is always current. (A separate refresh timer was tried first; in fake-time widget tests its engine call could stall the call queue, so the fetch now rides in `flush()`'s save transaction.)
 
 ### Finding 3: the calculation generation isn't a safe cache key
 
