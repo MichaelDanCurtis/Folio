@@ -7,7 +7,14 @@ import 'package:folio_native/src/assistant_ui.dart';
 import 'package:folio_native/src/core.dart';
 
 void main() {
-  test('empty paragraph remains a valid insertion anchor',(){final editor=q.QuillController.basic();final anchor=DocumentAnchor.capture(editor,0,'w');expect(anchor.text,'');expect(anchor.start,0);expect(anchor.end,0);editor.dispose();});
+  test('empty paragraph remains a valid insertion anchor', () {
+    final editor = q.QuillController.basic();
+    final anchor = DocumentAnchor.capture(editor, 0, 'w');
+    expect(anchor.text, '');
+    expect(anchor.start, 0);
+    expect(anchor.end, 0);
+    editor.dispose();
+  });
   test(
     'paragraph selection preserves surrounding styles and rejects stale revisions',
     () {
