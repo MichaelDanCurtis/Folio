@@ -55,6 +55,7 @@ mod scenarios_tests;
 #[cfg(test)]
 mod text_format_tests;
 
+mod change_set;
 #[cfg(test)]
 mod document_bookmark_tests;
 mod document_bookmarks;

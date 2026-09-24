@@ -1,3 +1,4 @@
+use crate::change_set::ChangeSet;
 use crate::formula::{address, parse_address, COLS, ROWS};
 use crate::perf_stages::time as stage;
 use serde_json::{json, Value};
@@ -304,10 +305,10 @@ impl Core {
             workspace: seed(),
             ..Default::default()
         };
-        s.sync(&Value::Null);
+        s.sync(&ChangeSet::Structural);
         s
     }
-    fn sync(&mut self, _previous: &Value) {
+    fn sync(&mut self, _changes: &ChangeSet) {
         let pkg = self.workspace["officeWorkbook"]["packageId"]
             .as_str()
             .and_then(|id| self.packages.get(id))
@@ -638,12 +639,13 @@ impl Core {
         let back = stage("undo.diff", || {
             crate::json_patch::diff(&self.workspace, &previous).without_field("revision")
         });
+        let changes = ChangeSet::from_patch(&back);
         stage("undo.push", || {
             self.history
                 .record(crate::document_history::Entry::new(back, document))
         });
         stage("undo.drop", || drop(previous));
-        self.sync(&Value::Null);
+        self.sync(&changes);
         Ok(self.snapshot())
     }
     fn sheet_mut<'a>(w: &'a mut Value, id: &str) -> Result<&'a mut Value, String> {
@@ -875,7 +877,7 @@ impl Core {
                 ..Default::default()
             };
             isolated.calculator.clock_override = self.calculator.clock;
-            isolated.sync(&Value::Null);
+            isolated.sync(&ChangeSet::Structural);
             if let Some(error) = &isolated.calculator.error {
                 return Err(error.clone());
             }
@@ -1091,7 +1093,7 @@ impl Core {
                     clock_override
                         .unwrap_or_else(crate::calculation_clock::CalculationClock::system),
                 );
-                staged.sync(&Value::Null);
+                staged.sync(&ChangeSet::Structural);
                 staged.calculator.generation = self.calculator.generation;
                 if calculation_only {
                     // A staged calculator may have been reused from a cancelled edit.
@@ -1168,7 +1170,7 @@ impl Core {
                     self.workspace = pending.staged.workspace;
                     let restore_clock = self.calculator.clock_override;
                     self.calculator.clock_override = self.calculator.clock;
-                    self.sync(&Value::Null);
+                    self.sync(&ChangeSet::Structural);
                     self.calculator.clock_override = restore_clock;
                     Ok(self.snapshot())
                 } else {
@@ -1184,7 +1186,7 @@ impl Core {
                 if op == "recalculate" {
                     self.calculator.invalidate();
                 }
-                self.sync(&Value::Null);
+                self.sync(&ChangeSet::Structural);
                 Ok(self.snapshot())
             }
             "get" => Ok(self.snapshot()),
@@ -1207,7 +1209,7 @@ impl Core {
                 self.history.clear();
                 self.packages.clear();
                 self.package_digests.clear();
-                self.sync(&previous);
+                self.sync(&ChangeSet::Structural);
                 Ok(self.snapshot())
             }
             "inspectWorkspace" => {
@@ -1386,7 +1388,7 @@ impl Core {
                 let old = std::mem::replace(&mut self.workspace, w);
                 self.history.clear();
                 self.calculator.invalidate();
-                self.sync(&old);
+                self.sync(&ChangeSet::Structural);
                 Ok(self.snapshot())
             }
             "replace" => {
@@ -2750,6 +2752,7 @@ impl Core {
                 if let Some(entry) = next {
                     let previous_revision = self.workspace["revision"].clone();
                     let revision = json!(previous_revision.as_u64().unwrap() + 1);
+                    let changes = ChangeSet::from_patch(&entry.patch);
                     let opposite =
                         crate::json_patch::apply_inverse(&mut self.workspace, entry.patch)?;
                     self.workspace["revision"] = revision;
@@ -2766,7 +2769,7 @@ impl Core {
                     } else {
                         self.history.push_undo(opposite)
                     }
-                    self.sync(&Value::Null);
+                    self.sync(&changes);
                 }
                 let mut result = self.snapshot();
                 if let Some(change) = change {
