@@ -19,6 +19,8 @@ mod workspace;
 
 mod calculation;
 mod calculation_clock;
+#[cfg(test)]
+mod calculation_incremental_tests;
 mod cell_watches;
 #[cfg(test)]
 mod cell_watches_tests;
@@ -55,6 +57,11 @@ mod scenarios_tests;
 #[cfg(test)]
 mod text_format_tests;
 
+#[cfg(test)]
+mod cells_fast_path_tests;
+mod change_set;
+#[cfg(test)]
+mod delta_tests;
 #[cfg(test)]
 mod document_bookmark_tests;
 mod document_bookmarks;
@@ -112,7 +119,16 @@ mod docx_track_properties;
 mod docx_tracking;
 #[cfg(test)]
 mod docx_tracking_tests;
+#[cfg(test)]
+mod incremental_sync_tests;
+mod json_patch;
+#[cfg(test)]
+mod json_patch_tests;
+#[cfg(test)]
+mod layout_fast_path_tests;
 mod office;
+#[cfg(test)]
+mod row_reflow_targets_tests;
 mod xlsx;
 mod xlsx_alignment;
 #[cfg(test)]
@@ -170,3 +186,4 @@ mod docx_fields_tests;
 
 #[cfg(test)]
 mod perf_baseline_tests;
+mod perf_stages;

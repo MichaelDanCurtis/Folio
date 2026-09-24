@@ -15,9 +15,17 @@ pub fn targets(
     before_display: &Value,
     after_display: &Value,
     package: Option<&Package>,
+    // (sheet index, address) pairs outside of which nothing about cells
+    // differs between `before` and `after`; None means any cell may differ.
+    candidates: Option<&[(usize, String)]>,
 ) -> Result<Targets, String> {
     let mut result = Targets::new();
-    for sheet in after["sheets"].as_array().ok_or("Missing worksheets")? {
+    for (index, sheet) in after["sheets"]
+        .as_array()
+        .ok_or("Missing worksheets")?
+        .iter()
+        .enumerate()
+    {
         let id = sheet["id"].as_str().ok_or("Missing worksheet id")?;
         let old = before["sheets"]
             .as_array()
@@ -39,18 +47,8 @@ pub fn targets(
         .iter()
         .any(|key| old[key] != sheet[key]);
         let mut rows = BTreeSet::new();
-        let mut addresses = BTreeSet::new();
-        for source in [old, sheet] {
-            for key in ["cells", "cellStyles"] {
-                addresses.extend(
-                    source[key]
-                        .as_object()
-                        .into_iter()
-                        .flatten()
-                        .map(|(a, _)| a),
-                );
-            }
-            if broad {
+        if broad {
+            for source in [old, sheet] {
                 for key in ["rowHeights", "rowHeightModes"] {
                     rows.extend(
                         source[key]
@@ -69,28 +67,42 @@ pub fn targets(
                 );
             }
         }
-        addresses.extend(
-            before_values[id]
-                .as_object()
-                .into_iter()
-                .flatten()
-                .map(|(a, _)| a),
-        );
-        addresses.extend(
-            after_values[id]
-                .as_object()
-                .into_iter()
-                .flatten()
-                .map(|(a, _)| a),
-        );
-        for a in addresses {
-            if broad
+        let differs = |a: &str| {
+            broad
                 || old["cells"][a] != sheet["cells"][a]
                 || old["cellStyles"][a] != sheet["cellStyles"][a]
                 || before_values[id][a] != after_values[id][a]
                 || before_display[id][a] != after_display[id][a]
-            {
-                rows.insert(parse_address(a)?.0 + 1);
+        };
+        match candidates {
+            Some(candidates) if !broad => {
+                for (_, a) in candidates.iter().filter(|(i, _)| *i == index) {
+                    if differs(a) {
+                        rows.insert(parse_address(a)?.0 + 1);
+                    }
+                }
+            }
+            _ => {
+                crate::perf_stages::record("full.targets", std::time::Instant::now());
+                // Every address in any of these maps, each visited once.
+                let maps: Vec<_> = [
+                    &old["cells"],
+                    &sheet["cells"],
+                    &old["cellStyles"],
+                    &sheet["cellStyles"],
+                    &before_values[id],
+                    &after_values[id],
+                ]
+                .into_iter()
+                .filter_map(Value::as_object)
+                .collect();
+                for (k, map) in maps.iter().enumerate() {
+                    for a in map.keys() {
+                        if !maps[..k].iter().any(|m| m.contains_key(a)) && differs(a) {
+                            rows.insert(parse_address(a)?.0 + 1);
+                        }
+                    }
+                }
             }
         }
         let hidden = crate::tables::hidden_rows(sheet);

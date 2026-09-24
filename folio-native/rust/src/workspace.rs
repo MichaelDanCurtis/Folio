@@ -1,4 +1,7 @@
+use crate::change_set::ChangeSet;
 use crate::formula::{address, parse_address, COLS, ROWS};
+use crate::json_patch::{Key, Op};
+use crate::perf_stages::time as stage;
 use serde_json::{json, Value};
 use std::{
     collections::{HashMap, HashSet},
@@ -7,12 +10,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 const MAX_SIZE: usize = 32_000_000;
-const HISTORY_BYTES: usize = 24_000_000;
 #[derive(Default)]
 pub struct Core {
     pub workspace: Value,
-    undo: Vec<crate::document_history::Entry>,
-    redo: Vec<crate::document_history::Entry>,
+    history: crate::document_history::History,
     calculator: crate::calculation::WorkbookCalculator,
     packages: HashMap<String, Arc<crate::office::Package>>,
     clipboard: Option<Arc<crate::sheet_clipboard::Snapshot>>,
@@ -22,15 +23,74 @@ pub struct Core {
     conditional_state: Value,
     conditional: Value,
     conditional_warnings: Value,
-    layout_calculator: Option<crate::calculation::WorkbookCalculator>,
+    /// The calculator (and its conditional-format state) that the next
+    /// staged layout edit reuses, one step behind `calculator`.
+    layout_bundle: Option<LayoutBundle>,
+    /// Identifies the published state; replaced by every `sync` with a value
+    /// no engine in this process has used, so it never repeats.
+    epoch: u64,
+    /// The base epoch a caller's request says it holds, if it accepts a delta.
+    want_delta: Option<u64>,
+    /// Workspace paths the next `sync` publishes, set by commits and undo.
+    pending_paths: Option<Vec<Vec<crate::json_patch::Key>>>,
+    /// What the last `sync` changed, when that can be sent as a delta.
+    last_change: Option<LastChange>,
+    file_states_cache: Option<(u64, Value)>,
+    /// A staged engine whose responses nobody reads: `snapshot` returns null.
+    quiet: bool,
+    /// Cells a staged engine's calculator hasn't caught up on yet; the next
+    /// sync applies them together with its own changes (one evaluation).
+    catch_up: Option<Vec<(usize, String)>>,
     goal_seek: Option<crate::goal_seek::Session>,
     goal_seek_serial: u64,
     scenario_source: Option<crate::scenario_source::Source>,
     scenario_source_serial: u64,
+    /// `workspace.to_string().len()`, kept current by in-place cell edits and
+    /// cleared by every other change.
+    serialized_size: Option<usize>,
+    /// The last `document` and `officeDocument` that document normalization
+    /// left unchanged, so cell edits can skip re-checking them.
+    stable_document: Option<(Value, Value)>,
+    #[cfg(test)]
+    pub(crate) slow_cells: bool,
+    /// Test-only: stage layout edits the original way (full sync, full
+    /// validation and diff at commit).
+    #[cfg(test)]
+    pub(crate) slow_layout: bool,
+}
+/// The difference between two published states.
+#[derive(Clone)]
+struct LastChange {
+    from: u64,
+    to: u64,
+    paths: Vec<Vec<crate::json_patch::Key>>,
+    /// Cells whose calculated or displayed value may differ.
+    cells: Vec<(usize, String)>,
+    /// Conditional-format warnings may differ.
+    warnings: bool,
+}
+fn next_epoch() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+struct LayoutBundle {
+    calculator: crate::calculation::WorkbookCalculator,
+    conditional: (Value, Value, Value),
+    /// Cells whose input or published value may have changed since
+    /// `calculator` last synced, or None if unknown (the next sync then
+    /// compares every cell).
+    lag: Option<Vec<(usize, String)>>,
 }
 struct LayoutEdit {
     token: u64,
-    base: Value,
+    base_epoch: u64,
+    /// The epoch the staged edit's recorded change starts from, when that
+    /// change (plus any deferred catch-up) accounts for every difference from
+    /// this engine's state; None when the calendars differ.
+    staged_base: Option<u64>,
+    /// Every cell whose input or published value may differ from this
+    /// engine's state, when known.
+    candidates: Option<Vec<(usize, String)>>,
     staged: Box<Core>,
     rows: crate::row_reflow::Targets,
     calculation_only: bool,
@@ -108,7 +168,12 @@ pub(crate) fn document_validate(v: &Value, depth: usize, count: &mut usize) -> R
     Ok(())
 }
 pub fn validate(w: &Value) -> Result<(), String> {
-    if w.to_string().len() > MAX_SIZE {
+    validate_sized(w).map(drop)
+}
+/// `validate`, returning the serialized size it checked.
+fn validate_sized(w: &Value) -> Result<usize, String> {
+    let size = w.to_string().len();
+    if size > MAX_SIZE {
         return Err("Workspace exceeds 32 MB".into());
     }
     if w["format"] != "folio"
@@ -156,7 +221,8 @@ pub fn validate(w: &Value) -> Result<(), String> {
             }
         }
     }
-    crate::tables::validate(&w["sheets"])
+    crate::tables::validate(&w["sheets"])?;
+    Ok(size)
 }
 pub fn seed() -> Value {
     let mut v: Value = serde_json::from_str(include_str!("seed.json")).unwrap();
@@ -305,18 +371,47 @@ impl Core {
             workspace: seed(),
             ..Default::default()
         };
-        s.sync(&Value::Null);
+        s.sync(&ChangeSet::Structural);
         s
     }
-    fn sync(&mut self, _previous: &Value) {
+    fn sync(&mut self, changes: &ChangeSet) {
+        self.serialized_size = None;
+        let from = self.epoch;
+        self.epoch = next_epoch();
+        let paths = self.pending_paths.take();
+        let merged;
+        let changes = match (self.catch_up.take(), changes) {
+            (None, changes) => changes,
+            (Some(mut cells), ChangeSet::Cells(own)) => {
+                cells.extend(own.iter().cloned());
+                merged = ChangeSet::Cells(cells);
+                &merged
+            }
+            (Some(_), ChangeSet::Structural) => &ChangeSet::Structural,
+        };
         let pkg = self.workspace["officeWorkbook"]["packageId"]
             .as_str()
             .and_then(|id| self.packages.get(id))
             .map(AsRef::as_ref);
         let (date1904, palette) = crate::number_format::settings(pkg);
-        self.calculator
-            .sync_calendar(&self.workspace["sheets"], date1904);
-        let conditional_state = json!({"calculation":self.calculator.generation,"values":self.calculator.values,"errors":self.calculator.cell_errors,"rules":self.workspace["sheets"].as_array().unwrap().iter().map(|s|json!([s["id"],s["name"],s["conditionalFormats"],s["extendedConditionalFormats"],s["conditionalRightToLeft"]])).collect::<Vec<_>>()});
+        let hint = match changes {
+            ChangeSet::Cells(cells) => Some(cells.as_slice()),
+            ChangeSet::Structural => None,
+        };
+        stage("sync.calc", || {
+            self.calculator
+                .sync_changes(&self.workspace["sheets"], date1904, hint)
+        });
+        // Overlays depend on calculated values, which change only when the
+        // calculator's generation or error state does, and on the rules.
+        let conditional_state = stage(
+            "sync.cf_state",
+            || json!({"calculation":self.calculator.version(),"error":self.calculator.error,"rules":self.workspace["sheets"].as_array().unwrap().iter().map(|s|json!([s["id"],s["name"],s["conditionalFormats"],s["extendedConditionalFormats"],s["conditionalRightToLeft"]])).collect::<Vec<_>>()}),
+        );
+        let cf_started = std::time::Instant::now();
+        // Cells whose overlay changed, or None when that can't be listed cheaply.
+        let mut overlay_changes = Some(vec![]);
+        let warnings_changed = conditional_state != self.conditional_state;
         if conditional_state != self.conditional_state {
             let mut overlays = serde_json::Map::new();
             let mut warnings = serde_json::Map::new();
@@ -327,12 +422,17 @@ impl Core {
                 .enumerate()
             {
                 let id = sheet["id"].as_str().unwrap();
-                let cells = sheet["cells"]
-                    .as_object()
-                    .unwrap()
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>();
+                // Without rules, evaluation reads no cells.
+                let cells = if crate::conditional_format::rules(sheet).next().is_some() {
+                    sheet["cells"]
+                        .as_object()
+                        .unwrap()
+                        .keys()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                } else {
+                    vec![]
+                };
                 match crate::conditional_format::evaluate(
                     &self.workspace["sheets"],
                     i,
@@ -340,10 +440,30 @@ impl Core {
                     &mut self.calculator,
                 ) {
                     Ok(result) => {
-                        overlays.insert(id.into(), result["styles"].clone());
+                        let styles = &result["styles"];
+                        if let (Some(changes), Some(new), Some(old)) = (
+                            overlay_changes.as_mut(),
+                            styles.as_object(),
+                            self.conditional.get(id).and_then(Value::as_object),
+                        ) {
+                            changes.extend(
+                                new.iter()
+                                    .filter(|(a, v)| old.get(*a) != Some(*v))
+                                    .map(|(a, _)| (i, a.clone())),
+                            );
+                            changes.extend(
+                                old.keys()
+                                    .filter(|a| !new.contains_key(*a))
+                                    .map(|a| (i, a.clone())),
+                            );
+                        } else {
+                            overlay_changes = None;
+                        }
+                        overlays.insert(id.into(), styles.clone());
                         warnings.insert(id.into(), result["warnings"].clone());
                     }
                     Err(e) => {
+                        overlay_changes = None;
                         warnings.insert(id.into(), json!([e]));
                     }
                 }
@@ -352,15 +472,79 @@ impl Core {
             self.conditional_warnings = Value::Object(warnings);
             self.conditional_state = conditional_state;
         }
-        self.calculator.display.sync(
-            &self.workspace["sheets"],
-            &self.calculator.values,
-            &self.calculator.cell_errors,
-            self.calculator.generation,
-            &self.conditional,
-            date1904,
-            palette,
-        );
+        crate::perf_stages::record("sync.cf_eval", cf_started);
+        // Only edited cells, recalculated cells and restyled cells can display
+        // differently after a cell-value-only change.
+        let display_cells = match (changes, &self.calculator.changed, overlay_changes) {
+            (
+                ChangeSet::Cells(edited),
+                crate::calculation::Changed::Cells(values),
+                Some(overlays),
+            ) => {
+                let mut cells: Vec<_> = edited
+                    .iter()
+                    .chain(values)
+                    .chain(&overlays)
+                    .cloned()
+                    .collect();
+                cells.sort();
+                cells.dedup();
+                Some(cells)
+            }
+            _ => None,
+        };
+        let delta_cells = display_cells.clone();
+        stage("sync.display", || {
+            let sheets = &self.workspace["sheets"];
+            let calc = &mut self.calculator;
+            let updated = display_cells.is_some_and(|cells| {
+                calc.display.sync_cells(
+                    sheets,
+                    &calc.values,
+                    &calc.cell_errors,
+                    &self.conditional,
+                    date1904,
+                    &palette,
+                    &cells,
+                )
+            });
+            if !updated {
+                calc.display.sync(
+                    sheets,
+                    &calc.values,
+                    &calc.cell_errors,
+                    calc.generation,
+                    &self.conditional,
+                    date1904,
+                    palette,
+                )
+            }
+        });
+        if let Some(bundle) = &mut self.layout_bundle {
+            match (&delta_cells, &mut bundle.lag) {
+                (Some(cells), Some(lag)) if lag.len() + cells.len() <= 10_000 => {
+                    lag.extend(cells.iter().cloned())
+                }
+                _ => bundle.lag = None,
+            }
+        }
+        let unchanged = !warnings_changed
+            && paths.as_ref().is_some_and(Vec::is_empty)
+            && delta_cells.as_ref().is_some_and(Vec::is_empty);
+        if unchanged {
+            // Nothing published changed: keep the state's identity.
+            self.epoch = from;
+            return;
+        }
+        // Published as a delta only when both the workspace paths and the
+        // affected cells are known.
+        self.last_change = paths.zip(delta_cells).map(|(paths, cells)| LastChange {
+            from,
+            to: self.epoch,
+            paths,
+            cells,
+            warnings: warnings_changed,
+        });
     }
     #[cfg(test)]
     pub fn freeze_clock(&mut self, rfc3339: &str) {
@@ -411,13 +595,84 @@ impl Core {
         json!({"docx":docx,"xlsx":xlsx,"folio":folio})
     }
     pub fn snapshot(&mut self) -> Value {
-        let blank = self.workspace["title"] == "Untitled workspace"
+        if self.quiet {
+            return Value::Null;
+        }
+        if let Some(delta) = self.delta() {
+            return delta;
+        }
+        let blank = self.is_blank();
+        let file_states = stage("snapshot.file_states", || self.file_states());
+        stage(
+            "snapshot.build",
+            || json!({"blankWorkspace":blank,"fileStates":file_states,"workspace":self.workspace,"calculated":self.calculator.values,"formatted":self.calculator.display.values,"conditionalWarnings":self.conditional_warnings,"date1904":self.calculator.display.date1904,"calculationError":self.calculator.error,"canUndo":self.history.can_undo(),"canRedo":self.history.can_redo(),"evaluatedCells":self.calculator.generation,"localCalendarDay":self.calculator.clock.map(|c|c.local_day),"localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),"rows":ROWS,"columns":COLS,"epoch":self.epoch}),
+        )
+    }
+    /// The published state as changes from the state the caller holds, when
+    /// the caller asked for that and the last sync recorded the difference.
+    /// Omits `fileStates`, which callers fetch separately (`fileStates` op).
+    fn delta(&self) -> Option<Value> {
+        let change = self.last_change.as_ref()?;
+        if self.want_delta != Some(change.from) || change.to != self.epoch {
+            return None;
+        }
+        let path_json = |path: &[crate::json_patch::Key]| {
+            Value::Array(
+                path.iter()
+                    .map(|k| match k {
+                        crate::json_patch::Key::Field(f) => json!(f),
+                        crate::json_patch::Key::Index(i) => json!(i),
+                    })
+                    .collect(),
+            )
+        };
+        let mut seen = HashSet::new();
+        let mut workspace = vec![json!({"path":["revision"],"value":self.workspace["revision"]})];
+        for path in &change.paths {
+            if !seen.insert(path) {
+                continue;
+            }
+            workspace.push(match crate::json_patch::get(&self.workspace, path) {
+                Some(value) => json!({"path":path_json(path),"value":value}),
+                None => json!({"path":path_json(path)}),
+            });
+        }
+        let mut calculated = serde_json::Map::new();
+        let mut formatted = serde_json::Map::new();
+        for (i, a) in &change.cells {
+            let id = self.workspace["sheets"][*i]["id"].as_str()?;
+            let value = |all: &Value| all[id].get(a).cloned().unwrap_or(Value::Null);
+            calculated
+                .entry(id)
+                .or_insert_with(|| json!({}))
+                .as_object_mut()?
+                .insert(a.clone(), value(&self.calculator.values));
+            formatted
+                .entry(id)
+                .or_insert_with(|| json!({}))
+                .as_object_mut()?
+                .insert(a.clone(), value(&self.calculator.display.values));
+        }
+        let mut set = json!({
+            "canUndo":self.history.can_undo(),"canRedo":self.history.can_redo(),
+            "evaluatedCells":self.calculator.generation,"calculationError":self.calculator.error,
+            "date1904":self.calculator.display.date1904,
+            "localCalendarDay":self.calculator.clock.map(|c|c.local_day),
+            "localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),
+            "blankWorkspace":self.is_blank(),"epoch":self.epoch,
+        });
+        if change.warnings {
+            set["conditionalWarnings"] = self.conditional_warnings.clone();
+        }
+        Some(json!({"delta":{"base":change.from,"workspace":workspace,
+            "calculated":calculated,"formatted":formatted,"set":set}}))
+    }
+    fn is_blank(&self) -> bool {
+        self.workspace["title"] == "Untitled workspace"
             && self.workspace["document"] == json!({"type":"doc","content":[{"type":"paragraph"}]})
             && self.workspace["sheets"] == json!([{"id":"sheet-1","name":"Sheet 1","cells":{}}])
             && self.workspace.get("officeDocument").is_none()
-            && self.workspace.get("officeWorkbook").is_none();
-        let file_states = self.file_states();
-        json!({"blankWorkspace":blank,"fileStates":file_states,"workspace":self.workspace,"calculated":self.calculator.values,"formatted":self.calculator.display.values,"conditionalWarnings":self.conditional_warnings,"date1904":self.calculator.display.date1904,"calculationError":self.calculator.error,"canUndo":!self.undo.is_empty(),"canRedo":!self.redo.is_empty(),"evaluatedCells":self.calculator.generation,"localCalendarDay":self.calculator.clock.map(|c|c.local_day),"localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),"rows":ROWS,"columns":COLS})
+            && self.workspace.get("officeWorkbook").is_none()
     }
     fn clipboard_package(&self) -> Result<Vec<u8>, String> {
         let pkg = self.workspace["officeWorkbook"]["packageId"]
@@ -621,24 +876,372 @@ impl Core {
         mut next: Value,
         document: Option<crate::document_history::Journal>,
     ) -> Result<Value, String> {
-        validate(&next)?;
-        next["revision"] = json!(self.workspace["revision"].as_u64().unwrap() + 1);
+        let size = stage("validate", || validate_sized(&next))?;
+        let revision = json!(self.workspace["revision"].as_u64().unwrap() + 1);
+        let size = size + revision.to_string().len() - next["revision"].to_string().len();
+        next["revision"] = revision;
         let previous = std::mem::replace(&mut self.workspace, next);
-        self.undo.push(crate::document_history::Entry {
-            workspace: previous.clone(),
-            document,
+        let back = stage("undo.diff", || {
+            crate::json_patch::diff(&self.workspace, &previous).without_field("revision")
         });
-        let mut bytes: usize = self
-            .undo
-            .iter()
-            .map(crate::document_history::Entry::bytes)
-            .sum();
-        while self.undo.len() > 100 || bytes > HISTORY_BYTES {
-            bytes -= self.undo.remove(0).bytes();
-        }
-        self.redo.clear();
-        self.sync(&previous);
+        let changes = ChangeSet::from_patch(&back);
+        self.pending_paths = Some(back.paths());
+        stage("undo.push", || {
+            self.history
+                .record(crate::document_history::Entry::new(back, document))
+        });
+        stage("undo.drop", || drop(previous));
+        self.sync(&changes);
+        #[cfg(test)]
+        assert_eq!(size, self.workspace.to_string().len(), "tracked size");
+        self.serialized_size = Some(size);
         Ok(self.snapshot())
+    }
+    /// Applies plain cell edits in place: no workspace copy, no whole-workspace
+    /// validation or diff. Returns `Ok(None)`, having changed nothing, when
+    /// the edit needs the general path (tables, or document normalization
+    /// that would change the document). Errors match the general path's.
+    fn commit_cells(&mut self, changes: &Value) -> Result<Option<Value>, String> {
+        match self.apply_cells(changes)? {
+            Some((back, size)) => self.finish_cells(back, size).map(Some),
+            None => Ok(None),
+        }
+    }
+    /// The first half of `commit_cells`: edits the cells in place and returns
+    /// the undo patch and the new serialized size, without committing.
+    fn apply_cells(
+        &mut self,
+        changes: &Value,
+    ) -> Result<Option<(crate::json_patch::Patch, usize)>, String> {
+        #[cfg(test)]
+        if self.slow_cells {
+            return Ok(None);
+        }
+        let sheets = self.workspace["sheets"].as_array().ok_or("No sheets")?;
+        if sheets
+            .iter()
+            .any(|s| crate::tables::list(s).next().is_some())
+        {
+            return Ok(None);
+        }
+        // Same checks, in the same order, as `proposed`.
+        let changes = changes.as_array().ok_or("Invalid cell changes")?;
+        if changes.len() > 10000 {
+            return Err("Too many cell changes".into());
+        }
+        let mut edits = Vec::with_capacity(changes.len());
+        for c in changes {
+            let a = text(c, "address")?.to_uppercase();
+            parse_address(&a)?;
+            let value = text(c, "value")?;
+            if value.len() > 10000 {
+                return Err("Cell too long".into());
+            }
+            let id = text(c, "sheetId")?;
+            let i = sheets
+                .iter()
+                .position(|s| s["id"] == id)
+                .ok_or("Sheet does not exist")?;
+            edits.push((i, a, value.to_string()));
+        }
+        // `proposed` re-normalizes the document on every edit; if that would
+        // change it, the general path must commit the change.
+        let cached = self
+            .stable_document
+            .as_ref()
+            .is_some_and(|(document, office)| {
+                *document == self.workspace["document"]
+                    && *office == self.workspace["officeDocument"]
+            });
+        let document = cached
+            || stage("cells.document", || -> Result<bool, String> {
+                let mut next = json!({
+                    "document": self.workspace["document"],
+                    "officeDocument": self.workspace["officeDocument"],
+                });
+                self.materialize_document_styles(&mut next)?;
+                crate::document_bookmarks::rebase(
+                    &self.workspace["document"],
+                    &mut next["document"],
+                    None,
+                )?;
+                crate::document_comments::rebase(
+                    &self.workspace["document"],
+                    &mut next["document"],
+                    None,
+                )?;
+                crate::docx_revisions::check_model(&self.workspace["document"], &next["document"])?;
+                crate::docx_page_setup::check_model(
+                    &self.workspace["document"],
+                    &next["document"],
+                )?;
+                Ok(next["document"] == self.workspace["document"])
+            })?;
+        if document && !cached {
+            self.stable_document = Some((
+                self.workspace["document"].clone(),
+                self.workspace["officeDocument"].clone(),
+            ));
+        }
+        if !document {
+            return Ok(None);
+        }
+        let size = match self.serialized_size {
+            Some(size) => size,
+            None => stage("cells.size", || self.workspace.to_string().len()),
+        };
+        self.serialized_size = Some(size);
+        let json_len = |v: &Value| serde_json::to_string(v).map_or(0, |s| s.len());
+        let mut grown: isize = 0;
+        let mut back = Vec::with_capacity(edits.len());
+        for (i, a, value) in edits {
+            let cells = self.workspace["sheets"][i]["cells"]
+                .as_object_mut()
+                .ok_or("Invalid cells")?;
+            let value = Value::String(value);
+            let value_len = json_len(&value) as isize;
+            let path = vec![
+                crate::json_patch::Key::Field("sheets".into()),
+                crate::json_patch::Key::Index(i),
+                crate::json_patch::Key::Field("cells".into()),
+                crate::json_patch::Key::Field(a.clone()),
+            ];
+            let key_len = json_len(&json!(a)) as isize;
+            match cells.insert(a, value) {
+                Some(old) => {
+                    grown += value_len - json_len(&old) as isize;
+                    back.push(crate::json_patch::Op::Set { path, value: old });
+                }
+                None => {
+                    // `"key":value`, plus a comma unless the object was empty.
+                    grown += key_len + 1 + value_len + (cells.len() > 1) as isize;
+                    back.push(crate::json_patch::Op::Remove { path });
+                }
+            }
+        }
+        back.reverse();
+        let back = crate::json_patch::Patch { ops: back };
+        let size = (size as isize + grown) as usize;
+        let too_many = back.ops.iter().any(|op| {
+            let (Op::Set { path, .. } | Op::Remove { path }) = op;
+            matches!(path[1], crate::json_patch::Key::Index(i)
+                if self.workspace["sheets"][i]["cells"].as_object().is_some_and(|c| c.len() > 100000))
+        });
+        let error = if size > MAX_SIZE {
+            Some("Workspace exceeds 32 MB")
+        } else if too_many {
+            Some("Too many populated cells")
+        } else {
+            None
+        };
+        if let Some(error) = error {
+            crate::json_patch::apply_inverse(&mut self.workspace, back)?;
+            return Err(error.into());
+        }
+        Ok(Some((back, size)))
+    }
+    fn finish_cells(
+        &mut self,
+        back: crate::json_patch::Patch,
+        size: usize,
+    ) -> Result<Value, String> {
+        let revision = self.workspace["revision"].as_u64().unwrap();
+        let size = size + (revision + 1).to_string().len() - revision.to_string().len();
+        self.workspace["revision"] = json!(revision + 1);
+        let changes = ChangeSet::from_patch(&back);
+        self.pending_paths = Some(back.paths());
+        let journal = crate::document_history::Journal {
+            forward: json!([]),
+            reverse: json!([]),
+        };
+        stage("undo.push", || {
+            self.history
+                .record(crate::document_history::Entry::new(back, Some(journal)))
+        });
+        self.sync(&changes);
+        #[cfg(test)]
+        assert_eq!(
+            size,
+            self.workspace.to_string().len(),
+            "tracked workspace size"
+        );
+        self.serialized_size = Some(size);
+        Ok(self.snapshot())
+    }
+    /// A staged engine's calculator and conditional-format state, for reuse
+    /// by the next staged edit. Its workspace is `self.workspace`.
+    fn into_bundle(self) -> LayoutBundle {
+        LayoutBundle {
+            calculator: self.calculator,
+            conditional: (
+                self.conditional,
+                self.conditional_state,
+                self.conditional_warnings,
+            ),
+            lag: None,
+        }
+    }
+    /// Commits a staged layout edit from its undo patch: applies the measured
+    /// row sizes, checks only what they can change (the size limit), and
+    /// records one history entry, without re-validating or re-diffing the
+    /// whole workspace. Same result as `commit_journal` on the staged
+    /// workspace.
+    fn commit_staged(
+        &mut self,
+        pending: LayoutEdit,
+        entry: crate::document_history::Entry,
+        sizes: &Value,
+    ) -> Result<Value, String> {
+        let LayoutEdit {
+            rows,
+            staged,
+            staged_base,
+            candidates,
+            ..
+        } = pending;
+        let mut staged = *staged;
+        // The staged edit's recorded change is relative to the state the
+        // staged engine caught up to, which is this engine's published state
+        // when both calculate on the same calendar day.
+        let staged_change = staged
+            .last_change
+            .clone()
+            .filter(|c| Some(c.from) == staged_base);
+        // Row sizes: record each touched key's old value for the undo patch.
+        let json_len = |v: &Value| serde_json::to_string(v).map_or(0, |s| s.len()) as isize;
+        let mut row_back = vec![];
+        let mut grown: isize = 0;
+        let mut before = vec![];
+        for (i, sheet) in staged.workspace["sheets"]
+            .as_array()
+            .ok_or("No sheets")?
+            .iter()
+            .enumerate()
+        {
+            if sheet["id"].as_str().is_some_and(|id| rows.contains_key(id)) {
+                let fields = ["rowHeights", "rowHeightModes"].map(|f| sheet.get(f).cloned());
+                before.push((i, fields));
+            }
+        }
+        crate::row_reflow::apply(&mut staged.workspace, &rows, sizes)?;
+        for (i, fields) in before {
+            let sheet = &staged.workspace["sheets"][i];
+            for (field, old) in ["rowHeights", "rowHeightModes"].into_iter().zip(fields) {
+                let new = &sheet[field];
+                let path = |key: Option<&str>| {
+                    let mut p = vec![
+                        crate::json_patch::Key::Field("sheets".into()),
+                        crate::json_patch::Key::Index(i),
+                        crate::json_patch::Key::Field(field.into()),
+                    ];
+                    p.extend(key.map(|k| crate::json_patch::Key::Field(k.into())));
+                    p
+                };
+                match &old {
+                    Some(old) if old.is_object() => {
+                        grown += json_len(new) - json_len(old);
+                        let old = old.as_object().unwrap();
+                        for (key, value) in new.as_object().into_iter().flatten() {
+                            match old.get(key) {
+                                Some(v) if v == value => {}
+                                Some(v) => row_back.push(Op::Set {
+                                    path: path(Some(key)),
+                                    value: v.clone(),
+                                }),
+                                None => row_back.push(Op::Remove {
+                                    path: path(Some(key)),
+                                }),
+                            }
+                        }
+                    }
+                    // `apply` replaced a missing or non-object field.
+                    _ => {
+                        grown += json_len(new)
+                            // A new `"field":{…}` member, plus its comma.
+                            - old.as_ref().map_or(-4 - field.len() as isize, json_len);
+                        row_back.push(match old {
+                            Some(v) => Op::Set {
+                                path: path(None),
+                                value: v,
+                            },
+                            None => Op::Remove { path: path(None) },
+                        });
+                    }
+                }
+            }
+        }
+        let size = match staged.serialized_size {
+            Some(size) => (size as isize + grown) as usize,
+            None => staged.workspace.to_string().len(),
+        };
+        if size > MAX_SIZE {
+            return Err("Workspace exceeds 32 MB".into());
+        }
+        let mut back = row_back;
+        back.extend(entry.patch.ops);
+        let back = crate::json_patch::Patch { ops: back };
+        self.packages = std::mem::take(&mut staged.packages);
+        self.package_digests = std::mem::take(&mut staged.package_digests);
+        let workspace =
+            std::mem::replace(&mut self.workspace, std::mem::take(&mut staged.workspace));
+        // Dropping a large workspace is linear; don't make the edit wait for it.
+        std::thread::spawn(move || drop(workspace));
+        let conditional = (
+            std::mem::replace(
+                &mut self.conditional,
+                std::mem::take(&mut staged.conditional),
+            ),
+            std::mem::replace(
+                &mut self.conditional_state,
+                std::mem::take(&mut staged.conditional_state),
+            ),
+            std::mem::replace(
+                &mut self.conditional_warnings,
+                std::mem::take(&mut staged.conditional_warnings),
+            ),
+        );
+        // The previous calculator now lags by exactly the staged changes.
+        self.layout_bundle = Some(LayoutBundle {
+            calculator: std::mem::replace(&mut self.calculator, staged.calculator),
+            conditional,
+            lag: candidates,
+        });
+        let changes = ChangeSet::from_patch(&back);
+        self.pending_paths = Some(back.paths());
+        self.history
+            .record(crate::document_history::Entry::new(back, entry.document));
+        self.sync(&changes);
+        // The swapped-in calculator already holds the edit's results, so this
+        // sync saw no value changes; the staged edit's own sync recorded them.
+        match (&mut self.last_change, staged_change) {
+            (Some(change), Some(staged)) => {
+                change.cells.extend(staged.cells);
+                change.cells.sort();
+                change.cells.dedup();
+                change.warnings = true;
+            }
+            (change, _) => *change = None,
+        }
+        self.serialized_size = Some(size);
+        #[cfg(test)]
+        assert_eq!(
+            size,
+            self.workspace.to_string().len(),
+            "tracked workspace size"
+        );
+        Ok(self.snapshot())
+    }
+    #[cfg(test)]
+    pub(crate) fn history_bytes_for_test(&self) -> usize {
+        self.history.bytes()
+    }
+    #[cfg(test)]
+    pub(crate) fn snapshot_for_test(&mut self) -> Value {
+        self.snapshot()
+    }
+    #[cfg(test)]
+    pub(crate) fn layout_token(&self) -> Value {
+        json!(self.layout.as_ref().map(|p| p.token))
     }
     fn sheet_mut<'a>(w: &'a mut Value, id: &str) -> Result<&'a mut Value, String> {
         w["sheets"]
@@ -869,7 +1472,7 @@ impl Core {
                 ..Default::default()
             };
             isolated.calculator.clock_override = self.calculator.clock;
-            isolated.sync(&Value::Null);
+            isolated.sync(&ChangeSet::Structural);
             if let Some(error) = &isolated.calculator.error {
                 return Err(error.clone());
             }
@@ -975,7 +1578,16 @@ impl Core {
         validate(&next)?;
         Ok(next)
     }
+    /// Handles one request. A request with `"delta": <epoch>` (the epoch of
+    /// the state the caller holds) may get `{"delta": …}` instead of a full
+    /// snapshot; see `delta`.
     pub fn dispatch(&mut self, r: Value) -> Result<Value, String> {
+        self.want_delta = r.get("delta").and_then(Value::as_u64);
+        let result = self.dispatch_op(r);
+        self.want_delta = None;
+        result
+    }
+    fn dispatch_op(&mut self, r: Value) -> Result<Value, String> {
         let op = text(&r, "op")?;
         // Loading a file may reuse the same workspace id/revision while changing
         // its source package. Invalidate staged work on every intervening write,
@@ -986,6 +1598,7 @@ impl Core {
                 | "commitLayoutEdit"
                 | "cancelLayoutEdit"
                 | "get"
+                | "fileStates"
                 | "documentRevisions"
                 | "documentReviewView"
                 | "documentPageSetup"
@@ -1023,7 +1636,7 @@ impl Core {
                 self.scenario_source = None;
             }
             if let Some(previous) = self.layout.take() {
-                self.layout_calculator = Some(previous.staged.calculator);
+                self.layout_bundle = Some(previous.staged.into_bundle());
             }
         }
         match op {
@@ -1068,16 +1681,35 @@ impl Core {
                     return Err("This operation cannot be staged for row layout".into());
                 }
                 if let Some(previous) = self.layout.take() {
-                    self.layout_calculator = Some(previous.staged.calculator);
+                    self.layout_bundle = Some(previous.staged.into_bundle());
                 }
+                let bundle = self.layout_bundle.take();
+                #[cfg(test)]
+                let bundle = bundle.filter(|_| !self.slow_layout);
+                let (calculator, conditional, lag) = match bundle {
+                    Some(b) => (b.calculator, Some(b.conditional), b.lag),
+                    None => (Default::default(), None, None),
+                };
                 let mut staged = Box::new(Core {
-                    workspace: self.workspace.clone(),
+                    workspace: stage("layout.clone", || self.workspace.clone()),
                     packages: self.packages.clone(),
                     package_digests: self.package_digests.clone(),
                     clipboard: self.clipboard.clone(),
-                    calculator: self.layout_calculator.take().unwrap_or_default(),
+                    calculator,
+                    serialized_size: self.serialized_size,
+                    stable_document: self.stable_document.clone(),
                     ..Default::default()
                 });
+                #[cfg(test)]
+                {
+                    staged.slow_cells = self.slow_cells;
+                    staged.slow_layout = self.slow_layout;
+                }
+                if let Some((c, state, warnings)) = conditional {
+                    staged.conditional = c;
+                    staged.conditional_state = state;
+                    staged.conditional_warnings = warnings;
+                }
                 let calculation_only =
                     matches!(edit["op"].as_str(), Some("recalculate" | "refreshCalendar"));
                 let clock_override = self.calculator.clock_override;
@@ -1085,40 +1717,121 @@ impl Core {
                     clock_override
                         .unwrap_or_else(crate::calculation_clock::CalculationClock::system),
                 );
-                staged.sync(&Value::Null);
+                // Plain cell edits don't read calculated values before they
+                // sync, so the staged calculator can catch up and apply the
+                // edit in one evaluation. Other edits catch up first.
+                let deferred = lag.is_some()
+                    && !calculation_only
+                    && goal_seek.is_none()
+                    && matches!(edit["op"].as_str(), Some("cells" | "enterCell"));
+                #[cfg(test)]
+                let deferred = deferred && !self.slow_layout;
+                if deferred {
+                    staged.catch_up = lag;
+                } else {
+                    stage("layout.catch_up", || {
+                        staged.sync(&lag.map_or(ChangeSet::Structural, ChangeSet::Cells))
+                    });
+                }
                 staged.calculator.generation = self.calculator.generation;
                 if calculation_only {
                     // A staged calculator may have been reused from a cancelled edit.
                     // Always evaluate against this refresh's captured instant.
                     staged.calculator.invalidate();
                 }
+                let edit_base = staged.epoch;
                 if !goal_seek.as_ref().is_some_and(|g| g.unchanged) {
-                    staged.dispatch(edit.clone())?;
+                    // Its own response is discarded; don't build a snapshot.
+                    staged.quiet = true;
+                    let edited = staged.dispatch(edit.clone());
+                    staged.quiet = false;
+                    edited?;
+                }
+                if staged.catch_up.is_some() {
+                    // The edit didn't sync; catch up now.
+                    staged.sync(&ChangeSet::Cells(vec![]));
+                }
+                if deferred {
+                    // As when catching up first, the count advances only if
+                    // the edit itself changed an input.
+                    let edit_changed = staged.history.last_undo().is_some_and(|entry| {
+                        entry.patch.paths().iter().any(|path| {
+                            crate::json_patch::get(&staged.workspace, path)
+                                != crate::json_patch::get(&self.workspace, path)
+                        })
+                    });
+                    staged.calculator.generation = self.calculator.generation + edit_changed as u64;
                 }
                 if let Some(goal) = &goal_seek {
                     goal.check(&staged.calculator)?;
                 }
                 staged.calculator.clock_override = clock_override;
+                let same_calendar = matches!(
+                    (staged.calculator.clock, self.calculator.clock),
+                    (Some(a), Some(b)) if a.same_calendar(b)
+                );
+                // The staged edit's recorded change is relative to `edit_base`:
+                // this engine's state, or with a deferred catch-up the lagging
+                // state. The lag (every cell that differs between those two)
+                // was merged into that sync's cells, so either way the record
+                // covers every difference from this engine's state.
+                let staged_base = same_calendar.then_some(edit_base);
                 let pkg = staged.workspace["officeWorkbook"]["packageId"]
                     .as_str()
                     .and_then(|id| staged.packages.get(id))
                     .map(AsRef::as_ref);
-                let rows = crate::row_reflow::targets(
-                    &self.workspace,
-                    &self.calculator.values,
-                    &staged.workspace,
-                    &staged.calculator.values,
-                    &self.calculator.display.values,
-                    &staged.calculator.display.values,
-                    pkg,
-                )?;
+                let candidates = staged
+                    .last_change
+                    .as_mut()
+                    .filter(|c| Some(c.from) == staged_base)
+                    .map(|c| {
+                        let mut cells = c.cells.clone();
+                        cells.extend(c.paths.iter().filter_map(|path| match path.as_slice() {
+                            [Key::Field(s), Key::Index(i), Key::Field(f), Key::Field(a)]
+                                if s == "sheets" && f == "cells" =>
+                            {
+                                Some((*i, a.clone()))
+                            }
+                            _ => None,
+                        }));
+                        cells.sort();
+                        cells.dedup();
+                        // Published by the prepare and commit deltas too.
+                        c.cells = cells.clone();
+                        cells
+                    });
+                #[cfg(test)]
+                let candidates = candidates.filter(|_| !self.slow_layout);
+                let rows = stage("layout.targets", || {
+                    crate::row_reflow::targets(
+                        &self.workspace,
+                        &self.calculator.values,
+                        &staged.workspace,
+                        &staged.calculator.values,
+                        &self.calculator.display.values,
+                        &staged.calculator.display.values,
+                        pkg,
+                        candidates.as_deref(),
+                    )
+                })?;
                 self.layout_serial += 1;
-                let mut snapshot = staged.snapshot();
+                // Relative to this engine's state, which the caught-up staged
+                // engine published exactly (see `staged_base`).
+                if self.want_delta == Some(self.epoch) {
+                    staged.want_delta = staged_base;
+                }
+                let mut snapshot = stage("layout.response", || staged.snapshot());
+                staged.want_delta = None;
+                if snapshot.get("delta").is_some() {
+                    snapshot["delta"]["base"] = json!(self.epoch);
+                }
                 snapshot["layoutToken"] = json!(self.layout_serial);
                 snapshot["layoutRows"] = json!(rows);
                 self.layout = Some(LayoutEdit {
                     token: self.layout_serial,
-                    base: self.workspace.clone(),
+                    base_epoch: self.epoch,
+                    staged_base,
+                    candidates,
                     staged,
                     rows,
                     calculation_only,
@@ -1127,7 +1840,7 @@ impl Core {
             }
             "cancelLayoutEdit" => {
                 if self.layout.as_ref().is_some_and(|p| r["token"] == p.token) {
-                    self.layout_calculator = self.layout.take().map(|p| p.staged.calculator);
+                    self.layout_bundle = self.layout.take().map(|p| p.staged.into_bundle());
                 }
                 Ok(json!({"cancelled":true}))
             }
@@ -1136,8 +1849,20 @@ impl Core {
                     return Err("The measured edit expired. Try again.".into());
                 }
                 let mut pending = self.layout.take().unwrap();
-                if pending.base != self.workspace {
+                if pending.base_epoch != self.epoch {
                     return Err("The workbook changed while sizing its rows. Try again.".into());
+                }
+                #[cfg(test)]
+                let direct = !self.slow_layout;
+                #[cfg(not(test))]
+                let direct = true;
+                // The staged edit made exactly one history entry: commit it
+                // directly. (Its revision bump means it always commits.)
+                if direct && !pending.calculation_only && pending.staged.history.undo_len() == 1 {
+                    let entry = pending.staged.history.pop_undo().unwrap();
+                    return stage("layout.commit", || {
+                        self.commit_staged(pending, entry, &r["sizes"])
+                    });
                 }
                 crate::row_reflow::apply(
                     &mut pending.staged.workspace,
@@ -1150,24 +1875,40 @@ impl Core {
                 }
                 self.packages = pending.staged.packages;
                 self.package_digests = pending.staged.package_digests;
-                self.layout_calculator = Some(std::mem::replace(
-                    &mut self.calculator,
-                    pending.staged.calculator,
-                ));
+                let conditional = std::mem::replace(
+                    &mut self.conditional,
+                    std::mem::take(&mut pending.staged.conditional),
+                );
+                let conditional_state = std::mem::replace(
+                    &mut self.conditional_state,
+                    std::mem::take(&mut pending.staged.conditional_state),
+                );
+                let conditional_warnings = std::mem::replace(
+                    &mut self.conditional_warnings,
+                    std::mem::take(&mut pending.staged.conditional_warnings),
+                );
+                self.layout_bundle = Some(LayoutBundle {
+                    calculator: std::mem::replace(&mut self.calculator, pending.staged.calculator),
+                    conditional: (conditional, conditional_state, conditional_warnings),
+                    // What the staged engine changed isn't known here.
+                    lag: None,
+                });
                 if pending.calculation_only {
                     // Derived values and automatic row sizes do not create edits,
                     // consume Undo/Redo or advance the document revision.
+                    self.history
+                        .rebase(&self.workspace, &pending.staged.workspace)?;
                     self.workspace = pending.staged.workspace;
                     let restore_clock = self.calculator.clock_override;
                     self.calculator.clock_override = self.calculator.clock;
-                    self.sync(&Value::Null);
+                    self.sync(&ChangeSet::Structural);
                     self.calculator.clock_override = restore_clock;
                     Ok(self.snapshot())
                 } else {
                     let journal = pending
                         .staged
-                        .undo
-                        .last()
+                        .history
+                        .last_undo()
                         .and_then(|entry| entry.document.clone());
                     self.commit_journal(pending.staged.workspace, journal)
                 }
@@ -1176,10 +1917,25 @@ impl Core {
                 if op == "recalculate" {
                     self.calculator.invalidate();
                 }
-                self.sync(&Value::Null);
+                // Only calculated results can change.
+                self.pending_paths = Some(vec![]);
+                self.sync(&ChangeSet::Cells(vec![]));
                 Ok(self.snapshot())
             }
             "get" => Ok(self.snapshot()),
+            // Delta responses omit file-state digests; callers fetch them here.
+            "fileStates" => {
+                if self
+                    .file_states_cache
+                    .as_ref()
+                    .is_none_or(|(epoch, _)| *epoch != self.epoch)
+                {
+                    self.file_states_cache = Some((self.epoch, self.file_states()));
+                }
+                Ok(
+                    json!({"epoch":self.epoch,"fileStates":self.file_states_cache.as_ref().unwrap().1}),
+                )
+            }
             "filterChoices" => crate::sheet_filter::choices(
                 &self.workspace,
                 &self.calculator.values,
@@ -1187,7 +1943,6 @@ impl Core {
                 &r,
             ),
             "new" => {
-                let previous = self.workspace.clone();
                 self.workspace = seed();
                 if r["blank"] == true {
                     self.workspace["title"] = json!("Untitled workspace");
@@ -1196,11 +1951,10 @@ impl Core {
                     self.workspace["sheets"] =
                         json!([{"id":"sheet-1","name":"Sheet 1","cells":{}}]);
                 }
-                self.undo.clear();
-                self.redo.clear();
+                self.history.clear();
                 self.packages.clear();
                 self.package_digests.clear();
-                self.sync(&previous);
+                self.sync(&ChangeSet::Structural);
                 Ok(self.snapshot())
             }
             "inspectWorkspace" => {
@@ -1376,11 +2130,10 @@ impl Core {
                 }
                 self.packages = packages;
                 self.package_digests.clear();
-                let old = std::mem::replace(&mut self.workspace, w);
-                self.undo.clear();
-                self.redo.clear();
+                self.workspace = w;
+                self.history.clear();
                 self.calculator.invalidate();
-                self.sync(&old);
+                self.sync(&ChangeSet::Structural);
                 Ok(self.snapshot())
             }
             "replace" => {
@@ -1659,8 +2412,8 @@ impl Core {
                     .err());
                     list["workspaceId"] = self.workspace["id"].clone();
                     list["baseRevision"] = self.workspace["revision"].clone();
-                    list["canUndo"] = json!(!self.undo.is_empty());
-                    list["canRedo"] = json!(!self.redo.is_empty());
+                    list["canUndo"] = json!(self.history.can_undo());
+                    list["canRedo"] = json!(self.history.can_redo());
                     if op == "documentReviewView" {
                         let view = crate::docx_revisions::display(&baked, text(&r, "mode")?)?;
                         list["view"] = view;
@@ -2167,6 +2920,25 @@ impl Core {
                 }
                 let edit =
                     json!({"sheetId":r["sheetId"],"address":r["address"],"value":r["value"]});
+                if let Some((back, size)) = self.apply_cells(&json!([edit]))? {
+                    let checked = crate::data_validation::check(
+                        &self.workspace,
+                        &r,
+                        self.calculator.date1904,
+                    )
+                    .and_then(|mut checked| {
+                        checked["revision"] = self.workspace["revision"].clone();
+                        if op == "validationEntryCheck" {
+                            return Ok(checked);
+                        }
+                        entry_allowed(&checked, &r).map(|_| Value::Null)
+                    });
+                    if op == "enterCell" && checked.as_ref().is_ok_and(Value::is_null) {
+                        return self.finish_cells(back, size);
+                    }
+                    crate::json_patch::apply_inverse(&mut self.workspace, back)?;
+                    return checked;
+                }
                 let next=self.proposed(&json!({"summary":"Enter cell","baseRevision":r["baseRevision"],"cells":[edit]}))?;
                 let mut checked =
                     crate::data_validation::check(&next, &r, self.calculator.date1904)?;
@@ -2174,22 +2946,15 @@ impl Core {
                 if op == "validationEntryCheck" {
                     return Ok(checked);
                 }
-                if checked["valid"] != true
-                    && checked["shouldAlert"] == true
-                    && !(checked["canOverride"] == true && r["allowInvalid"] == true)
-                {
-                    return Err(checked["reason"]
-                        .as_str()
-                        .or(checked["rule"]["error"].as_str())
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or("This value does not match the cell's validation rule.")
-                        .into());
-                }
+                entry_allowed(&checked, &r)?;
                 self.commit(next)
             }
             "cells" => {
+                if let Some(result) = self.commit_cells(&r["cells"])? {
+                    return Ok(result);
+                }
                 let p = json!({"summary":"Edit cells","baseRevision":self.workspace["revision"],"cells":r["cells"]});
-                let n = self.proposed(&p)?;
+                let n = stage("proposed", || self.proposed(&p))?;
                 self.commit(n)
             }
             "previewNumberFormat" => {
@@ -2736,33 +3501,42 @@ impl Core {
             "undo" | "redo" => {
                 let back = r["op"] == "undo";
                 let next = if back {
-                    self.undo.pop()
+                    self.history.pop_undo()
                 } else {
-                    self.redo.pop()
+                    self.history.pop_redo()
                 };
                 let mut change = None;
                 if let Some(entry) = next {
-                    let mut n = entry.workspace;
                     let previous_revision = self.workspace["revision"].clone();
-                    n["revision"] = json!(self.workspace["revision"].as_u64().unwrap() + 1);
+                    let revision = json!(previous_revision.as_u64().unwrap() + 1);
+                    let changes = ChangeSet::from_patch(&entry.patch);
+                    self.pending_paths = Some(entry.patch.paths());
+                    let (opposite, grown) =
+                        crate::json_patch::apply_inverse_sized(&mut self.workspace, entry.patch)?;
+                    let size = self.serialized_size.map(|size| {
+                        (size as isize + grown) as usize + revision.to_string().len()
+                            - previous_revision.to_string().len()
+                    });
+                    self.workspace["revision"] = revision;
                     change = entry.document.as_ref().map(|journal| {
                         json!({
-                            "workspaceId":n["id"], "beforeRevision":previous_revision,
-                            "afterRevision":n["revision"],
+                            "workspaceId":self.workspace["id"], "beforeRevision":previous_revision,
+                            "afterRevision":self.workspace["revision"],
                             "textEdits":if back { &journal.reverse } else { &journal.forward },
                         })
                     });
-                    let old = std::mem::replace(&mut self.workspace, n);
-                    let opposite = crate::document_history::Entry {
-                        workspace: old.clone(),
-                        document: entry.document,
-                    };
+                    let opposite = crate::document_history::Entry::new(opposite, entry.document);
                     if back {
-                        self.redo.push(opposite)
+                        self.history.push_redo(opposite)
                     } else {
-                        self.undo.push(opposite)
+                        self.history.push_undo(opposite)
                     }
-                    self.sync(&old);
+                    self.sync(&changes);
+                    self.serialized_size = size;
+                    #[cfg(test)]
+                    if let Some(size) = size {
+                        assert_eq!(size, self.workspace.to_string().len(), "tracked size");
+                    }
                 }
                 let mut result = self.snapshot();
                 if let Some(change) = change {
@@ -2884,7 +3658,7 @@ impl Core {
                     .and_then(|s| s.to_str())
                     .unwrap_or("Untitled"));
                 staged.workspace["revision"] = json!(0);
-                staged.undo.clear();
+                staged.history.clear();
                 if op == "inspectTemplate" {
                     let mut preview = workspace_description(&staged.workspace);
                     preview["format"] = json!(format);
@@ -3006,6 +3780,21 @@ impl Core {
             _ => Err("Unknown operation".into()),
         }
     }
+}
+/// Whether a checked cell entry may be committed, or the error to show.
+fn entry_allowed(checked: &Value, r: &Value) -> Result<(), String> {
+    if checked["valid"] != true
+        && checked["shouldAlert"] == true
+        && !(checked["canOverride"] == true && r["allowInvalid"] == true)
+    {
+        return Err(checked["reason"]
+            .as_str()
+            .or(checked["rule"]["error"].as_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("This value does not match the cell's validation rule.")
+            .into());
+    }
+    Ok(())
 }
 fn display_value(v: &Value) -> String {
     if v.is_null() {

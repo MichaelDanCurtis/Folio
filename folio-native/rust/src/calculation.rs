@@ -1,7 +1,7 @@
 use crate::{calculation_clock::CalculationClock, formula::parse_address};
 use ironcalc_base::{cell::CellValue, Model};
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 /// Keeps the calculation model alive across document edits and applies only
 /// changed inputs. IronCalc owns Excel-style formula parsing and evaluation.
@@ -14,12 +14,22 @@ pub struct WorkbookCalculator {
     audit: Option<crate::formula_audit::AuditIndex>,
     identity: Vec<(String, String)>,
     inputs: Vec<HashMap<String, String>>,
+    /// Per sheet, the addresses (and parsed positions) whose input is a formula.
+    formulas: Vec<HashMap<String, (usize, usize)>>,
+    /// The next update must rebuild the model from scratch.
+    rebuild: bool,
+    pub changed: Changed,
     table_state: Vec<Value>,
     pub values: Value,
     pub cell_errors: Value,
     pub display: crate::number_format::Display,
     pub generation: u64,
     pub error: Option<String>,
+    /// Identifies this calculator and counts its updates. Unlike `generation`,
+    /// which staged layout edits overwrite, this pair never repeats, so it can
+    /// key caches of calculated results.
+    instance: u64,
+    updates: u64,
 }
 impl Default for WorkbookCalculator {
     fn default() -> Self {
@@ -32,12 +42,20 @@ impl Default for WorkbookCalculator {
             audit: None,
             identity: vec![],
             inputs: vec![],
+            formulas: vec![],
+            rebuild: false,
+            changed: Changed::All,
             table_state: vec![],
             values: json!({}),
             cell_errors: json!({}),
             display: Default::default(),
             generation: 0,
             error: None,
+            instance: {
+                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            },
+            updates: 0,
         }
     }
 }
@@ -164,15 +182,45 @@ impl WorkbookCalculator {
     pub fn invalidate(&mut self) {
         self.force = true;
     }
+    /// Brings the model up to date with `sheets`, finding changed inputs by
+    /// comparing every cell.
     pub fn sync_calendar(&mut self, sheets: &Value, date1904: bool) {
-        if let Err(e) = self.update(sheets, date1904) {
+        self.sync_changes(sheets, date1904, None);
+    }
+    /// Like `sync_calendar`, but when `hint` is given only those cells can
+    /// have changed input since the last sync, so the rest are not compared.
+    /// Changes whenever the calculator evaluates (values, errors or the
+    /// calculation clock may have changed).
+    pub fn version(&self) -> (u64, u64) {
+        (self.instance, self.updates)
+    }
+    pub fn sync_changes(
+        &mut self,
+        sheets: &Value,
+        date1904: bool,
+        hint: Option<&[(usize, String)]>,
+    ) {
+        let result = self.update(sheets, date1904, hint);
+        if result.is_err() {
+            self.updates += 1;
+        }
+        if let Err(e) = result {
             self.audit = None;
             self.error = Some(e);
             self.values = json!({});
             self.cell_errors = json!({});
+            self.changed = Changed::All;
+            // The model may hold part of the failed update; start over next time.
+            self.rebuild = true;
         }
     }
-    fn update(&mut self, sheets: &Value, date1904: bool) -> Result<(), String> {
+    fn update(
+        &mut self,
+        sheets: &Value,
+        date1904: bool,
+        hint: Option<&[(usize, String)]>,
+    ) -> Result<(), String> {
+        let started = Instant::now();
         let clock = self.clock_override.unwrap_or_else(CalculationClock::system);
         let sheets = sheets.as_array().ok_or("Invalid sheets")?;
         let identity: Vec<_> = sheets
@@ -184,35 +232,64 @@ impl WorkbookCalculator {
                 )
             })
             .collect();
-        let inputs: Vec<HashMap<String, String>> = sheets
-            .iter()
-            .map(|s| {
-                s["cells"]
-                    .as_object()
-                    .unwrap()
-                    .iter()
-                    .map(|(a, v)| (a.clone(), v.as_str().unwrap_or("").to_string()))
-                    .collect()
-            })
-            .collect();
         let table_state: Vec<_> = sheets
             .iter()
             .map(|s| json!({"tables":s.get("tables"),"hiddenRows":s.get("hiddenRows"),"autoFilter":s.get("autoFilter")}))
             .collect();
-        if identity == self.identity
-            && inputs == self.inputs
-            && table_state == self.table_state
-            && date1904 == self.date1904
+        let rebuild = self.rebuild
+            || identity != self.identity
+            || self.model.is_none()
+            || table_state != self.table_state
+            || date1904 != self.date1904;
+        let input = |i: usize, a: &str| -> Option<&str> {
+            sheets[i]["cells"].get(a).map(|v| v.as_str().unwrap_or(""))
+        };
+        let changed: Vec<(usize, String)> = if rebuild {
+            crate::perf_stages::record("full.calc_rebuild", Instant::now());
+            sheets
+                .iter()
+                .enumerate()
+                .flat_map(|(i, s)| {
+                    s["cells"]
+                        .as_object()
+                        .into_iter()
+                        .flatten()
+                        .map(move |(a, _)| (i, a.clone()))
+                })
+                .collect()
+        } else if let Some(hint) = hint {
+            hint.iter()
+                .filter(|(i, a)| self.inputs[*i].get(a).map(String::as_str) != input(*i, a))
+                .cloned()
+                .collect()
+        } else {
+            crate::perf_stages::record("full.calc_scan", Instant::now());
+            let mut changed = vec![];
+            for (i, sheet) in sheets.iter().enumerate() {
+                let cells = sheet["cells"].as_object().ok_or("Invalid cells")?;
+                let old = &self.inputs[i];
+                for (a, v) in cells {
+                    if old.get(a).map(String::as_str) != Some(v.as_str().unwrap_or("")) {
+                        changed.push((i, a.clone()));
+                    }
+                }
+                changed.extend(
+                    old.keys()
+                        .filter(|a| !cells.contains_key(*a))
+                        .map(|a| (i, a.clone())),
+                );
+            }
+            changed
+        };
+        if !rebuild
+            && changed.is_empty()
             && !self.force
             && self.clock.is_some_and(|old| old.same_calendar(clock))
         {
+            self.changed = Changed::Cells(vec![]);
             return Ok(());
         }
-        if identity != self.identity
-            || self.model.is_none()
-            || table_state != self.table_state
-            || date1904 != self.date1904
-        {
+        if rebuild {
             let mut model = Model::new_empty("Folio", "en", "UTC", "en")?;
             for (i, (_, name)) in identity.iter().enumerate() {
                 if i == 0 {
@@ -238,67 +315,116 @@ impl WorkbookCalculator {
             }
             self.model = Some(model);
             self.inputs = vec![HashMap::new(); sheets.len()];
+            self.formulas = vec![HashMap::new(); sheets.len()];
+            self.values = Value::Object(
+                identity
+                    .iter()
+                    .map(|(id, _)| (id.clone(), json!({})))
+                    .collect(),
+            );
+            self.cell_errors = self.values.clone();
         }
+        crate::perf_stages::record("calc.inputs", started);
+        let started = Instant::now();
         let model = self.model.as_mut().unwrap();
         let table_names: Vec<String> = model.workbook.tables.keys().cloned().collect();
-        for (i, cells) in inputs.iter().enumerate() {
-            let old = &self.inputs[i];
-            for address in old
-                .keys()
-                .chain(cells.keys())
-                .collect::<std::collections::HashSet<_>>()
-            {
-                if old.get(address) == cells.get(address) {
-                    continue;
-                }
-                let (r, c) = parse_address(address)?;
-                let mut input = cells.get(address).cloned().unwrap_or_default();
-                if input.starts_with('=') {
-                    let context =
-                        crate::tables::at(&sheets[i], r, c).and_then(|t| t["name"].as_str());
-                    input =
-                        crate::table_refs::qualify(&input, context, &table_names).unwrap_or(input);
-                }
-                model.set_user_input(i as u32, r as i32 + 1, c as i32 + 1, input)?;
+        let mut positions = Vec::with_capacity(changed.len());
+        for (i, address) in &changed {
+            let (r, c) = parse_address(address)?;
+            positions.push((r, c));
+            let mut value = input(*i, address).unwrap_or("").to_string();
+            match input(*i, address) {
+                Some(v) => self.inputs[*i].insert(address.clone(), v.to_string()),
+                None => self.inputs[*i].remove(address),
+            };
+            if value.starts_with('=') {
+                self.formulas[*i].insert(address.clone(), (r, c));
+                let context = crate::tables::at(&sheets[*i], r, c).and_then(|t| t["name"].as_str());
+                value = crate::table_refs::qualify(&value, context, &table_names).unwrap_or(value);
+            } else {
+                self.formulas[*i].remove(address);
             }
+            model.set_user_input(*i as u32, r as i32 + 1, c as i32 + 1, value)?;
         }
         model.set_calculation_clock(clock.millis, clock.offset_seconds)?;
-        model.evaluate();
-        let mut all = serde_json::Map::new();
-        let mut all_errors = serde_json::Map::new();
-        for (i, cells) in inputs.iter().enumerate() {
-            let mut values = serde_json::Map::new();
-            let mut errors = serde_json::Map::new();
-            for a in cells.keys() {
-                let (r, c) = parse_address(a)?;
+        crate::perf_stages::record("calc.set", started);
+        crate::perf_stages::time("calc.evaluate", || model.evaluate());
+        let started = Instant::now();
+        // Only edited cells and formulas can hold a new value after evaluation.
+        let mut read: Vec<(usize, &str, usize, usize)> = changed
+            .iter()
+            .zip(&positions)
+            .filter(|((i, a), _)| !self.formulas[*i].contains_key(a))
+            .map(|((i, a), (r, c))| (*i, a.as_str(), *r, *c))
+            .collect();
+        for (i, formulas) in self.formulas.iter().enumerate() {
+            read.extend(formulas.iter().map(|(a, (r, c))| (i, a.as_str(), *r, *c)));
+        }
+        let mut updated = vec![];
+        for (i, a, r, c) in read {
+            let id = identity[i].0.as_str();
+            let values = self.values[id].as_object_mut().ok_or("Invalid values")?;
+            let errors = self.cell_errors[id]
+                .as_object_mut()
+                .ok_or("Invalid errors")?;
+            let (value, error) = if self.inputs[i].contains_key(a) {
                 let v = match model.get_cell_value_by_index(i as u32, r as i32 + 1, c as i32 + 1)? {
                     CellValue::None => json!(""),
                     CellValue::Number(n) => json!(n),
                     CellValue::String(s) => json!(s),
                     CellValue::Boolean(b) => json!(b),
                 };
-                if model.get_cell_type(i as u32, r as i32 + 1, c as i32 + 1)?
-                    == ironcalc_base::types::CellType::ErrorValue
-                {
-                    errors.insert(a.clone(), json!(true));
-                }
-                values.insert(a.clone(), v);
+                let error = model.get_cell_type(i as u32, r as i32 + 1, c as i32 + 1)?
+                    == ironcalc_base::types::CellType::ErrorValue;
+                (Some(v), error)
+            } else {
+                (None, false)
+            };
+            let same_value = values.get(a) == value.as_ref();
+            let same_error = errors.contains_key(a) == error;
+            if same_value && same_error {
+                continue;
             }
-            all.insert(identity[i].0.clone(), Value::Object(values));
-            all_errors.insert(identity[i].0.clone(), Value::Object(errors));
+            match value {
+                Some(v) => values.insert(a.to_string(), v),
+                None => values.remove(a),
+            };
+            if error {
+                errors.insert(a.to_string(), json!(true));
+            } else {
+                errors.remove(a);
+            }
+            updated.push((i, a.to_string()));
         }
-        self.values = Value::Object(all);
-        self.cell_errors = Value::Object(all_errors);
+        crate::perf_stages::record("calc.collect", started);
+        self.changed = if rebuild {
+            Changed::All
+        } else {
+            Changed::Cells(updated)
+        };
+        self.rebuild = false;
         self.date1904 = date1904;
         self.identity = identity;
-        self.inputs = inputs;
         self.table_state = table_state;
         self.clock = Some(clock);
         self.force = false;
         self.generation += 1;
+        self.updates += 1;
         self.audit = None;
         self.error = None;
         Ok(())
+    }
+}
+
+/// Cells whose calculated value or error flag changed in the last sync.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Changed {
+    All,
+    Cells(Vec<(usize, String)>),
+}
+impl Default for Changed {
+    fn default() -> Self {
+        Self::All
     }
 }
 #[cfg(test)]

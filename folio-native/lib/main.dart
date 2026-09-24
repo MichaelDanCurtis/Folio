@@ -1120,7 +1120,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
       await flush();
       final files = workingFiles.pending(
         model.workspace,
-        model.snapshot['fileStates'] as Map? ?? {},
+        await model.currentFileStates(),
         model.revision,
         replacing: replacing,
       );
