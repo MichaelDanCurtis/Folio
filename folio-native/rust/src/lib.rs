@@ -167,3 +167,6 @@ mod date_system_tests;
 
 #[cfg(test)]
 mod docx_fields_tests;
+
+#[cfg(test)]
+mod perf_baseline_tests;
