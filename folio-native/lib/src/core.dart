@@ -75,6 +75,40 @@ const _snapshotKeys = {
   'epoch',
 };
 
+/// The engine's map key order: its JSON objects are sorted by UTF-8 bytes,
+/// which is Unicode code point order.
+int _engineKeyOrder(String a, String b) {
+  final x = a.runes.iterator, y = b.runes.iterator;
+  while (true) {
+    final more = (x.moveNext(), y.moveNext());
+    if (!more.$1 || !more.$2) return more.$1 ? 1 : (more.$2 ? -1 : 0);
+    final d = x.current - y.current;
+    if (d != 0) return d;
+  }
+}
+
+/// Sets [key] in [map] (owned by the caller), keeping the engine's key order
+/// so the result encodes exactly as a full snapshot would.
+void _setInOrder(Map<String, dynamic> map, String key, Object? value) {
+  if (map.containsKey(key) ||
+      map.isEmpty ||
+      _engineKeyOrder(map.keys.last, key) < 0) {
+    map[key] = value;
+    return;
+  }
+  final entries = map.entries.toList();
+  map.clear();
+  var placed = false;
+  for (final entry in entries) {
+    if (!placed && _engineKeyOrder(key, entry.key) < 0) {
+      map[key] = value;
+      placed = true;
+    }
+    map[entry.key] = entry.value;
+  }
+  if (!placed) map[key] = value;
+}
+
 /// The engine state after [response], given the state [base] the request was
 /// made against. A `{"delta": …}` response lists only what changed; parts of
 /// [base] it doesn't touch are shared, never modified, so earlier snapshots
@@ -87,8 +121,8 @@ Map<String, dynamic> applyEngineDelta(
   final delta = response['delta'] as Map?;
   if (delta == null) return response;
   final next = <String, dynamic>{
-    for (final key in _snapshotKeys)
-      if (base.containsKey(key)) key: base[key],
+    for (final MapEntry(:key, :value) in base.entries)
+      if (_snapshotKeys.contains(key)) key: value,
   };
   // Containers already copied for this delta may be written in place.
   final copied = Set<Object>.identity();
@@ -117,7 +151,11 @@ Map<String, dynamic> applyEngineDelta(
     }
     final last = path.last;
     if ((op as Map).containsKey('value')) {
-      (node as dynamic)[last] = op['value'];
+      if (node is Map<String, dynamic>) {
+        _setInOrder(node, last as String, op['value']);
+      } else {
+        (node as List)[last as int] = op['value'];
+      }
     } else {
       (node as Map).remove(last);
     }
@@ -131,14 +169,16 @@ Map<String, dynamic> applyEngineDelta(
         if (value == null) {
           (sheet as Map).remove(address);
         } else {
-          (sheet as Map)[address] = value;
+          _setInOrder(sheet as Map<String, dynamic>, address, value);
         }
       }
     }
   }
-  next.addAll(Map<String, dynamic>.from(delta['set'] as Map));
+  for (final MapEntry(:key, :value) in (delta['set'] as Map).entries) {
+    _setInOrder(next, key as String, value);
+  }
   for (final MapEntry(:key, :value) in response.entries) {
-    if (key != 'delta') next[key] = value;
+    if (key != 'delta') _setInOrder(next, key, value);
   }
   return next;
 }

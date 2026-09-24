@@ -73,7 +73,7 @@ void main() {
               {
                 'sheetId': ['a', 'b'][random.nextInt(2)],
                 'address':
-                    '${'ABC'[random.nextInt(3)]}${1 + random.nextInt(8)}',
+                    '${'ABCD'[random.nextInt(4)]}${1 + random.nextInt(20)}',
                 'value': values[random.nextInt(values.length)],
               },
             ],
@@ -85,9 +85,10 @@ void main() {
         final next = applyEngineDelta(held, response);
         expect(jsonEncode(held), before, reason: 'step $step changed the base');
         final full = await core.call({'op': 'get'});
+        // Compare encoded text: key order must match a full snapshot too.
         expect(
-          _content(next)..remove('documentHistoryChange'),
-          _content(full),
+          jsonEncode(_content(next)..remove('documentHistoryChange')),
+          jsonEncode(_content(full)),
           reason: 'step $step: $request',
         );
         held = next;
@@ -122,7 +123,11 @@ void main() {
         });
         expect(jsonEncode(held), previous, reason: 'edit $i changed the base');
         final full = await core.call({'op': 'get'});
-        expect(_content(model.snapshot), _content(full), reason: 'edit $i');
+        expect(
+          jsonEncode(_content(model.snapshot)),
+          jsonEncode(_content(full)),
+          reason: 'edit $i',
+        );
         await model.flush();
         expect(model.snapshot['fileStates'], full['fileStates']);
       }
