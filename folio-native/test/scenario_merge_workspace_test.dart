@@ -210,9 +210,11 @@ void main() {
         expect(imported['workspace']['sheets'][0]['cells']['C1'], '=A1*B1');
         expect(imported['workspace']['sheets'][0]['cellWatches'], {'C1': true});
         expect(imported['calculated']['office-1']['C1'], 300);
-        await File(
-          '../../work/scenarios-merge-artifact-path.txt',
-        ).writeAsString(folder.path);
+        if (Platform.environment['FOLIO_CAPTURE_PREVIEWS'] == '1') {
+          await File(
+            '../../work/scenarios-merge-artifact-path.txt',
+          ).writeAsString(folder.path);
+        }
       });
       expect(t.takeException(), isNull);
     },

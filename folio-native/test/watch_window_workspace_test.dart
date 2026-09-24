@@ -246,9 +246,11 @@ void main() {
         );
         final sid = sheets.firstWhere((s) => s['name'] == 'Forecast')['id'];
         expect(imported['calculated'][sid]['C1'], 65);
-        await File(
-          '../../work/watch-window-artifact-path.txt',
-        ).writeAsString(folder.path);
+        if (Platform.environment['FOLIO_CAPTURE_PREVIEWS'] == '1') {
+          await File(
+            '../../work/watch-window-artifact-path.txt',
+          ).writeAsString(folder.path);
+        }
       });
       expect(find.byType(WatchWindow), findsOneWidget);
       expect(t.takeException(), isNull);

@@ -259,9 +259,11 @@ void main() {
         expect(traced['precedents'].single['range'], 'B2:B4');
         expect(traced['precedents'].single['sheetName'], 'Sources');
         // Preserve the fixture and optional rendered result for independent review.
-        await File(
-          '${Directory.current.path}/../../work/formula-audit-artifact-path.txt',
-        ).writeAsString(folder.path);
+        if (Platform.environment['FOLIO_CAPTURE_PREVIEWS'] == '1') {
+          await File(
+            '${Directory.current.path}/../../work/formula-audit-artifact-path.txt',
+          ).writeAsString(folder.path);
+        }
       });
       expect(find.byType(FormulaInspector), findsNothing);
       expect(t.takeException(), isNull);

@@ -218,9 +218,11 @@ void main() {
         expect(summary['cellWatches'], {'C1': true});
         expect(inputs['cellWatches'], {'B3': true});
         expect(imported['calculated'][summary['id']]['C1'], closeTo(500, 1e-6));
-        await File(
-          '../../work/goal-seek-artifact-path.txt',
-        ).writeAsString(folder.path);
+        if (Platform.environment['FOLIO_CAPTURE_PREVIEWS'] == '1') {
+          await File(
+            '../../work/goal-seek-artifact-path.txt',
+          ).writeAsString(folder.path);
+        }
       });
       expect(t.takeException(), isNull);
     },

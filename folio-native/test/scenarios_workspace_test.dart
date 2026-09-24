@@ -263,9 +263,11 @@ void main() {
         expect(imported['calculated'][sheets[2]['id']]['C9'], 200);
         expect(imported['calculated'][sheets[2]['id']]['D9'], 450);
         expect(sheets[0]['cellWatches'], {'C1': true});
-        await File(
-          '../../work/scenarios-artifact-path.txt',
-        ).writeAsString(folder.path);
+        if (Platform.environment['FOLIO_CAPTURE_PREVIEWS'] == '1') {
+          await File(
+            '../../work/scenarios-artifact-path.txt',
+          ).writeAsString(folder.path);
+        }
       });
       expect(t.takeException(), isNull);
     },
