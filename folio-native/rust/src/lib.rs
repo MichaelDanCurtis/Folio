@@ -57,6 +57,8 @@ mod scenarios_tests;
 #[cfg(test)]
 mod text_format_tests;
 
+#[cfg(test)]
+mod cells_fast_path_tests;
 mod change_set;
 #[cfg(test)]
 mod document_bookmark_tests;

@@ -1,5 +1,6 @@
 use crate::change_set::ChangeSet;
 use crate::formula::{address, parse_address, COLS, ROWS};
+use crate::json_patch::Op;
 use crate::perf_stages::time as stage;
 use serde_json::{json, Value};
 use std::{
@@ -27,6 +28,11 @@ pub struct Core {
     goal_seek_serial: u64,
     scenario_source: Option<crate::scenario_source::Source>,
     scenario_source_serial: u64,
+    /// `workspace.to_string().len()`, kept current by in-place cell edits and
+    /// cleared by every other change.
+    serialized_size: Option<usize>,
+    #[cfg(test)]
+    pub(crate) slow_cells: bool,
 }
 struct LayoutEdit {
     token: u64,
@@ -309,6 +315,7 @@ impl Core {
         s
     }
     fn sync(&mut self, changes: &ChangeSet) {
+        self.serialized_size = None;
         let pkg = self.workspace["officeWorkbook"]["packageId"]
             .as_str()
             .and_then(|id| self.packages.get(id))
@@ -714,6 +721,159 @@ impl Core {
         });
         stage("undo.drop", || drop(previous));
         self.sync(&changes);
+        Ok(self.snapshot())
+    }
+    /// Applies plain cell edits in place: no workspace copy, no whole-workspace
+    /// validation or diff. Returns `Ok(None)`, having changed nothing, when
+    /// the edit needs the general path (tables, or document normalization
+    /// that would change the document). Errors match the general path's.
+    fn commit_cells(&mut self, changes: &Value) -> Result<Option<Value>, String> {
+        match self.apply_cells(changes)? {
+            Some((back, size)) => self.finish_cells(back, size).map(Some),
+            None => Ok(None),
+        }
+    }
+    /// The first half of `commit_cells`: edits the cells in place and returns
+    /// the undo patch and the new serialized size, without committing.
+    fn apply_cells(
+        &mut self,
+        changes: &Value,
+    ) -> Result<Option<(crate::json_patch::Patch, usize)>, String> {
+        #[cfg(test)]
+        if self.slow_cells {
+            return Ok(None);
+        }
+        let sheets = self.workspace["sheets"].as_array().ok_or("No sheets")?;
+        if sheets
+            .iter()
+            .any(|s| crate::tables::list(s).next().is_some())
+        {
+            return Ok(None);
+        }
+        // Same checks, in the same order, as `proposed`.
+        let changes = changes.as_array().ok_or("Invalid cell changes")?;
+        if changes.len() > 10000 {
+            return Err("Too many cell changes".into());
+        }
+        let mut edits = Vec::with_capacity(changes.len());
+        for c in changes {
+            let a = text(c, "address")?.to_uppercase();
+            parse_address(&a)?;
+            let value = text(c, "value")?;
+            if value.len() > 10000 {
+                return Err("Cell too long".into());
+            }
+            let id = text(c, "sheetId")?;
+            let i = sheets
+                .iter()
+                .position(|s| s["id"] == id)
+                .ok_or("Sheet does not exist")?;
+            edits.push((i, a, value.to_string()));
+        }
+        // `proposed` re-normalizes the document on every edit; if that would
+        // change it, the general path must commit the change.
+        let document = stage("cells.document", || -> Result<bool, String> {
+            let mut next = json!({
+                "document": self.workspace["document"],
+                "officeDocument": self.workspace["officeDocument"],
+            });
+            self.materialize_document_styles(&mut next)?;
+            crate::document_bookmarks::rebase(
+                &self.workspace["document"],
+                &mut next["document"],
+                None,
+            )?;
+            crate::document_comments::rebase(
+                &self.workspace["document"],
+                &mut next["document"],
+                None,
+            )?;
+            crate::docx_revisions::check_model(&self.workspace["document"], &next["document"])?;
+            crate::docx_page_setup::check_model(&self.workspace["document"], &next["document"])?;
+            Ok(next["document"] == self.workspace["document"])
+        })?;
+        if !document {
+            return Ok(None);
+        }
+        let size = match self.serialized_size {
+            Some(size) => size,
+            None => stage("cells.size", || self.workspace.to_string().len()),
+        };
+        self.serialized_size = Some(size);
+        let json_len = |v: &Value| serde_json::to_string(v).map_or(0, |s| s.len());
+        let mut grown: isize = 0;
+        let mut back = Vec::with_capacity(edits.len());
+        for (i, a, value) in edits {
+            let cells = self.workspace["sheets"][i]["cells"]
+                .as_object_mut()
+                .ok_or("Invalid cells")?;
+            let value = Value::String(value);
+            let value_len = json_len(&value) as isize;
+            let path = vec![
+                crate::json_patch::Key::Field("sheets".into()),
+                crate::json_patch::Key::Index(i),
+                crate::json_patch::Key::Field("cells".into()),
+                crate::json_patch::Key::Field(a.clone()),
+            ];
+            let key_len = json_len(&json!(a)) as isize;
+            match cells.insert(a, value) {
+                Some(old) => {
+                    grown += value_len - json_len(&old) as isize;
+                    back.push(crate::json_patch::Op::Set { path, value: old });
+                }
+                None => {
+                    // `"key":value`, plus a comma unless the object was empty.
+                    grown += key_len + 1 + value_len + (cells.len() > 1) as isize;
+                    back.push(crate::json_patch::Op::Remove { path });
+                }
+            }
+        }
+        back.reverse();
+        let back = crate::json_patch::Patch { ops: back };
+        let size = (size as isize + grown) as usize;
+        let too_many = back.ops.iter().any(|op| {
+            let (Op::Set { path, .. } | Op::Remove { path }) = op;
+            matches!(path[1], crate::json_patch::Key::Index(i)
+                if self.workspace["sheets"][i]["cells"].as_object().is_some_and(|c| c.len() > 100000))
+        });
+        let error = if size > MAX_SIZE {
+            Some("Workspace exceeds 32 MB")
+        } else if too_many {
+            Some("Too many populated cells")
+        } else {
+            None
+        };
+        if let Some(error) = error {
+            crate::json_patch::apply_inverse(&mut self.workspace, back)?;
+            return Err(error.into());
+        }
+        Ok(Some((back, size)))
+    }
+    fn finish_cells(
+        &mut self,
+        back: crate::json_patch::Patch,
+        size: usize,
+    ) -> Result<Value, String> {
+        let revision = self.workspace["revision"].as_u64().unwrap();
+        let size = size + (revision + 1).to_string().len() - revision.to_string().len();
+        self.workspace["revision"] = json!(revision + 1);
+        let changes = ChangeSet::from_patch(&back);
+        let journal = crate::document_history::Journal {
+            forward: json!([]),
+            reverse: json!([]),
+        };
+        stage("undo.push", || {
+            self.history
+                .record(crate::document_history::Entry::new(back, Some(journal)))
+        });
+        self.sync(&changes);
+        #[cfg(test)]
+        assert_eq!(
+            size,
+            self.workspace.to_string().len(),
+            "tracked workspace size"
+        );
+        self.serialized_size = Some(size);
         Ok(self.snapshot())
     }
     fn sheet_mut<'a>(w: &'a mut Value, id: &str) -> Result<&'a mut Value, String> {
@@ -2242,6 +2402,25 @@ impl Core {
                 }
                 let edit =
                     json!({"sheetId":r["sheetId"],"address":r["address"],"value":r["value"]});
+                if let Some((back, size)) = self.apply_cells(&json!([edit]))? {
+                    let checked = crate::data_validation::check(
+                        &self.workspace,
+                        &r,
+                        self.calculator.date1904,
+                    )
+                    .and_then(|mut checked| {
+                        checked["revision"] = self.workspace["revision"].clone();
+                        if op == "validationEntryCheck" {
+                            return Ok(checked);
+                        }
+                        entry_allowed(&checked, &r).map(|_| Value::Null)
+                    });
+                    if op == "enterCell" && checked.as_ref().is_ok_and(Value::is_null) {
+                        return self.finish_cells(back, size);
+                    }
+                    crate::json_patch::apply_inverse(&mut self.workspace, back)?;
+                    return checked;
+                }
                 let next=self.proposed(&json!({"summary":"Enter cell","baseRevision":r["baseRevision"],"cells":[edit]}))?;
                 let mut checked =
                     crate::data_validation::check(&next, &r, self.calculator.date1904)?;
@@ -2249,20 +2428,13 @@ impl Core {
                 if op == "validationEntryCheck" {
                     return Ok(checked);
                 }
-                if checked["valid"] != true
-                    && checked["shouldAlert"] == true
-                    && !(checked["canOverride"] == true && r["allowInvalid"] == true)
-                {
-                    return Err(checked["reason"]
-                        .as_str()
-                        .or(checked["rule"]["error"].as_str())
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or("This value does not match the cell's validation rule.")
-                        .into());
-                }
+                entry_allowed(&checked, &r)?;
                 self.commit(next)
             }
             "cells" => {
+                if let Some(result) = self.commit_cells(&r["cells"])? {
+                    return Ok(result);
+                }
                 let p = json!({"summary":"Edit cells","baseRevision":self.workspace["revision"],"cells":r["cells"]});
                 let n = stage("proposed", || self.proposed(&p))?;
                 self.commit(n)
@@ -3080,6 +3252,21 @@ impl Core {
             _ => Err("Unknown operation".into()),
         }
     }
+}
+/// Whether a checked cell entry may be committed, or the error to show.
+fn entry_allowed(checked: &Value, r: &Value) -> Result<(), String> {
+    if checked["valid"] != true
+        && checked["shouldAlert"] == true
+        && !(checked["canOverride"] == true && r["allowInvalid"] == true)
+    {
+        return Err(checked["reason"]
+            .as_str()
+            .or(checked["rule"]["error"].as_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("This value does not match the cell's validation rule.")
+            .into());
+    }
+    Ok(())
 }
 fn display_value(v: &Value) -> String {
     if v.is_null() {
