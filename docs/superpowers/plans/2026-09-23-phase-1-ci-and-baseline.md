@@ -20,7 +20,7 @@
 
 ## Prototype results (2026-09-23, Apple Silicon Mac, release build)
 
-The harness code below was prototyped and run before this plan was written. Task 5 re-measures and records official numbers.
+The harness code below was prototyped and run before this plan was written. Task 4 re-measures and records official numbers.
 
 | Measure | Result | ROADMAP §7 target |
 |---|---|---|
@@ -140,7 +140,7 @@ gh pr create --base main --title "Phase 1: CI and performance baseline" --body "
 gh pr checks --watch
 ```
 
-Expected: the `test` job passes. If `flutter test` fails in CI but passes locally, look for a test that depends on local machine state (as the `../../work/` writes did) and fix it the same way: make it opt-in behind `FOLIO_CAPTURE_PREVIEWS=1`. Do not skip or delete assertions.
+Expected: the `test` job passes. If `flutter test` fails in CI but passes locally, look for a test that depends on local machine state. The preferred fix is to resolve the environment-specific path itself (e.g. locating the Flutter SDK's `MaterialIcons` font via `FLUTTER_ROOT` instead of a hardcoded local path) rather than gating the assertion; reserve an opt-in env var like `FOLIO_CAPTURE_PREVIEWS=1` for genuinely optional evidence writes (e.g. `../../work/` capture output), not for making an assertion conditional. Do not skip or delete assertions.
 
 ---
 
