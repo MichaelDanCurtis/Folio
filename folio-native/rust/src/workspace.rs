@@ -322,11 +322,15 @@ impl Core {
             self.calculator
                 .sync_changes(&self.workspace["sheets"], date1904, hint)
         });
+        // Overlays depend on calculated values, which change only when the
+        // calculator's generation or error state does, and on the rules.
         let conditional_state = stage(
             "sync.cf_state",
-            || json!({"calculation":self.calculator.generation,"values":self.calculator.values,"errors":self.calculator.cell_errors,"rules":self.workspace["sheets"].as_array().unwrap().iter().map(|s|json!([s["id"],s["name"],s["conditionalFormats"],s["extendedConditionalFormats"],s["conditionalRightToLeft"]])).collect::<Vec<_>>()}),
+            || json!({"calculation":self.calculator.generation,"error":self.calculator.error,"rules":self.workspace["sheets"].as_array().unwrap().iter().map(|s|json!([s["id"],s["name"],s["conditionalFormats"],s["extendedConditionalFormats"],s["conditionalRightToLeft"]])).collect::<Vec<_>>()}),
         );
         let cf_started = std::time::Instant::now();
+        // Cells whose overlay changed, or None when that can't be listed cheaply.
+        let mut overlay_changes = Some(vec![]);
         if conditional_state != self.conditional_state {
             let mut overlays = serde_json::Map::new();
             let mut warnings = serde_json::Map::new();
@@ -337,12 +341,17 @@ impl Core {
                 .enumerate()
             {
                 let id = sheet["id"].as_str().unwrap();
-                let cells = sheet["cells"]
-                    .as_object()
-                    .unwrap()
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>();
+                // Without rules, evaluation reads no cells.
+                let cells = if crate::conditional_format::rules(sheet).next().is_some() {
+                    sheet["cells"]
+                        .as_object()
+                        .unwrap()
+                        .keys()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                } else {
+                    vec![]
+                };
                 match crate::conditional_format::evaluate(
                     &self.workspace["sheets"],
                     i,
@@ -350,10 +359,30 @@ impl Core {
                     &mut self.calculator,
                 ) {
                     Ok(result) => {
-                        overlays.insert(id.into(), result["styles"].clone());
+                        let styles = &result["styles"];
+                        if let (Some(changes), Some(new), Some(old)) = (
+                            overlay_changes.as_mut(),
+                            styles.as_object(),
+                            self.conditional.get(id).and_then(Value::as_object),
+                        ) {
+                            changes.extend(
+                                new.iter()
+                                    .filter(|(a, v)| old.get(*a) != Some(*v))
+                                    .map(|(a, _)| (i, a.clone())),
+                            );
+                            changes.extend(
+                                old.keys()
+                                    .filter(|a| !new.contains_key(*a))
+                                    .map(|a| (i, a.clone())),
+                            );
+                        } else {
+                            overlay_changes = None;
+                        }
+                        overlays.insert(id.into(), styles.clone());
                         warnings.insert(id.into(), result["warnings"].clone());
                     }
                     Err(e) => {
+                        overlay_changes = None;
                         warnings.insert(id.into(), json!([e]));
                     }
                 }
@@ -363,16 +392,51 @@ impl Core {
             self.conditional_state = conditional_state;
         }
         crate::perf_stages::record("sync.cf_eval", cf_started);
+        // Only edited cells, recalculated cells and restyled cells can display
+        // differently after a cell-value-only change.
+        let display_cells = match (changes, &self.calculator.changed, overlay_changes) {
+            (
+                ChangeSet::Cells(edited),
+                crate::calculation::Changed::Cells(values),
+                Some(overlays),
+            ) => {
+                let mut cells: Vec<_> = edited
+                    .iter()
+                    .chain(values)
+                    .chain(&overlays)
+                    .cloned()
+                    .collect();
+                cells.sort();
+                cells.dedup();
+                Some(cells)
+            }
+            _ => None,
+        };
         stage("sync.display", || {
-            self.calculator.display.sync(
-                &self.workspace["sheets"],
-                &self.calculator.values,
-                &self.calculator.cell_errors,
-                self.calculator.generation,
-                &self.conditional,
-                date1904,
-                palette,
-            )
+            let sheets = &self.workspace["sheets"];
+            let calc = &mut self.calculator;
+            let updated = display_cells.is_some_and(|cells| {
+                calc.display.sync_cells(
+                    sheets,
+                    &calc.values,
+                    &calc.cell_errors,
+                    &self.conditional,
+                    date1904,
+                    &palette,
+                    &cells,
+                )
+            });
+            if !updated {
+                calc.display.sync(
+                    sheets,
+                    &calc.values,
+                    &calc.cell_errors,
+                    calc.generation,
+                    &self.conditional,
+                    date1904,
+                    palette,
+                )
+            }
         });
     }
     #[cfg(test)]

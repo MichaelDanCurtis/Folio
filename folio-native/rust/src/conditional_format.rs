@@ -1361,6 +1361,10 @@ pub fn evaluate(
             "Extended Excel conditional formats are preserved but not displayed yet.".to_string(),
         );
     }
+    if ordered.is_empty() {
+        // No rule can style a cell; skip the per-cell pass.
+        return Ok(json!({"styles":{},"warnings":warnings}));
+    }
     for (i, rule) in ordered.iter().enumerate() {
         if flag(rule, "unsupported") {
             warnings.push(format!(

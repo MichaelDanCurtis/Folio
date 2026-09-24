@@ -339,37 +339,7 @@ impl Display {
             let id = sheet["id"].as_str().unwrap_or("");
             let mut display = serde_json::Map::new();
             for (address, raw) in sheet["cells"].as_object().into_iter().flatten() {
-                let fallback = json!(raw
-                    .as_str()
-                    .unwrap_or("")
-                    .strip_prefix('\'')
-                    .unwrap_or(raw.as_str().unwrap_or("")));
-                let value = calculated[id].get(address).unwrap_or(&fallback);
-                if errors[id][address] == true {
-                    display.insert(
-                        address.clone(),
-                        json!({"text":plain(value),"isError":true,"conditionalStyle":conditional[id][address]}),
-                    );
-                    continue;
-                }
-                let format = conditional[id][address]["numFmt"]
-                    .as_str()
-                    .unwrap_or_else(|| code(sheet, address));
-                let key = json!([format, value]).to_string();
-                let output = if let Some(v) = self.cache.get(&key) {
-                    v.clone()
-                } else {
-                    let result = render(value, format, date1904, &self.palette);
-                    if self.cache.len() >= 16384 {
-                        self.cache.clear();
-                    }
-                    self.cache.insert(key, result.clone());
-                    result
-                };
-                let mut output = output;
-                if let Some(style) = conditional[id].get(address) {
-                    output["conditionalStyle"] = style.clone();
-                }
+                let output = self.cell(sheet, id, address, raw, calculated, errors, conditional);
                 display.insert(address.clone(), output);
             }
             all.insert(id.into(), Value::Object(display));
@@ -377,5 +347,89 @@ impl Display {
         self.values = Value::Object(all);
         self.previous = state;
         self.previous_values = calculated.clone();
+    }
+    /// Re-renders only `cells` (sheet index, address). Returns false, changing
+    /// nothing, when this display can't be updated in place: it was never
+    /// fully rendered, or the calendar or palette changed.
+    #[allow(clippy::too_many_arguments)]
+    pub fn sync_cells(
+        &mut self,
+        sheets: &Value,
+        calculated: &Value,
+        errors: &Value,
+        conditional: &Value,
+        date1904: bool,
+        palette: &[String],
+        cells: &[(usize, String)],
+    ) -> bool {
+        let Some(sheets) = sheets.as_array() else {
+            return false;
+        };
+        let ready = self.previous != Value::Null || self.values.is_object();
+        let all_sheets = sheets.iter().all(|s| {
+            s["id"]
+                .as_str()
+                .is_some_and(|id| self.values.get(id).is_some_and(Value::is_object))
+        });
+        if !ready || !all_sheets || self.date1904 != date1904 || self.palette != palette {
+            return false;
+        }
+        for (i, address) in cells {
+            let Some(sheet) = sheets.get(*i) else {
+                return false;
+            };
+            let id = sheet["id"].as_str().unwrap_or("");
+            let output = sheet["cells"]
+                .get(address)
+                .map(|raw| self.cell(sheet, id, address, raw, calculated, errors, conditional));
+            let display = self.values[id].as_object_mut().unwrap();
+            match output {
+                Some(output) => display.insert(address.clone(), output),
+                None => display.remove(address),
+            };
+        }
+        // The full path's skip check compares against the last full render.
+        self.previous = Value::Null;
+        self.previous_values = Value::Null;
+        true
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn cell(
+        &mut self,
+        sheet: &Value,
+        id: &str,
+        address: &str,
+        raw: &Value,
+        calculated: &Value,
+        errors: &Value,
+        conditional: &Value,
+    ) -> Value {
+        let fallback = json!(raw
+            .as_str()
+            .unwrap_or("")
+            .strip_prefix('\'')
+            .unwrap_or(raw.as_str().unwrap_or("")));
+        let value = calculated[id].get(address).unwrap_or(&fallback);
+        if errors[id][address] == true {
+            return json!({"text":plain(value),"isError":true,"conditionalStyle":conditional[id][address]});
+        }
+        let format = conditional[id][address]["numFmt"]
+            .as_str()
+            .unwrap_or_else(|| code(sheet, address));
+        let key = json!([format, value]).to_string();
+        let mut output = if let Some(v) = self.cache.get(&key) {
+            v.clone()
+        } else {
+            let result = render(value, format, self.date1904, &self.palette);
+            if self.cache.len() >= 16384 {
+                self.cache.clear();
+            }
+            self.cache.insert(key, result.clone());
+            result
+        };
+        if let Some(style) = conditional[id].get(address) {
+            output["conditionalStyle"] = style.clone();
+        }
+        output
     }
 }
