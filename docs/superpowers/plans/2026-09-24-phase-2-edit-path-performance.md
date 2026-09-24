@@ -245,3 +245,55 @@ T4, T5 and T6 are independent of each other and can run in parallel once T3 land
 - **Spills and volatile functions** can change cells that weren't edited. T4 reads back every formula cell and every spill range after `evaluate()`, not just the edited cells, so these are caught; its differential test includes both.
 - **Undo semantics.** Revision numbering and `documentHistoryChange` payloads are part of the Flutter contract. T2 Step 6 compares them step by step against the old implementation.
 - **The delta contract adds a second response shape.** It is opt-in per request, a revision mismatch always falls back to a full `get`, and the Dart test compares delta-driven and full-snapshot models directly.
+
+## Progress and findings (2026-09-24)
+
+| Task | State | Notes |
+|---|---|---|
+| 1. Stage timers | Done | Also added `undoMs` and `layoutEditMs` (see finding 1). |
+| 2. Patch-based undo | Done | Out-of-band row-size changes re-base the adjacent undo/redo entries (`History::rebase`). |
+| 3. Change set | Done | |
+| 4. Incremental calculator | Done | Full and incremental paths share one routine driven by a changed-input list. No IronCalc accessor was needed: published values only cover input cells, so reading back edited and formula cells is complete. |
+| 5. Incremental display + CF | Done | CF skips sheets without rules exactly (early return in `conditional_format::evaluate`). |
+| 6. File states on demand | **Blocked on a decision** | See finding 2. |
+| 7. In-place cell fast path | Done | Covers `cells`, `enterCell`, `validationEntryCheck`. Workbooks with any table take the general path, because `tables::after_cells` can rewrite table metadata. The document-normalization check is cached. |
+| 8. Delta responses | Not started | Depends on the layout-path decision below. |
+| 9. Re-measure and CI guards | Not started | |
+
+### Container measurements
+
+Measured with the Rust harness, release build, on a 4-vCPU Linux container. That machine is about 6× slower than the M4 Max baseline (Phase 1 engine + response p95: 381.6 ms on the Mac vs 2,251 ms here). These numbers show direction only; the exit gate is measured on the Mac.
+
+| Measure (ms) | Before (after T1) | After T4 | After T7 |
+|---|---:|---:|---:|
+| Engine edit p50 / p95 | 1,847 / 2,022 | 851 / 996 | 275 / 310 |
+| Engine + response p50 / p95 | 2,077 / 2,251 | 1,044 / 1,205 | 466 / 527 |
+| First 10 → last 10 edits (avg) | 816 → 1,881 | 753 → 819 | 276 → 264 |
+| Undo p95 | 1,798 | 1,152 | 438 |
+| Layout edit path p50 / p95 (what the app does) | not measured | 3,776 / 4,182 | 2,445 / 2,764 |
+| Response size | 7.76 MB | 7.76 MB | 7.76 MB |
+
+Largest remaining direct-path stages after T7 (p95): snapshot build 106, IronCalc `evaluate` 73 (the floor), document check 70 (since cached), calculator read-back 47, file-state digests 23.
+
+### Finding 1: the app's edit path is the layout path, and the plan didn't cover it
+
+`WorkspaceModel.mutate` sends `cells`, `enterCell` and 14 other ops through `prepareLayoutEdit` → Dart row measurement → `commitLayoutEdit`. `prepareLayoutEdit` clones the workspace into a staged engine, syncs a second calculator that lags one edit behind, runs the edit there, computes row targets by scanning every cell (`row_reflow::targets`), and returns a full snapshot. `commitLayoutEdit` compares whole workspaces twice, validates twice, diffs, and returns another full snapshot. After T7 this path is ~5× the direct edit path. The Phase 1 benchmarks measured only the direct `cells` op.
+
+Proposed new task (7b), keeping the rule that measuring never publishes an edit:
+- Store the lagging calculator's changes since it was swapped out, and pass them to the staged sync as a `ChangeSet::Cells` hint. Keep its conditional-format state with it.
+- Replace the `base` clone and compare with a workspace epoch counter bumped by `Core::sync`.
+- Compute row targets from the change set (edited ∪ recalculated ∪ re-rendered cells), with the same comparisons `targets` makes today, plus a differential test against `targets`.
+- Commit the staged patch directly instead of re-validating and re-diffing whole workspaces.
+
+The alternative is to commit first and then apply measured row sizes as an out-of-band change, the way calculation-only layout edits already work. That is simpler and faster, but it drops the "measuring must not publish" rule that `prepareLayoutEdit`'s tests encode.
+
+### Finding 2: file-state digests are read on every frame
+
+`fileSaveStatus` ("Saved · name" / "Changes saved locally · name") is a synchronous getter that compares `snapshot['fileStates']` content signatures. So the digests are needed after every edit, not only on save or close. The options are:
+- **(a)** Fetch them after edits with a short debounce. The status text can lag an edit by up to the debounce.
+- **(b)** Replace the SHA-256 over serialized sheets with an incrementally updatable signature (for example a sum of per-cell hashes). This changes the persisted signature format, so every previously saved file shows "Changes saved locally" once, until it is next saved.
+
+### Other notes
+
+- Undo entries are now sized by their patches, so large workbooks keep the full 100-step history. Previously each entry was a full workspace copy under a 24 MB cap, which allowed only about 10 steps at the benchmark size.
+- The Flutter suite also runs on Linux here (Flutter 3.44.7, `FOLIO_CORE_PATH` pointing at `libfolio_core.so`): 380 pass, 14 fail. The failures are in font-measurement and macOS-variant widget tests. I haven't checked whether they also fail on `main` under Linux; macOS CI is the authority.
