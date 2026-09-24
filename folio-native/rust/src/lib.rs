@@ -19,6 +19,8 @@ mod workspace;
 
 mod calculation;
 mod calculation_clock;
+#[cfg(test)]
+mod calculation_incremental_tests;
 mod cell_watches;
 #[cfg(test)]
 mod cell_watches_tests;

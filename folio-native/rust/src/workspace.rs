@@ -308,15 +308,19 @@ impl Core {
         s.sync(&ChangeSet::Structural);
         s
     }
-    fn sync(&mut self, _changes: &ChangeSet) {
+    fn sync(&mut self, changes: &ChangeSet) {
         let pkg = self.workspace["officeWorkbook"]["packageId"]
             .as_str()
             .and_then(|id| self.packages.get(id))
             .map(AsRef::as_ref);
         let (date1904, palette) = crate::number_format::settings(pkg);
+        let hint = match changes {
+            ChangeSet::Cells(cells) => Some(cells.as_slice()),
+            ChangeSet::Structural => None,
+        };
         stage("sync.calc", || {
             self.calculator
-                .sync_calendar(&self.workspace["sheets"], date1904)
+                .sync_changes(&self.workspace["sheets"], date1904, hint)
         });
         let conditional_state = stage(
             "sync.cf_state",
@@ -1197,7 +1201,6 @@ impl Core {
                 &r,
             ),
             "new" => {
-                let previous = self.workspace.clone();
                 self.workspace = seed();
                 if r["blank"] == true {
                     self.workspace["title"] = json!("Untitled workspace");
@@ -1385,7 +1388,7 @@ impl Core {
                 }
                 self.packages = packages;
                 self.package_digests.clear();
-                let old = std::mem::replace(&mut self.workspace, w);
+                self.workspace = w;
                 self.history.clear();
                 self.calculator.invalidate();
                 self.sync(&ChangeSet::Structural);
