@@ -25,6 +25,11 @@ pub struct WorkbookCalculator {
     pub display: crate::number_format::Display,
     pub generation: u64,
     pub error: Option<String>,
+    /// Identifies this calculator and counts its updates. Unlike `generation`,
+    /// which staged layout edits overwrite, this pair never repeats, so it can
+    /// key caches of calculated results.
+    instance: u64,
+    updates: u64,
 }
 impl Default for WorkbookCalculator {
     fn default() -> Self {
@@ -46,6 +51,11 @@ impl Default for WorkbookCalculator {
             display: Default::default(),
             generation: 0,
             error: None,
+            instance: {
+                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            },
+            updates: 0,
         }
     }
 }
@@ -179,13 +189,22 @@ impl WorkbookCalculator {
     }
     /// Like `sync_calendar`, but when `hint` is given only those cells can
     /// have changed input since the last sync, so the rest are not compared.
+    /// Changes whenever the calculator evaluates (values, errors or the
+    /// calculation clock may have changed).
+    pub fn version(&self) -> (u64, u64) {
+        (self.instance, self.updates)
+    }
     pub fn sync_changes(
         &mut self,
         sheets: &Value,
         date1904: bool,
         hint: Option<&[(usize, String)]>,
     ) {
-        if let Err(e) = self.update(sheets, date1904, hint) {
+        let result = self.update(sheets, date1904, hint);
+        if result.is_err() {
+            self.updates += 1;
+        }
+        if let Err(e) = result {
             self.audit = None;
             self.error = Some(e);
             self.values = json!({});
@@ -388,6 +407,7 @@ impl WorkbookCalculator {
         self.clock = Some(clock);
         self.force = false;
         self.generation += 1;
+        self.updates += 1;
         self.audit = None;
         self.error = None;
         Ok(())

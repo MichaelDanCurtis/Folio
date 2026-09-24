@@ -3,8 +3,9 @@ use crate::json_patch::{Key, Op, Patch};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ChangeSet {
-    /// Only `sheets[i].cells[address]` values were set or removed; the sheet
-    /// list and everything else in the workspace are unchanged.
+    /// Only `sheets[i].cells[address]` values were set or removed, plus
+    /// possibly row heights; the sheet list and everything else in the
+    /// workspace are unchanged.
     Cells(Vec<(usize, String)>),
     /// Anything else: callers take their full path.
     Structural,
@@ -23,6 +24,10 @@ impl ChangeSet {
                 {
                     cells.push((*i, address.clone()))
                 }
+                // Row sizes affect layout only, never values or display text.
+                [Key::Field(sheets), Key::Index(_), Key::Field(field), ..]
+                    if sheets == "sheets"
+                        && (field == "rowHeights" || field == "rowHeightModes") => {}
                 _ => return Self::Structural,
             }
         }
@@ -69,6 +74,14 @@ mod tests {
             changes(|w| w["revision"] = json!(9)),
             ChangeSet::Cells(vec![])
         );
+        assert_eq!(
+            changes(|w| {
+                w["sheets"][0]["cells"]["A1"] = json!("2");
+                w["sheets"][0]["rowHeights"] = json!({"1":20});
+                w["sheets"][1]["rowHeightModes"] = json!({"1":"auto"});
+            }),
+            ChangeSet::Cells(vec![(0, "A1".into())])
+        );
     }
 
     #[test]
@@ -86,7 +99,7 @@ mod tests {
             Box::new(|w| w["sheets"][0]["cells"] = json!("broken")),
             Box::new(|w| {
                 w["sheets"][0]["cells"]["A1"] = json!("2");
-                w["sheets"][0]["rowHeights"] = json!({"1":20});
+                w["sheets"][0]["columnWidths"] = json!({"1":20});
             }),
             Box::new(|w| w["sheets"].as_array_mut().unwrap().pop().map(drop).unwrap()),
         ];

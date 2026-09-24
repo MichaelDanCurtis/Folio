@@ -23,7 +23,11 @@ pub struct Core {
     conditional_state: Value,
     conditional: Value,
     conditional_warnings: Value,
-    layout_calculator: Option<crate::calculation::WorkbookCalculator>,
+    /// The calculator (and its conditional-format state) that the next
+    /// staged layout edit reuses, one step behind `calculator`.
+    layout_bundle: Option<LayoutBundle>,
+    /// Bumped by every `sync`, i.e. every workspace change.
+    epoch: u64,
     goal_seek: Option<crate::goal_seek::Session>,
     goal_seek_serial: u64,
     scenario_source: Option<crate::scenario_source::Source>,
@@ -36,10 +40,21 @@ pub struct Core {
     stable_document: Option<(Value, Value)>,
     #[cfg(test)]
     pub(crate) slow_cells: bool,
+    /// Test-only: stage layout edits the original way (full sync, full
+    /// validation and diff at commit).
+    #[cfg(test)]
+    pub(crate) slow_layout: bool,
+}
+struct LayoutBundle {
+    calculator: crate::calculation::WorkbookCalculator,
+    conditional: (Value, Value, Value),
+    /// Cells whose input changed since `calculator` last synced, or None if
+    /// unknown (the next sync then compares every cell).
+    lag: Option<Vec<(usize, String)>>,
 }
 struct LayoutEdit {
     token: u64,
-    base: Value,
+    base_epoch: u64,
     staged: Box<Core>,
     rows: crate::row_reflow::Targets,
     calculation_only: bool,
@@ -319,6 +334,15 @@ impl Core {
     }
     fn sync(&mut self, changes: &ChangeSet) {
         self.serialized_size = None;
+        self.epoch += 1;
+        if let Some(bundle) = &mut self.layout_bundle {
+            match (changes, &mut bundle.lag) {
+                (ChangeSet::Cells(cells), Some(lag)) if lag.len() + cells.len() <= 10_000 => {
+                    lag.extend(cells.iter().cloned())
+                }
+                _ => bundle.lag = None,
+            }
+        }
         let pkg = self.workspace["officeWorkbook"]["packageId"]
             .as_str()
             .and_then(|id| self.packages.get(id))
@@ -336,7 +360,7 @@ impl Core {
         // calculator's generation or error state does, and on the rules.
         let conditional_state = stage(
             "sync.cf_state",
-            || json!({"calculation":self.calculator.generation,"error":self.calculator.error,"rules":self.workspace["sheets"].as_array().unwrap().iter().map(|s|json!([s["id"],s["name"],s["conditionalFormats"],s["extendedConditionalFormats"],s["conditionalRightToLeft"]])).collect::<Vec<_>>()}),
+            || json!({"calculation":self.calculator.version(),"error":self.calculator.error,"rules":self.workspace["sheets"].as_array().unwrap().iter().map(|s|json!([s["id"],s["name"],s["conditionalFormats"],s["extendedConditionalFormats"],s["conditionalRightToLeft"]])).collect::<Vec<_>>()}),
         );
         let cf_started = std::time::Instant::now();
         // Cells whose overlay changed, or None when that can't be listed cheaply.
@@ -896,6 +920,147 @@ impl Core {
         self.serialized_size = Some(size);
         Ok(self.snapshot())
     }
+    /// A staged engine's calculator and conditional-format state, for reuse
+    /// by the next staged edit. Its workspace is `self.workspace`.
+    fn into_bundle(self) -> LayoutBundle {
+        LayoutBundle {
+            calculator: self.calculator,
+            conditional: (
+                self.conditional,
+                self.conditional_state,
+                self.conditional_warnings,
+            ),
+            lag: None,
+        }
+    }
+    /// Commits a staged layout edit from its undo patch: applies the measured
+    /// row sizes, checks only what they can change (the size limit), and
+    /// records one history entry, without re-validating or re-diffing the
+    /// whole workspace. Same result as `commit_journal` on the staged
+    /// workspace.
+    fn commit_staged(
+        &mut self,
+        pending: LayoutEdit,
+        entry: crate::document_history::Entry,
+        sizes: &Value,
+    ) -> Result<Value, String> {
+        let LayoutEdit { rows, staged, .. } = pending;
+        let mut staged = *staged;
+        // Row sizes: record each touched key's old value for the undo patch.
+        let json_len = |v: &Value| serde_json::to_string(v).map_or(0, |s| s.len()) as isize;
+        let mut row_back = vec![];
+        let mut grown: isize = 0;
+        let mut before = vec![];
+        for (i, sheet) in staged.workspace["sheets"]
+            .as_array()
+            .ok_or("No sheets")?
+            .iter()
+            .enumerate()
+        {
+            if sheet["id"].as_str().is_some_and(|id| rows.contains_key(id)) {
+                let fields = ["rowHeights", "rowHeightModes"].map(|f| sheet.get(f).cloned());
+                before.push((i, fields));
+            }
+        }
+        crate::row_reflow::apply(&mut staged.workspace, &rows, sizes)?;
+        for (i, fields) in before {
+            let sheet = &staged.workspace["sheets"][i];
+            for (field, old) in ["rowHeights", "rowHeightModes"].into_iter().zip(fields) {
+                let new = &sheet[field];
+                let path = |key: Option<&str>| {
+                    let mut p = vec![
+                        crate::json_patch::Key::Field("sheets".into()),
+                        crate::json_patch::Key::Index(i),
+                        crate::json_patch::Key::Field(field.into()),
+                    ];
+                    p.extend(key.map(|k| crate::json_patch::Key::Field(k.into())));
+                    p
+                };
+                match &old {
+                    Some(old) if old.is_object() => {
+                        grown += json_len(new) - json_len(old);
+                        let old = old.as_object().unwrap();
+                        for (key, value) in new.as_object().into_iter().flatten() {
+                            match old.get(key) {
+                                Some(v) if v == value => {}
+                                Some(v) => row_back.push(Op::Set {
+                                    path: path(Some(key)),
+                                    value: v.clone(),
+                                }),
+                                None => row_back.push(Op::Remove {
+                                    path: path(Some(key)),
+                                }),
+                            }
+                        }
+                    }
+                    // `apply` replaced a missing or non-object field.
+                    _ => {
+                        grown += json_len(new)
+                            // A new `"field":{…}` member, plus its comma.
+                            - old.as_ref().map_or(-4 - field.len() as isize, json_len);
+                        row_back.push(match old {
+                            Some(v) => Op::Set {
+                                path: path(None),
+                                value: v,
+                            },
+                            None => Op::Remove { path: path(None) },
+                        });
+                    }
+                }
+            }
+        }
+        let size = match staged.serialized_size {
+            Some(size) => (size as isize + grown) as usize,
+            None => staged.workspace.to_string().len(),
+        };
+        if size > MAX_SIZE {
+            return Err("Workspace exceeds 32 MB".into());
+        }
+        let mut back = row_back;
+        back.extend(entry.patch.ops);
+        let back = crate::json_patch::Patch { ops: back };
+        self.packages = std::mem::take(&mut staged.packages);
+        self.package_digests = std::mem::take(&mut staged.package_digests);
+        let workspace =
+            std::mem::replace(&mut self.workspace, std::mem::take(&mut staged.workspace));
+        // Dropping a large workspace is linear; don't make the edit wait for it.
+        std::thread::spawn(move || drop(workspace));
+        let conditional = (
+            std::mem::replace(
+                &mut self.conditional,
+                std::mem::take(&mut staged.conditional),
+            ),
+            std::mem::replace(
+                &mut self.conditional_state,
+                std::mem::take(&mut staged.conditional_state),
+            ),
+            std::mem::replace(
+                &mut self.conditional_warnings,
+                std::mem::take(&mut staged.conditional_warnings),
+            ),
+        );
+        self.layout_bundle = Some(LayoutBundle {
+            calculator: std::mem::replace(&mut self.calculator, staged.calculator),
+            conditional,
+            lag: Some(vec![]),
+        });
+        let changes = ChangeSet::from_patch(&back);
+        self.history
+            .record(crate::document_history::Entry::new(back, entry.document));
+        self.sync(&changes);
+        self.serialized_size = Some(size);
+        #[cfg(test)]
+        assert_eq!(
+            size,
+            self.workspace.to_string().len(),
+            "tracked workspace size"
+        );
+        Ok(self.snapshot())
+    }
+    #[cfg(test)]
+    pub(crate) fn layout_token(&self) -> Value {
+        json!(self.layout.as_ref().map(|p| p.token))
+    }
     fn sheet_mut<'a>(w: &'a mut Value, id: &str) -> Result<&'a mut Value, String> {
         w["sheets"]
             .as_array_mut()
@@ -1279,7 +1444,7 @@ impl Core {
                 self.scenario_source = None;
             }
             if let Some(previous) = self.layout.take() {
-                self.layout_calculator = Some(previous.staged.calculator);
+                self.layout_bundle = Some(previous.staged.into_bundle());
             }
         }
         match op {
@@ -1324,16 +1489,35 @@ impl Core {
                     return Err("This operation cannot be staged for row layout".into());
                 }
                 if let Some(previous) = self.layout.take() {
-                    self.layout_calculator = Some(previous.staged.calculator);
+                    self.layout_bundle = Some(previous.staged.into_bundle());
                 }
+                let bundle = self.layout_bundle.take();
+                #[cfg(test)]
+                let bundle = bundle.filter(|_| !self.slow_layout);
+                let (calculator, conditional, lag) = match bundle {
+                    Some(b) => (b.calculator, Some(b.conditional), b.lag),
+                    None => (Default::default(), None, None),
+                };
                 let mut staged = Box::new(Core {
                     workspace: self.workspace.clone(),
                     packages: self.packages.clone(),
                     package_digests: self.package_digests.clone(),
                     clipboard: self.clipboard.clone(),
-                    calculator: self.layout_calculator.take().unwrap_or_default(),
+                    calculator,
+                    serialized_size: self.serialized_size,
+                    stable_document: self.stable_document.clone(),
                     ..Default::default()
                 });
+                #[cfg(test)]
+                {
+                    staged.slow_cells = self.slow_cells;
+                    staged.slow_layout = self.slow_layout;
+                }
+                if let Some((c, state, warnings)) = conditional {
+                    staged.conditional = c;
+                    staged.conditional_state = state;
+                    staged.conditional_warnings = warnings;
+                }
                 let calculation_only =
                     matches!(edit["op"].as_str(), Some("recalculate" | "refreshCalendar"));
                 let clock_override = self.calculator.clock_override;
@@ -1341,7 +1525,7 @@ impl Core {
                     clock_override
                         .unwrap_or_else(crate::calculation_clock::CalculationClock::system),
                 );
-                staged.sync(&ChangeSet::Structural);
+                staged.sync(&lag.map_or(ChangeSet::Structural, ChangeSet::Cells));
                 staged.calculator.generation = self.calculator.generation;
                 if calculation_only {
                     // A staged calculator may have been reused from a cancelled edit.
@@ -1374,7 +1558,7 @@ impl Core {
                 snapshot["layoutRows"] = json!(rows);
                 self.layout = Some(LayoutEdit {
                     token: self.layout_serial,
-                    base: self.workspace.clone(),
+                    base_epoch: self.epoch,
                     staged,
                     rows,
                     calculation_only,
@@ -1383,7 +1567,7 @@ impl Core {
             }
             "cancelLayoutEdit" => {
                 if self.layout.as_ref().is_some_and(|p| r["token"] == p.token) {
-                    self.layout_calculator = self.layout.take().map(|p| p.staged.calculator);
+                    self.layout_bundle = self.layout.take().map(|p| p.staged.into_bundle());
                 }
                 Ok(json!({"cancelled":true}))
             }
@@ -1392,8 +1576,18 @@ impl Core {
                     return Err("The measured edit expired. Try again.".into());
                 }
                 let mut pending = self.layout.take().unwrap();
-                if pending.base != self.workspace {
+                if pending.base_epoch != self.epoch {
                     return Err("The workbook changed while sizing its rows. Try again.".into());
+                }
+                #[cfg(test)]
+                let direct = !self.slow_layout;
+                #[cfg(not(test))]
+                let direct = true;
+                // The staged edit made exactly one history entry: commit it
+                // directly. (Its revision bump means it always commits.)
+                if direct && !pending.calculation_only && pending.staged.history.undo_len() == 1 {
+                    let entry = pending.staged.history.pop_undo().unwrap();
+                    return self.commit_staged(pending, entry, &r["sizes"]);
                 }
                 crate::row_reflow::apply(
                     &mut pending.staged.workspace,
@@ -1406,10 +1600,23 @@ impl Core {
                 }
                 self.packages = pending.staged.packages;
                 self.package_digests = pending.staged.package_digests;
-                self.layout_calculator = Some(std::mem::replace(
-                    &mut self.calculator,
-                    pending.staged.calculator,
-                ));
+                let conditional = std::mem::replace(
+                    &mut self.conditional,
+                    std::mem::take(&mut pending.staged.conditional),
+                );
+                let conditional_state = std::mem::replace(
+                    &mut self.conditional_state,
+                    std::mem::take(&mut pending.staged.conditional_state),
+                );
+                let conditional_warnings = std::mem::replace(
+                    &mut self.conditional_warnings,
+                    std::mem::take(&mut pending.staged.conditional_warnings),
+                );
+                self.layout_bundle = Some(LayoutBundle {
+                    calculator: std::mem::replace(&mut self.calculator, pending.staged.calculator),
+                    conditional: (conditional, conditional_state, conditional_warnings),
+                    lag: Some(vec![]),
+                });
                 if pending.calculation_only {
                     // Derived values and automatic row sizes do not create edits,
                     // consume Undo/Redo or advance the document revision.

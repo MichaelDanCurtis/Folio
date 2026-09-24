@@ -122,7 +122,11 @@ mod incremental_sync_tests;
 mod json_patch;
 #[cfg(test)]
 mod json_patch_tests;
+#[cfg(test)]
+mod layout_fast_path_tests;
 mod office;
+#[cfg(test)]
+mod row_reflow_targets_tests;
 mod xlsx;
 mod xlsx_alignment;
 #[cfg(test)]

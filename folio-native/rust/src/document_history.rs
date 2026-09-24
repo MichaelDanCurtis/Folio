@@ -109,6 +109,9 @@ impl History {
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }
+    pub fn undo_len(&self) -> usize {
+        self.undo.len()
+    }
     pub fn last_undo(&self) -> Option<&Entry> {
         self.undo.back()
     }
