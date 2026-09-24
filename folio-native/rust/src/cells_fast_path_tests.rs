@@ -65,7 +65,12 @@ fn random_cell_edits_match_the_general_path() {
     ];
     let mut r = Lcg(3);
     for step in 0..300 {
-        let request = match r.below(10) {
+        let request = match r.below(11) {
+            10 => {
+                let text = format!("Notes {}", r.below(3));
+                json!({"op":"document","document":{"type":"doc","content":[
+                    {"type":"paragraph","content":[{"type":"text","text":text}]}]}})
+            }
             0 => json!({"op":"undo"}),
             1 => json!({"op":"redo"}),
             2 => json!({"op":"cells","cells":[{"sheetId":"a","address":"zz1","value":"x"}]}),
@@ -186,4 +191,37 @@ fn validated_entries_match_the_general_path() {
             same(&mut fast, &mut slow, json!({"op":"undo"}), step);
         }
     }
+}
+
+#[test]
+fn a_document_that_normalization_changes_takes_the_general_path() {
+    let (c, _) = pair();
+    let mut w = c.workspace.clone();
+    w["document"] = json!({"type":"doc","content":[{"type":"paragraph","attrs":{"paragraphFormat":{
+        "styleId":"Heading1","inheritedOutlineLevel":0,"inherited":{},"direct":{"outlineLevel":9},
+        "inheritedRun":{"sz":48}}},"content":[{"type":"text","text":"Outline"}]}]});
+    let (mut fast, mut slow) = pair();
+    // Cache the stable document first, then swap in one that isn't.
+    same(
+        &mut fast,
+        &mut slow,
+        json!({"op":"cells","cells":[{"sheetId":"a","address":"A2","value":"0"}]}),
+        0,
+    );
+    same(
+        &mut fast,
+        &mut slow,
+        json!({"op":"replace","workspace":w}),
+        1,
+    );
+    let before = fast.workspace["document"].clone();
+    for (step, value) in ["1", "2"].into_iter().enumerate() {
+        same(
+            &mut fast,
+            &mut slow,
+            json!({"op":"cells","cells":[{"sheetId":"a","address":"A1","value":value}]}),
+            step,
+        );
+    }
+    assert_ne!(fast.workspace["document"], before, "normalization ran");
 }

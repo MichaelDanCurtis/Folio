@@ -31,6 +31,9 @@ pub struct Core {
     /// `workspace.to_string().len()`, kept current by in-place cell edits and
     /// cleared by every other change.
     serialized_size: Option<usize>,
+    /// The last `document` and `officeDocument` that document normalization
+    /// left unchanged, so cell edits can skip re-checking them.
+    stable_document: Option<(Value, Value)>,
     #[cfg(test)]
     pub(crate) slow_cells: bool,
 }
@@ -772,26 +775,43 @@ impl Core {
         }
         // `proposed` re-normalizes the document on every edit; if that would
         // change it, the general path must commit the change.
-        let document = stage("cells.document", || -> Result<bool, String> {
-            let mut next = json!({
-                "document": self.workspace["document"],
-                "officeDocument": self.workspace["officeDocument"],
+        let cached = self
+            .stable_document
+            .as_ref()
+            .is_some_and(|(document, office)| {
+                *document == self.workspace["document"]
+                    && *office == self.workspace["officeDocument"]
             });
-            self.materialize_document_styles(&mut next)?;
-            crate::document_bookmarks::rebase(
-                &self.workspace["document"],
-                &mut next["document"],
-                None,
-            )?;
-            crate::document_comments::rebase(
-                &self.workspace["document"],
-                &mut next["document"],
-                None,
-            )?;
-            crate::docx_revisions::check_model(&self.workspace["document"], &next["document"])?;
-            crate::docx_page_setup::check_model(&self.workspace["document"], &next["document"])?;
-            Ok(next["document"] == self.workspace["document"])
-        })?;
+        let document = cached
+            || stage("cells.document", || -> Result<bool, String> {
+                let mut next = json!({
+                    "document": self.workspace["document"],
+                    "officeDocument": self.workspace["officeDocument"],
+                });
+                self.materialize_document_styles(&mut next)?;
+                crate::document_bookmarks::rebase(
+                    &self.workspace["document"],
+                    &mut next["document"],
+                    None,
+                )?;
+                crate::document_comments::rebase(
+                    &self.workspace["document"],
+                    &mut next["document"],
+                    None,
+                )?;
+                crate::docx_revisions::check_model(&self.workspace["document"], &next["document"])?;
+                crate::docx_page_setup::check_model(
+                    &self.workspace["document"],
+                    &next["document"],
+                )?;
+                Ok(next["document"] == self.workspace["document"])
+            })?;
+        if document && !cached {
+            self.stable_document = Some((
+                self.workspace["document"].clone(),
+                self.workspace["officeDocument"].clone(),
+            ));
+        }
         if !document {
             return Ok(None);
         }
