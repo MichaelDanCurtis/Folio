@@ -295,5 +295,5 @@ The alternative is to commit first and then apply measured row sizes as an out-o
 
 ### Other notes
 
-- Undo entries are now sized by their patches, so large workbooks keep the full 100-step history. Previously each entry was a full workspace copy under a 24 MB cap, which allowed only about 10 steps at the benchmark size.
+- Undo entries are now sized by their patches, so large workbooks keep the full 100-step history. Previously each entry was a full workspace copy under a 24 MB cap, which allowed about 14 steps at the benchmark size (1.6 MB of sheets per copy).
 - The Flutter suite also runs on Linux here (Flutter 3.44.7, `FOLIO_CORE_PATH` pointing at `libfolio_core.so`): 380 pass, 14 fail. The failures are in font-measurement and macOS-variant widget tests. I haven't checked whether they also fail on `main` under Linux; macOS CI is the authority.
