@@ -38,6 +38,9 @@ pub struct Core {
     file_states_cache: Option<(u64, Value)>,
     /// A staged engine whose responses nobody reads: `snapshot` returns null.
     quiet: bool,
+    /// Cells a staged engine's calculator hasn't caught up on yet; the next
+    /// sync applies them together with its own changes (one evaluation).
+    catch_up: Option<Vec<(usize, String)>>,
     goal_seek: Option<crate::goal_seek::Session>,
     goal_seek_serial: u64,
     scenario_source: Option<crate::scenario_source::Source>,
@@ -73,16 +76,21 @@ fn next_epoch() -> u64 {
 struct LayoutBundle {
     calculator: crate::calculation::WorkbookCalculator,
     conditional: (Value, Value, Value),
-    /// Cells whose input changed since `calculator` last synced, or None if
-    /// unknown (the next sync then compares every cell).
+    /// Cells whose input or published value may have changed since
+    /// `calculator` last synced, or None if unknown (the next sync then
+    /// compares every cell).
     lag: Option<Vec<(usize, String)>>,
 }
 struct LayoutEdit {
     token: u64,
     base_epoch: u64,
-    /// The staged engine's epoch after catching up, if it then published
-    /// exactly this engine's state; None when its calendar differs.
+    /// The epoch the staged edit's recorded change starts from, when that
+    /// change (plus any deferred catch-up) accounts for every difference from
+    /// this engine's state; None when the calendars differ.
     staged_base: Option<u64>,
+    /// Every cell whose input or published value may differ from this
+    /// engine's state, when known.
+    candidates: Option<Vec<(usize, String)>>,
     staged: Box<Core>,
     rows: crate::row_reflow::Targets,
     calculation_only: bool,
@@ -365,14 +373,16 @@ impl Core {
         let from = self.epoch;
         self.epoch = next_epoch();
         let paths = self.pending_paths.take();
-        if let Some(bundle) = &mut self.layout_bundle {
-            match (changes, &mut bundle.lag) {
-                (ChangeSet::Cells(cells), Some(lag)) if lag.len() + cells.len() <= 10_000 => {
-                    lag.extend(cells.iter().cloned())
-                }
-                _ => bundle.lag = None,
+        let merged;
+        let changes = match (self.catch_up.take(), changes) {
+            (None, changes) => changes,
+            (Some(mut cells), ChangeSet::Cells(own)) => {
+                cells.extend(own.iter().cloned());
+                merged = ChangeSet::Cells(cells);
+                &merged
             }
-        }
+            (Some(_), ChangeSet::Structural) => &ChangeSet::Structural,
+        };
         let pkg = self.workspace["officeWorkbook"]["packageId"]
             .as_str()
             .and_then(|id| self.packages.get(id))
@@ -504,6 +514,14 @@ impl Core {
                 )
             }
         });
+        if let Some(bundle) = &mut self.layout_bundle {
+            match (&delta_cells, &mut bundle.lag) {
+                (Some(cells), Some(lag)) if lag.len() + cells.len() <= 10_000 => {
+                    lag.extend(cells.iter().cloned())
+                }
+                _ => bundle.lag = None,
+            }
+        }
         let unchanged = !warnings_changed
             && paths.as_ref().is_some_and(Vec::is_empty)
             && delta_cells.as_ref().is_some_and(Vec::is_empty);
@@ -1067,6 +1085,7 @@ impl Core {
             rows,
             staged,
             staged_base,
+            candidates,
             ..
         } = pending;
         let mut staged = *staged;
@@ -1170,10 +1189,11 @@ impl Core {
                 std::mem::take(&mut staged.conditional_warnings),
             ),
         );
+        // The previous calculator now lags by exactly the staged changes.
         self.layout_bundle = Some(LayoutBundle {
             calculator: std::mem::replace(&mut self.calculator, staged.calculator),
             conditional,
-            lag: Some(vec![]),
+            lag: candidates,
         });
         let changes = ChangeSet::from_patch(&back);
         self.pending_paths = Some(back.paths());
@@ -1682,20 +1702,29 @@ impl Core {
                     clock_override
                         .unwrap_or_else(crate::calculation_clock::CalculationClock::system),
                 );
-                stage("layout.catch_up", || {
-                    staged.sync(&lag.map_or(ChangeSet::Structural, ChangeSet::Cells))
-                });
+                // Plain cell edits don't read calculated values before they
+                // sync, so the staged calculator can catch up and apply the
+                // edit in one evaluation. Other edits catch up first.
+                let deferred = lag.is_some()
+                    && !calculation_only
+                    && goal_seek.is_none()
+                    && matches!(edit["op"].as_str(), Some("cells" | "enterCell"));
+                #[cfg(test)]
+                let deferred = deferred && !self.slow_layout;
+                if deferred {
+                    staged.catch_up = lag;
+                } else {
+                    stage("layout.catch_up", || {
+                        staged.sync(&lag.map_or(ChangeSet::Structural, ChangeSet::Cells))
+                    });
+                }
                 staged.calculator.generation = self.calculator.generation;
-                let same_calendar = matches!(
-                    (staged.calculator.clock, self.calculator.clock),
-                    (Some(a), Some(b)) if a.same_calendar(b)
-                );
-                let staged_base = same_calendar.then_some(staged.epoch);
                 if calculation_only {
                     // A staged calculator may have been reused from a cancelled edit.
                     // Always evaluate against this refresh's captured instant.
                     staged.calculator.invalidate();
                 }
+                let edit_base = staged.epoch;
                 if !goal_seek.as_ref().is_some_and(|g| g.unchanged) {
                     // Its own response is discarded; don't build a snapshot.
                     staged.quiet = true;
@@ -1703,19 +1732,42 @@ impl Core {
                     staged.quiet = false;
                     edited?;
                 }
+                if staged.catch_up.is_some() {
+                    // The edit didn't sync; catch up now.
+                    staged.sync(&ChangeSet::Cells(vec![]));
+                }
+                if deferred {
+                    // As when catching up first, the count advances only if
+                    // the edit itself changed an input.
+                    let edit_changed = staged.history.last_undo().is_some_and(|entry| {
+                        entry.patch.paths().iter().any(|path| {
+                            crate::json_patch::get(&staged.workspace, path)
+                                != crate::json_patch::get(&self.workspace, path)
+                        })
+                    });
+                    staged.calculator.generation = self.calculator.generation + edit_changed as u64;
+                }
                 if let Some(goal) = &goal_seek {
                     goal.check(&staged.calculator)?;
                 }
                 staged.calculator.clock_override = clock_override;
+                let same_calendar = matches!(
+                    (staged.calculator.clock, self.calculator.clock),
+                    (Some(a), Some(b)) if a.same_calendar(b)
+                );
+                // The staged edit's recorded change is relative to `edit_base`:
+                // this engine's state, or with a deferred catch-up the lagging
+                // state. The lag (every cell that differs between those two)
+                // was merged into that sync's cells, so either way the record
+                // covers every difference from this engine's state.
+                let staged_base = same_calendar.then_some(edit_base);
                 let pkg = staged.workspace["officeWorkbook"]["packageId"]
                     .as_str()
                     .and_then(|id| staged.packages.get(id))
                     .map(AsRef::as_ref);
-                // When the staged engine caught up to this engine's state, only
-                // the cells its edit recorded can differ.
                 let candidates = staged
                     .last_change
-                    .as_ref()
+                    .as_mut()
                     .filter(|c| Some(c.from) == staged_base)
                     .map(|c| {
                         let mut cells = c.cells.clone();
@@ -1727,6 +1779,10 @@ impl Core {
                             }
                             _ => None,
                         }));
+                        cells.sort();
+                        cells.dedup();
+                        // Published by the prepare and commit deltas too.
+                        c.cells = cells.clone();
                         cells
                     });
                 #[cfg(test)]
@@ -1760,6 +1816,7 @@ impl Core {
                     token: self.layout_serial,
                     base_epoch: self.epoch,
                     staged_base,
+                    candidates,
                     staged,
                     rows,
                     calculation_only,
@@ -1818,7 +1875,8 @@ impl Core {
                 self.layout_bundle = Some(LayoutBundle {
                     calculator: std::mem::replace(&mut self.calculator, pending.staged.calculator),
                     conditional: (conditional, conditional_state, conditional_warnings),
-                    lag: Some(vec![]),
+                    // What the staged engine changed isn't known here.
+                    lag: None,
                 });
                 if pending.calculation_only {
                     // Derived values and automatic row sizes do not create edits,
