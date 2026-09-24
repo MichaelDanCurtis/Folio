@@ -148,9 +148,9 @@ class WorkspaceModel extends ChangeNotifier {
   final String recoveryPath;
   Map<String, dynamic> snapshot = {};
   // The epoch whose file-state digests `snapshot['fileStates']` holds.
-  // Deltas don't carry digests; they are fetched shortly after edits.
+  // Deltas don't carry digests; `flush` (run by the save timer shortly
+  // after every edit) fetches them.
   Object? _fileStatesEpoch;
-  Timer? _fileStatesTimer;
   String saveStatus = 'Opening…';
   String? error;
   String? _documentSaveError;
@@ -294,17 +294,10 @@ class WorkspaceModel extends ChangeNotifier {
   }
 
   /// Makes [next] the current snapshot. Full snapshots carry current
-  /// file-state digests; after a delta they are refreshed shortly.
+  /// file-state digests; after a delta the next `flush` refreshes them.
   void _adopt(Map<String, dynamic> next, {required bool statesCurrent}) {
     snapshot = next;
     if (statesCurrent) _fileStatesEpoch = next['epoch'];
-    if (_fileStatesEpoch != next['epoch']) {
-      _fileStatesTimer?.cancel();
-      _fileStatesTimer = Timer(
-        const Duration(milliseconds: 250),
-        () => refreshFileStates().catchError((Object _) {}),
-      );
-    }
   }
 
   /// File-state digests for the current snapshot, fetched if a delta left
@@ -315,7 +308,6 @@ class WorkspaceModel extends ChangeNotifier {
   }
 
   Future<void> refreshFileStates() async {
-    _fileStatesTimer?.cancel();
     if (_fileStatesEpoch == snapshot['epoch']) return;
     final result = await core.call({'op': 'fileStates'});
     if (_disposed || result['epoch'] != snapshot['epoch']) return;
@@ -407,7 +399,6 @@ class WorkspaceModel extends ChangeNotifier {
   }
 
   Future<void> flush() async {
-    await refreshFileStates();
     _saveTimer?.cancel();
     if (_closedRecovery) return;
     if (_documentSaveError != null) throw StateError(_documentSaveError!);
@@ -416,14 +407,22 @@ class WorkspaceModel extends ChangeNotifier {
         'Save a copy before closing: the recovery file cannot be overwritten safely.',
       );
     }
-    final saved = await core.transaction((dispatch) async {
+    final (saved, states) = await core.transaction((dispatch) async {
       // A flush can already be queued when Don't Save closes persistence.
       // Recheck inside the same engine queue as the blank recovery write.
-      if (_closedRecovery) return false;
+      if (_closedRecovery) return (false, null);
       await dispatch({'op': 'save', 'path': recoveryPath});
-      return true;
+      // Digests a delta left stale, fetched in the same engine turn.
+      final states = _fileStatesEpoch == snapshot['epoch']
+          ? null
+          : await dispatch({'op': 'fileStates'});
+      return (true, states);
     });
     if (!saved) return;
+    if (states != null && states['epoch'] == snapshot['epoch']) {
+      snapshot = {...snapshot, 'fileStates': states['fileStates']};
+      _fileStatesEpoch = states['epoch'];
+    }
     saveStatus = 'Saved on this Mac';
     _changed();
   }
@@ -466,7 +465,6 @@ class WorkspaceModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _saveTimer?.cancel();
-    _fileStatesTimer?.cancel();
     super.dispose();
   }
 }

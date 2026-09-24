@@ -260,3 +260,63 @@ fn file_states_op_matches_the_snapshot_and_follows_edits() {
         states["fileStates"]
     );
 }
+
+/// Non-cell edits staged for layout (here: showing a scenario, which
+/// writes several inputs) must also produce correct deltas.
+#[test]
+fn staged_scenario_show_deltas_match_full_snapshots() {
+    let mut c = Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    let mut w = c.workspace.clone();
+    w["sheets"] =
+        json!([{"id":"inputs","name":"Inputs","cells":{"A1":"1","B1":"2","C1":"=A1*B1"}}]);
+    c.dispatch(json!({"op":"replace","workspace":w})).unwrap();
+    let rev = c.workspace["revision"].clone();
+    c.dispatch(json!({"op":"scenarios","action":"add","sheetId":"inputs","workspaceId":c.workspace["id"],
+        "baseRevision":rev,"name":"Sales","inputs":[{"address":"A1","value":"12"},{"address":"B1","value":"25"}]}))
+        .unwrap();
+    let mut held = c.dispatch(json!({"op":"get"})).unwrap();
+    for (step, edit) in [
+        json!({"op":"scenarioShow","sheetId":"inputs","index":0}),
+        json!({"op":"cells","cells":[{"sheetId":"inputs","address":"A1","value":"3"}]}),
+        json!({"op":"scenarioShow","sheetId":"inputs","index":0}),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut edit = edit;
+        if edit["op"] == "scenarioShow" {
+            edit["workspaceId"] = c.workspace["id"].clone();
+            edit["baseRevision"] = c.workspace["revision"].clone();
+        }
+        let prepared = c
+            .dispatch(json!({"op":"prepareLayoutEdit","edit":edit,"delta":held["epoch"]}))
+            .unwrap();
+        let view = if prepared.get("delta").is_some() {
+            apply(&held, &prepared)
+        } else {
+            prepared.clone()
+        };
+        let mut sizes = json!({});
+        for (id, rows) in view["layoutRows"].as_object().unwrap() {
+            sizes[id] = json!({});
+            for row in rows.as_array().unwrap() {
+                sizes[id][row.to_string()] = json!(20);
+            }
+        }
+        let token = prepared["layoutToken"].clone();
+        let committed = c
+            .dispatch(
+                json!({"op":"commitLayoutEdit","token":token,"sizes":sizes,"delta":held["epoch"]}),
+            )
+            .unwrap();
+        let next = if committed.get("delta").is_some() {
+            apply(&held, &committed)
+        } else {
+            committed
+        };
+        let full = c.dispatch(json!({"op":"get"})).unwrap();
+        check(&Ok(next.clone()), &Ok(full), format!("step {step}"));
+        held = next;
+    }
+}
