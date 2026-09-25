@@ -13,17 +13,17 @@
 
 ### Task 1: 3-D references (X08.15)
 
-- [ ] `SUM(Sheet1:Sheet4!C1)` and the other aggregates over a sheet span calculate as Excel does. This includes spans whose end sheets are later moved, inserted between or deleted.
-- [ ] The formula text stays as written, and it round-trips.
+- [x] `SUM(Sheet1:Sheet4!C1)` and the other aggregates over a sheet span calculate as Excel does. This includes spans whose end sheets are later moved, inserted between or deleted.
+- [x] The formula text stays as written, and it round-trips.
 
 ### Task 2: Implicit intersection gaps (X08.14)
 
-- [ ] Unary plus or minus on a range (`=+F9:H9`) is intersected, as Excel does.
-- [ ] Names Folio can't use give `#NAME?`, not `#ERROR!`.
+- [x] Unary plus or minus on a range (`=+F9:H9`) is intersected, as Excel does.
+- [x] Names Folio can't use give `#NAME?`, not `#ERROR!`.
 
 ### Task 3: Coercion and error cases (X08.08)
 
-- [ ] Each corpus case gets Excel's result, or a documented reason it doesn't:
+- [x] Each corpus case gets Excel's result, or a documented reason it doesn't:
   - text numbers in number arguments (`RIGHT("a string","6")`, `SUMSQ("2","3",4)`, `MIN(…,"-20")`);
   - `AND("1",1)`;
   - `MODE` with text;
@@ -45,7 +45,7 @@
 
 ### Task 5: Tolerant XLSX reading (X17.12)
 
-- [ ] Open the workbooks Excel opens that Folio rejects:
+- [ ] Open the workbooks Excel opens that Folio rejects (done except 3 shared-string files):
   - a cell without an `r` address;
   - shared strings Folio calls invalid (3 files);
   - unusual worksheet dimensions (2);
@@ -55,10 +55,10 @@
 
 ### Task 6: Strict Open XML (X17.11)
 
-- [ ] Read Strict workbooks (3 corpus files) by mapping the Strict namespaces to Transitional ones.
-- [ ] Save them as Transitional, and say so in the save report.
+- [x] Read Strict workbooks (3 corpus files) by mapping the Strict namespaces to Transitional ones.
+- [x] Save them as Transitional, and say so in the save report.
 
 ### Task 7: Close-out
 
-- [ ] Rerun the corpus and record the results in CORPUS.md and STATUS.md, with the register rows and change log updated.
+- [x] Rerun the corpus and record the results in CORPUS.md and STATUS.md, with the register rows and change log updated.
 - [ ] Run the local CI mirror.
