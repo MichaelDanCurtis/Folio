@@ -1093,6 +1093,7 @@ class FolioEmbedBuilder extends q.EmbedBuilder {
               node: node,
               onCell: (row, col) =>
                   _editTable(context, embedContext, node, row, col),
+              onResize: (next) => _resizeTable(embedContext, node, next),
             ),
             Wrap(
               children: [
@@ -1240,6 +1241,29 @@ class FolioEmbedBuilder extends q.EmbedBuilder {
         1,
         q.BlockEmbed('folioNode', jsonEncode(result)),
         TextSelection.collapsed(offset: index + 1),
+      ),
+    );
+  }
+
+  /// A dragged border replaces the table in one Undo step.
+  void _resizeTable(q.EmbedContext embed, Map original, Map next) {
+    final controller = embed.controller;
+    final index = embed.node.documentOffset;
+    final leaf = controller.document.querySegmentLeafNode(index).leaf;
+    if (leaf is! q.Embed ||
+        leaf.value.type != 'folioNode' ||
+        leaf.value.data != jsonEncode(original)) {
+      return;
+    }
+    final selection = controller.selection;
+    DocumentEditCapture.apply(
+      controller,
+      null,
+      () => controller.replaceText(
+        index,
+        1,
+        q.BlockEmbed('folioNode', jsonEncode(next)),
+        selection,
       ),
     );
   }

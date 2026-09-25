@@ -50,9 +50,9 @@
 
 ### Task 6: Table drag-resize (W07.06)
 
-- [ ] Drag a column border to resize the columns on either side.
-- [ ] Drag a row's bottom border to set its height.
-- [ ] Each resize is one Undo step, and round-trips through DOCX.
+- [x] Drag a column border to resize the columns on either side.
+- [x] Drag a row's bottom border to set its height.
+- [x] Each resize is one Undo step, and round-trips through DOCX.
 
 ### Task 7: Format Painter (D03.10, X04.12)
 
