@@ -323,11 +323,15 @@ pub fn read(pkg: &Package, path: &str, sheet: &mut Value) -> Result<(), String> 
                     );
                 }
             }
+            // Excel's limits are 409 points and 255 characters; some writers
+            // store larger sizes, which Excel reads at the limit.
             if let (Some(r), Some(h)) = (
                 attr(row, "r"),
-                attr(row, "ht").and_then(|v| v.parse::<f64>().ok()),
+                attr(row, "ht")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .filter(|h| h.is_finite()),
             ) {
-                heights.insert(r.into(), json!(h));
+                heights.insert(r.into(), json!(h.clamp(0.0, 409.0)));
             }
         }
     }
@@ -343,8 +347,11 @@ pub fn read(pkg: &Package, path: &str, sheet: &mut Value) -> Result<(), String> 
                 return Err("Invalid source column dimensions".into());
             }
             for c in first..=last {
-                if let Some(w) = attr(col, "width").and_then(|v| v.parse::<f64>().ok()) {
-                    widths.insert(c.to_string(), json!(w));
+                if let Some(w) = attr(col, "width")
+                    .and_then(|v| v.parse::<f64>().ok())
+                    .filter(|w| w.is_finite())
+                {
+                    widths.insert(c.to_string(), json!(w.clamp(0.0, 255.0)));
                 }
                 if matches!(attr(col, "hidden"), Some("1" | "true"))
                     || attr(col, "width").and_then(|v| v.parse::<f64>().ok()) == Some(0.0)

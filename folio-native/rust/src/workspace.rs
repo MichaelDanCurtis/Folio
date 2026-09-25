@@ -391,6 +391,14 @@ impl Core {
         package: crate::office::Package,
         format: &str,
     ) -> Result<Value, String> {
+        let mut strict = false;
+        let package = if format == "docx" {
+            package
+        } else {
+            let (package, converted) = crate::xlsx_repair::as_transitional(package);
+            strict = converted;
+            crate::xlsx_repair::with_cell_addresses(package)?
+        };
         let mut n = self.workspace.clone();
         let id = format!(
             "package-{}",
@@ -407,7 +415,12 @@ impl Core {
             n["officeDocument"]["recordingRequested"] =
                 crate::docx_tracking::read_settings(&package)?["enabled"].clone();
         } else {
-            let (sheets, report) = crate::xlsx::import(&package)?;
+            let (sheets, mut report) = crate::xlsx::import(&package)?;
+            if strict {
+                if let Some(warnings) = report["warnings"].as_array_mut() {
+                    warnings.push(json!("This workbook uses Strict Open XML. Folio reads it and saves it as a standard (Transitional) workbook."));
+                }
+            }
             n["sheets"] = sheets.clone();
             n["officeWorkbook"] =
                 json!({"packageId":id,"sourceId":id,"baseline":sheets,"report":report});

@@ -223,3 +223,52 @@ keeps the ranges inside `SUM(IF(...))`. Covered by
 `range_arguments_keep_their_ranges` in Folio's `legacy_formula_tests.rs`.
 Modified: src/expressions/parser/static_analysis.rs,
 src/expressions/parser/tests/test_add_implicit_intersection.rs.
+
+## Backslashes in names
+
+Excel names may contain backslashes (`HSI\10_1\1460_1___val`, from the
+Office corpus). The lexer ended identifiers at `\`, so such formulas failed
+to parse (`#ERROR!`) instead of naming an undefined name (`#NAME?`, as in
+Excel). `consume_identifier` now continues through `\` after the first
+character, except where `\` separates array columns (comma-decimal
+locales), and `is_valid_a1_identifier` accepts `\` there too.
+Modified: src/expressions/lexer/mod.rs, src/expressions/utils/mod.rs.
+
+## Excel's coercion rules for typed arguments
+
+Found by the Office corpus (POI's FormulaEvalTestData, with Excel's cached
+results):
+- **Numeric aggregates.** In SUM, SUMSQ, PRODUCT, MIN/MAX(A), AVERAGE(A),
+  MEDIAN, GEOMEAN, HARMEAN, AVEDEV, DEVSQ, KURT, SKEW and the STDEV/VAR
+  family, text that reads as a number and logical values typed directly
+  into the argument list count as numbers. Other typed text is `#VALUE!`.
+  Values reached through references keep each function's own rules.
+  `evaluate_function` rewrites those literal arguments before dispatch
+  (`evaluate_function_coerced`).
+- **AND/OR/XOR and MODE.** Typed text is `#VALUE!`. AND/OR/XOR accept the
+  words TRUE and FALSE, and ignore an empty string (as the upstream tests
+  expect).
+- **LEFT/RIGHT/MID counts.** Logical values and numeric text count
+  (`LEFT("abc","2")`, `RIGHT("abc",TRUE)`), in `text_num_arg`.
+- **SUMX2MY2, SUMX2PY2 and SUMXMY2** share `sum_of_pairs`:
+  - arguments may be numbers, ranges or arrays;
+  - different numbers of values are `#N/A`;
+  - a pair with a non-number is skipped;
+  - no pairs gives `#DIV/0!`.
+- **AVEDEV and DEVSQ with no numbers** are `#NUM!`.
+
+Modified: src/functions/mod.rs, src/functions/text/common.rs,
+src/functions/math_and_trigonometry/sum.rs,
+src/functions/statistical/devsq.rs,
+src/functions/statistical/count_and_average.rs.
+
+## XLOOKUP returns whole rows or columns
+
+`XLOOKUP(B2,B5:B14,C5:D14)` returned `#VALUE!` because the return array
+had to be exactly the lookup vector's shape. Excel accepts a return array
+as tall as a column lookup vector (or as wide as a row one) and returns the
+whole matching row or column. That result spills in a dynamic formula and
+is intersected in a legacy one. `xlookup_result` builds that range. XLOOKUP's static result is `Unknown`
+(may spill) when its return array has more than one row and column.
+Found by the Office corpus (xlookup.xlsx). Modified: src/functions/xlookup.rs,
+src/expressions/parser/static_analysis.rs.

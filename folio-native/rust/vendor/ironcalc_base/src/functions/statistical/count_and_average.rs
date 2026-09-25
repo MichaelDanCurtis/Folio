@@ -577,8 +577,9 @@ impl<'a> Model<'a> {
         }
 
         if count == 0 {
+            // FOLIO PATCH: #NUM! with no numbers, as in Excel.
             return CalcResult::new_error(
-                Error::DIV,
+                Error::NUM,
                 cell,
                 "AVEDEV with no numeric data".to_string(),
             );

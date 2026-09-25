@@ -44,7 +44,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X05 | [Views, panes and zoom](status/excel.md#x05-views-panes-and-zoom) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
 | X06 | [Sort, filter and tables](status/excel.md#x06-sort-filter-and-tables) | 5 | 0 | 1 | 4 | 0 | 0 | 10 |
 | X07 | [Data validation and conditional formatting](status/excel.md#x07-data-validation-and-conditional-formatting) | 3 | 0 | 2 | 5 | 0 | 0 | 10 |
-| X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 7 | 0 | 7 | 2 | 0 | 0 | 16 |
+| X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 5 | 1 | 8 | 2 | 0 | 0 | 16 |
 | X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
 | X10 | [Auditing](status/excel.md#x10-auditing) | 4 | 0 | 0 | 2 | 0 | 0 | 6 |
 | X11 | [Charts, sparklines and drawings](status/excel.md#x11-charts-sparklines-and-drawings) | 6 | 1 | 1 | 0 | 0 | 0 | 8 |
@@ -53,17 +53,17 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X14 | [What-if analysis](status/excel.md#x14-what-if-analysis) | 4 | 0 | 0 | 3 | 0 | 0 | 7 |
 | X15 | [Notes, comments, protection and sharing](status/excel.md#x15-notes-comments-protection-and-sharing) | 4 | 0 | 1 | 0 | 0 | 0 | 5 |
 | X16 | [Macros, add-ins and scripts](status/excel.md#x16-macros-add-ins-and-scripts) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
-| X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 7 | 1 | 4 | 1 | 0 | 0 | 13 |
+| X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 5 | 1 | 6 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **229** | **7** | **85** | **80** | **0** | **0** | **401** |
+| **All** | | **225** | **8** | **88** | **80** | **0** | **0** | **401** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
 - 52 native verified;
-- 59 automated verified only;
+- 60 automated verified only;
 - 5 implemented without dedicated tests;
-- 20 not built.
+- 19 not built.
 
 ## Ranked gap list
 
@@ -75,7 +75,7 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 | Rank | Gap | Children | Effort | Confidence | Needs |
 |---:|---|---|---|---|---|
 | 1 | Record the Office baseline and create the daily-workflow comparison files in Word/Excel. The real-world corpus (387 Office-saved files) now covers much of the file-compatibility evidence; the baseline is still needed for interaction and layout comparisons. | [OFFICE_BASELINE](status/OFFICE_BASELINE.md), [CORPUS](status/CORPUS.md) | S | High | Owner, with Office installs |
-| 2 | **Wrong results on real Excel files** (from the corpus): 3-D references, coercion cases, `TEXT` format codes the formatter rejects, unary-plus ranges; tolerant reading of the 7 rejected workbooks and Strict Open XML. Defined names and legacy implicit intersection are fixed (744 of 23,116 corpus formulas still differ, from 947) | X08.15, X08.08, X04.04, X08.14, X17.11, X17.12 | M | High | — |
+| 2 | **Wrong results on real Excel files** (from the corpus): 656 of 23,120 corpus formulas still differ, mostly POI's `TEXT` format tests; also MINA/MAXA and LOOKUP edge cases, the intersection and union operators, iterative calculation; 3 shared-string files and one export still fail. Names, implicit intersection, array formulas, 3-D references, coercion, tolerant reading and Strict Open XML are fixed | X04.04, X08.08, X17.12 | S | High | — |
 | 3 | Native qualification sweep: raise the 42 M1 children that are only automated-verified; resolve the 7 Flutter tests that fail on Linux (Save/Save As, external writes, leave-file prompts, native menus) | D02.03–D02.09, D03.04, X01.12, X04.01–X04.04, W13.01, X15.01 and others | M | High | The Mac (packaged build) |
 | 4 | Workbook editing essentials: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)). Left: copying charts, pictures and sheet-scoped names with a duplicated sheet, pointing from another sheet's tab, borders on whole rows/columns, native checks | X03.06, X01.06, X04.07 | S | High | The Mac for native checks |
 | 5 | Clipboard exchange with Office and other apps, and cut/move | D03.05, X01.10, X01.11 | L | Medium | Mac clipboard testing |
@@ -124,6 +124,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-26 | Excel-correct results (rank 2): 3-D references (X08.15), array (CSE) formulas, XLOOKUP rows, unary-plus intersection, backslash names, Excel's coercion rules (X08.08, Implemented), tolerant reading (X17.12) and Strict Open XML (X17.11). Corpus: 279 of 291 XLSX open (272 before); 656 of 23,120 formulas differ (744). |
 | 2026-09-25 | Workbook essentials Tasks 6–10: zoom (X05.03), duplicate sheet (X03.06, Implemented), formula point mode (X01.06) and the fill handle (X01.13). Rank 4 is built; the plan is closed. |
 | 2026-09-25 | Corpus-driven fixes: defined names reach the calculation (X09.08), legacy formulas get Excel's implicit intersection (X08.14), range-taking arguments keep their ranges, two TEXT format fixes; 744 of 23,116 corpus formulas differ (from 947). Workbook essentials Tasks 3–5: name box and Go To (X02.04, X02.05), Clear menu (X01.17), borders and fill colour with theme colours (X04.07, X04.08). |
 | 2026-09-25 | Real-world corpus: 387 Word/Excel-saved files (Apache POI test data) with `office_corpus_tests.rs`. Added X08.14–X08.16, X09.08, X17.10–X17.12 and W16.10 from its findings. Fixed whole-column lookups (X08.16). New rank 2 for the calculation gaps it found. Workbook essentials Tasks 1–2 moved X01.03, X01.18 and D01.06 to Automated verified. |

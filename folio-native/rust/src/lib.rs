@@ -2,6 +2,8 @@ pub mod api;
 #[cfg(test)]
 mod api_tests;
 mod builtin_styles;
+#[cfg(test)]
+mod excel_coercion_tests;
 mod file_state;
 #[cfg(test)]
 mod file_state_tests;
@@ -180,6 +182,7 @@ mod sheet_reviews_tests;
 mod sheet_sort;
 #[cfg(test)]
 mod sheet_sort_tests;
+mod sheet_spans;
 mod sheet_text;
 mod sheet_view;
 #[cfg(test)]
@@ -193,6 +196,7 @@ mod xlsx_colors;
 mod xlsx_names;
 #[cfg(test)]
 mod xlsx_names_tests;
+mod xlsx_repair;
 mod xlsx_reviews;
 mod xlsx_structure;
 #[cfg(test)]

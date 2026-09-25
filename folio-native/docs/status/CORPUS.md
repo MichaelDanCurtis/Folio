@@ -61,24 +61,33 @@ What `office_corpus_tests.rs` checks for each file:
 
 The cached-value comparison is real Excel output. It counts as differential evidence for the calculation children, per file and Excel build.
 
-### Results (2026-09-25, defined names, implicit intersection, format fixes)
+### Results (2026-09-26, Excel-correct results phase)
 
 | | DOCX | XLSX |
 |---|---:|---:|
 | Files | 96 | 291 |
-| Imported | 92 | 272 |
-| Round trip unchanged | 92 of 92 | 271 of 272 |
+| Imported | 92 | 279 |
+| Round trip unchanged | 92 of 92 | 278 of 279 |
 
-- **Formulas:** 23,116 compared with Excel's cached results, and 744 differ (3.2%), in 21 files. The first run had 947 differences in 30 files.
+- **Formulas:** 23,120 compared with Excel's cached results, and 656 differ (2.8%), in 16 files. The first run had 947 differences in 30 files.
 - **Documents:** 14 of the 92 have below 99% word overlap with Word's text.
-- **Time:** the whole run takes about 57 s in release. The slowest import is 5.2 s (a sheet with many merges).
 
-What closed the gap since the first run:
-- workbook and sheet-scoped defined names now reach the calculation (X09.08);
-- legacy formulas get Excel's implicit intersection (X08.14), except where an argument takes a range (WORKDAY holidays, IF/CHOOSE values, reference arguments), which the corpus caught;
-- `a/p` keeps the format's letter case, and `s.00` no longer prints the fraction twice (TEXT and cell display).
+What closed the gap:
+- defined names reach the calculation (X09.08), including names with backslashes;
+- legacy formulas get Excel's implicit intersection (X08.14), with a leading unary plus and range-taking arguments handled;
+- array (CSE) formulas fill their declared range;
+- 3-D references calculate (X08.15);
+- XLOOKUP returns whole rows;
+- Excel's coercion rules for typed arguments (X08.08);
+- two TEXT format fixes;
+- tolerant reading and Strict Open XML (X17.11, X17.12).
 
-**Rejections.** Four are correct: two XXE/DTD attack files, and two clusterfuzz files with corrupt checksums. The rest are gaps:
+**Rejections now:** 12 XLSX files.
+- 4 are correct refusals: two XXE/DTD attack files, and two clusterfuzz files with corrupt checksums.
+- 5 exceed the 32 MB workspace limit (X19.03).
+- 3 have shared-string problems not yet handled (X17.12).
+
+**Rejections (before this phase; now 12, see below).** Four are correct: two XXE/DTD attack files, and two clusterfuzz files with corrupt checksums. The gaps at the start of the phase were:
 - **Strict Open XML** workbooks (3 files): "no supported worksheets". See X17.11.
 - **Cells without an `r` address**, which OOXML allows: 1 file. See X17.12.
 - **Too-strict readers** (X17.12):

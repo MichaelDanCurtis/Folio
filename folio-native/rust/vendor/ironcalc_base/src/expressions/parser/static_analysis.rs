@@ -1770,7 +1770,15 @@ fn static_analysis_on_function(kind: &Function, args: &[Node]) -> StaticResult {
         Function::Vstack => StaticResult::Unknown,
         Function::Wrapcols => StaticResult::Unknown,
         Function::Wraprows => StaticResult::Unknown,
-        Function::Xlookup => not_implemented(args),
+        // FOLIO PATCH: a return array wider (or taller) than one cell
+        // returns a whole row or column, so the formula can spill.
+        Function::Xlookup => match args.get(2).map(run_static_analysis_on_node) {
+            // A range's size here is its end minus its start.
+            Some(StaticResult::Range(r, c)) if r > 0 && c > 0 => StaticResult::Unknown,
+            Some(StaticResult::Array(r, c)) if r > 1 && c > 1 => StaticResult::Unknown,
+            Some(StaticResult::Unknown) => StaticResult::Unknown,
+            _ => StaticResult::Scalar,
+        },
         Function::Xmatch => not_implemented(args),
         Function::Trimrange => StaticResult::Unknown,
         Function::Sort => StaticResult::Unknown,

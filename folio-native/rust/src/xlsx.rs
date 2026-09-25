@@ -58,17 +58,42 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
     let styles_catalog = crate::xlsx_styles::read(pkg);
     let normal_font = crate::xlsx_styles::normal_font(pkg);
     let mut sheets = vec![];
-    let names: Vec<String> = wb
+    // A sheet entry without a part (a leftover macro sheet, say) is skipped,
+    // as Excel skips it.
+    let sheet_nodes: Vec<_> = wb
         .descendants()
         .filter(|n| n.has_tag_name((S, "sheet")))
-        .map(|n| attr(n, "name").unwrap_or("Sheet").into())
+        .filter(|n| {
+            attr(*n, "id")
+                .and_then(|rid| relations.get(rid))
+                .is_some_and(|target| {
+                    pkg.entries
+                        .contains_key(&resolve(target).unwrap_or_default())
+                })
+        })
+        .collect();
+    let skipped = wb
+        .descendants()
+        .filter(|n| n.has_tag_name((S, "sheet")))
+        .count()
+        - sheet_nodes.len();
+    let names: Vec<String> = sheet_nodes
+        .iter()
+        .map(|n| attr(*n, "name").unwrap_or("Sheet").into())
         .collect();
     let defined = defined_names(&wb);
     let mut warnings=vec!["Charts, pivot tables, macros and other advanced objects are not editable in Folio. Unmodified package parts are retained on export.".to_string()];
     if crate::number_format::settings(Some(pkg)).0 {
         warnings.push(DATE1904_NOTICE.into());
     }
-    for sh in wb.descendants().filter(|n| n.has_tag_name((S, "sheet"))) {
+    if skipped > 0 {
+        warnings.push(format!(
+            "{skipped} sheet entr{} without worksheet data {} skipped.",
+            if skipped == 1 { "y" } else { "ies" },
+            if skipped == 1 { "was" } else { "were" }
+        ));
+    }
+    for sh in sheet_nodes.iter().copied() {
         let rid = attr(sh, "id").ok_or("Sheet relationship missing")?;
         let path = resolve(relations.get(rid).ok_or("Sheet target missing")?)?;
         let xml = pkg.text(&path)?;
@@ -79,9 +104,27 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
         let mut cached = serde_json::Map::new();
         let mut styles = serde_json::Map::new();
         let mut cell_styles = serde_json::Map::new();
+        // Array (CSE) formulas: the anchor holds the formula; the other cells
+        // of its range hold its values, so they aren't inputs.
+        let mut arrays = serde_json::Map::new();
+        let mut array_areas: Vec<(crate::tables::Area, String)> = vec![];
         for c in d.descendants().filter(|n| n.has_tag_name((S, "c"))) {
             let a = attr(c, "r").ok_or("Cell address missing")?;
-            parse_address(a)?;
+            let (row, column) = parse_address(a)?;
+            if let Some(range) = child(c, "f")
+                .filter(|f| attr(*f, "t") == Some("array"))
+                .and_then(|f| attr(f, "ref"))
+            {
+                if let Ok(area) = crate::tables::Area::parse(range) {
+                    arrays.insert(a.into(), json!(area.text()));
+                    array_areas.push((area, a.to_string()));
+                }
+            }
+            let follower = array_areas.iter().any(|(area, anchor)| {
+                anchor != a
+                    && (area.top..=area.bottom).contains(&row)
+                    && (area.left..=area.right).contains(&column)
+            });
             let value = child(c, "v").and_then(|n| n.text()).unwrap_or("");
             let t = attr(c, "t").unwrap_or("");
             let content = if child(c, "f").is_some() {
@@ -91,6 +134,7 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
                     strings
                         .get(
                             value
+                                .trim()
                                 .parse::<usize>()
                                 .map_err(|_| "Invalid shared string")?,
                         )
@@ -151,7 +195,9 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
             {
                 raw = format!("'{raw}");
             }
-            cells.insert(a.into(), json!(raw));
+            if !follower {
+                cells.insert(a.into(), json!(raw));
+            }
             cached.insert(
                 a.into(),
                 if t == "str" {
@@ -196,6 +242,9 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
             .max()
             .unwrap_or(1);
         sheets.push(json!({"id":format!("office-{}",sheets.len()+1),"name":attr(sh,"name").unwrap_or("Sheet"),"cells":cells,"cached":cached,"officePath":path,"officeStyles":styles,"cellStyles":cell_styles,"usedRows":row_count,"usedColumns":col_count}));
+        if !arrays.is_empty() {
+            sheets.last_mut().unwrap()["arrayFormulas"] = Value::Object(arrays);
+        }
         sheets.last_mut().unwrap()["styleDefaults"] = inherited_styles.projection(&styles_catalog);
         sheets.last_mut().unwrap()["styleDefaults"]["normalFont"] = normal_font.clone();
         let (tables, hidden) = crate::xlsx_tables::read(pkg, &path)?;
