@@ -272,3 +272,10 @@ is intersected in a legacy one. `xlookup_result` builds that range. XLOOKUP's st
 (may spill) when its return array has more than one row and column.
 Found by the Office corpus (xlookup.xlsx). Modified: src/functions/xlookup.rs,
 src/expressions/parser/static_analysis.rs.
+
+## TEXT of text and logical values
+
+`TEXT("jello","-@-")` returned "jello" and `TEXT(TRUE,";;;@-")` returned
+"TRUE": text and logical values skipped the format. Excel puts them through
+the format's text section, so they give "-jello-" and "TRUE-". Found by the
+Office corpus (TextFormatTests.xlsx). Modified: src/functions/text/common.rs.

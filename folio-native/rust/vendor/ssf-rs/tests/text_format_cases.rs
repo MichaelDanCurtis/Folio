@@ -5,7 +5,7 @@
 //!     cargo test --test text_format_cases -- --nocapture
 use std::collections::BTreeMap;
 
-const MATCHING: usize = 213;
+const MATCHING: usize = 832;
 
 fn unescape(s: &str) -> String {
     let mut out = String::new();
@@ -25,10 +25,11 @@ fn unescape(s: &str) -> String {
     out
 }
 
-/// TEXT as the engine evaluates it for one value and code.
+/// TEXT as the engine evaluates it: numbers (and numeric text) through the
+/// number sections; other text and logical values through the text section.
 fn text(kind: &str, value: &str, code: &str, date1904: bool) -> Result<String, String> {
     match kind {
-        "b" => Ok(if value == "1" { "TRUE" } else { "FALSE" }.into()),
+        "b" => ssf_rs::checked::text(code, if value == "1" { "TRUE" } else { "FALSE" }),
         "s" => match value.trim().parse::<f64>() {
             Ok(n) => ssf_rs::checked::number(code, n, date1904),
             Err(_) => ssf_rs::checked::text(code, value),

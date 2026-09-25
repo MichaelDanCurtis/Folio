@@ -55,6 +55,8 @@ pub fn number(code: &str, value: f64, date1904: bool) -> Result<String, String> 
     let input = Value::Num(value);
     let (_, section) = choose_fmt(code, &input)?;
     if crate::is_date(&section)
+        && !crate::format::scientific(&section)
+        && !(value < 0.0 && crate::format::elapsed(&section))
         && (value < 0.0 || value >= 2958466.0 - if date1904 { 1462.0 } else { 0.0 })
     {
         return Err("Date is outside the workbook's date system.".into());

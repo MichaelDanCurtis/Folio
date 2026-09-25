@@ -39,9 +39,9 @@ NumberFormatTests	40	1904	n	1234567	?,???	1,234,567
 NumberFormatTests	41	1904	n	1234567	?,????	1,234,567
 NumberFormatTests	42	1904	n	1234567	?,?????	1,234,567
 NumberFormatTests	43	1904	n	1234567	?,??????	1,234,567
-NumberFormatTests	44	1904	n	1234567	?,???????	
-NumberFormatTests	45	1904	n	1234567	?,????????	
-NumberFormatTests	46	1904	n	1234567	?,?????????	
+NumberFormatTests	44	1904	n	1234567	?,???????	 1,234,567
+NumberFormatTests	45	1904	n	1234567	?,????????	  1,234,567
+NumberFormatTests	46	1904	n	1234567	?,?????????	    1,234,567
 NumberFormatTests	47	1904	n	12	?,?	12
 NumberFormatTests	48	1904	n	123	?,??	123
 NumberFormatTests	49	1904	n	1234	?,???	1,234
@@ -104,7 +104,7 @@ NumberFormatTests	108	1904	n	1.1000000000000001	|??.?|	| 1.1|
 NumberFormatTests	109	1904	n	1.1000000000000001	|?.??|	|1.1 |
 NumberFormatTests	110	1904	n	1.1000000000000001	|??.??|	| 1.1 |
 NumberFormatTests	111	1904	n	1234567	?,?	1,234,567
-NumberFormatTests	112	1904	n	1234567	?,?????????	
+NumberFormatTests	112	1904	n	1234567	?,?????????	    1,234,567
 NumberFormatTests	113	1904	n	-1.1000000000000001	|?.?|	-|1.1|
 NumberFormatTests	114	1904	n	-1.1000000000000001	|??.?|	-| 1.1|
 NumberFormatTests	115	1904	n	-1.1000000000000001	|?.??|	-|1.1 |
@@ -622,6 +622,33 @@ ElapsedFormatTests	48	1904	n	-3.1415899999999999	s:m" @ hour "[hh]	-53:23 @ hour
 ElapsedFormatTests	49	1904	n	-3.1415899999999999	s" secs and "[m]" mins"	-53 secs and 4523 mins
 ElapsedFormatTests	50	1904	n	-3.1415899999999999	"It was "[h]" [yes, "h"] hours and "mm:ss	-It was 75 [yes, 75] hours and 23:53
 ElapsedFormatTests	51	1904	n	-3.1415899999999999	[s]" [yes, "ss"] seconds"	-271433 [yes, 271433] seconds
+TextFormatTests	2	1904	s	jello	;;;@	jello
+TextFormatTests	3	1904	s	jello	;;;"hi"	hi
+TextFormatTests	4	1904	s	jello	;;;"h""I"	hI
+TextFormatTests	5	1904	s	jello	;;;\\h\\i	hi
+TextFormatTests	6	1904	s	jello	;;;\\@@\\@	@jello@
+TextFormatTests	7	1904	s	jello	;;;-@-	-jello-
+TextFormatTests	8	1904	s	jello	;;;-@	-jello
+TextFormatTests	9	1904	s	jello	;;;@-	jello-
+TextFormatTests	10	1904	s	jello	;;;-@-@-	-jello-jello-
+TextFormatTests	12	1904	b	1	;;;@	TRUE
+TextFormatTests	13	1904	b	1	;;;"hi"	hi
+TextFormatTests	14	1904	b	1	;;;"h""I"	hI
+TextFormatTests	15	1904	b	1	;;;\\h\\i	hi
+TextFormatTests	16	1904	b	1	;;;\\@@\\@	@TRUE@
+TextFormatTests	17	1904	b	1	;;;-@-	-TRUE-
+TextFormatTests	18	1904	b	1	;;;-@	-TRUE
+TextFormatTests	19	1904	b	1	;;;@-	TRUE-
+TextFormatTests	20	1904	b	1	;;;-@-@-	-TRUE-TRUE-
+TextFormatTests	21	1904	b	0	;;;@	FALSE
+TextFormatTests	22	1904	b	0	;;;"hi"	hi
+TextFormatTests	23	1904	b	0	;;;"h""I"	hI
+TextFormatTests	24	1904	b	0	;;;\\h\\i	hi
+TextFormatTests	25	1904	b	0	;;;\\@@\\@	@FALSE@
+TextFormatTests	26	1904	b	0	;;;-@-	-FALSE-
+TextFormatTests	27	1904	b	0	;;;-@	-FALSE
+TextFormatTests	28	1904	b	0	;;;@-	FALSE-
+TextFormatTests	29	1904	b	0	;;;-@-@-	-FALSE-FALSE-
 FormatChoiceTests	2	1904	n	1.5	[<10]#" Wow"	2 Wow
 FormatChoiceTests	3	1904	n	10	[<10]#" Wow"	10
 FormatChoiceTests	4	1904	n	11	[<10]#" Wow"	11

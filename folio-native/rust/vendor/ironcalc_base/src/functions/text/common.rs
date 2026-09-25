@@ -307,18 +307,22 @@ impl<'a> Model<'a> {
                 return Err(e.clone());
             }
             let format = array_node_to_string(formats.elem(r, c).ok_or(Error::NA)?)?;
-            // Text and logical inputs remain text; numeric-looking strings use
-            // the same locale-aware numeric conversion as other functions.
+            // Folio: text and logical values go through the format's text
+            // section (`@`), as Excel does; numeric-looking strings use the same
+            // locale-aware numeric conversion as other functions.
+            let text = |s: &str| {
+                ssf_rs::checked::text(&format, s)
+                    .map(ArrayNode::String)
+                    .map_err(|_| Error::VALUE)
+            };
             let value = match value {
                 ArrayNode::Number(n) => *n,
                 ArrayNode::Empty => 0.0,
                 ArrayNode::String(s) => match self.cast_number(s) {
                     Some(n) => n,
-                    None => return Ok(ArrayNode::String(s.clone())),
+                    None => return text(s),
                 },
-                ArrayNode::Boolean(b) => {
-                    return Ok(ArrayNode::String(if *b { "TRUE" } else { "FALSE" }.into()))
-                }
+                ArrayNode::Boolean(b) => return text(if *b { "TRUE" } else { "FALSE" }),
                 ArrayNode::Error(_) => unreachable!(),
             };
             ssf_rs::checked::number(&format, value, self.date1904)
