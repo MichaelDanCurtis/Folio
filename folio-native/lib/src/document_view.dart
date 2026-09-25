@@ -573,7 +573,13 @@ class DocumentViewState extends State<DocumentView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (ribbon == 'Home')
-                DocumentTextToolbar(controller: controller, focus: _focus),
+                DocumentTextToolbar(
+                  controller: controller,
+                  focus: _focus,
+                  styles: () =>
+                      model?.workspace['document']?['attrs']?['wordStyles']
+                          as Map?,
+                ),
               Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 spacing: 4,
