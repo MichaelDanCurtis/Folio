@@ -10,6 +10,8 @@ The destination remains full Word and Excel parity, including Windows-only capab
 
 **Current evidence:** [README](README.md) and [VALIDATION](VALIDATION.md) record 405 passing Rust tests, 395 passing Flutter tests, two optional AI skips, and focused native verification through cross-workbook Scenario Merge. These are recorded results, not new test runs for this roadmap. [PARITY](PARITY.md) has 46 broad families: 10 desktop, 17 Word, 19 Excel. **Accepted whole families: 0/46. Accepted additional AI features: 0/20.** Counts are inventory counts, not effort estimates or a percentage of product completeness.
 
+The M0 status register is [docs/STATUS.md](docs/STATUS.md) (created 2026-09-25): 391 child requirements across the 46 families, a ranked gap list and a risk register.
+
 The next priority is to close complete workflows and establish actual Office comparisons. Adding another isolated command is useful only when it advances a named acceptance unit.
 
 ## 2. What “done” means
