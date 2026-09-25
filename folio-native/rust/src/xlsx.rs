@@ -79,9 +79,27 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
         let mut cached = serde_json::Map::new();
         let mut styles = serde_json::Map::new();
         let mut cell_styles = serde_json::Map::new();
+        // Array (CSE) formulas: the anchor holds the formula; the other cells
+        // of its range hold its values, so they aren't inputs.
+        let mut arrays = serde_json::Map::new();
+        let mut array_areas: Vec<(crate::tables::Area, String)> = vec![];
         for c in d.descendants().filter(|n| n.has_tag_name((S, "c"))) {
             let a = attr(c, "r").ok_or("Cell address missing")?;
-            parse_address(a)?;
+            let (row, column) = parse_address(a)?;
+            if let Some(range) = child(c, "f")
+                .filter(|f| attr(*f, "t") == Some("array"))
+                .and_then(|f| attr(f, "ref"))
+            {
+                if let Ok(area) = crate::tables::Area::parse(range) {
+                    arrays.insert(a.into(), json!(area.text()));
+                    array_areas.push((area, a.to_string()));
+                }
+            }
+            let follower = array_areas.iter().any(|(area, anchor)| {
+                anchor != a
+                    && (area.top..=area.bottom).contains(&row)
+                    && (area.left..=area.right).contains(&column)
+            });
             let value = child(c, "v").and_then(|n| n.text()).unwrap_or("");
             let t = attr(c, "t").unwrap_or("");
             let content = if child(c, "f").is_some() {
@@ -151,7 +169,9 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
             {
                 raw = format!("'{raw}");
             }
-            cells.insert(a.into(), json!(raw));
+            if !follower {
+                cells.insert(a.into(), json!(raw));
+            }
             cached.insert(
                 a.into(),
                 if t == "str" {
@@ -196,6 +216,9 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
             .max()
             .unwrap_or(1);
         sheets.push(json!({"id":format!("office-{}",sheets.len()+1),"name":attr(sh,"name").unwrap_or("Sheet"),"cells":cells,"cached":cached,"officePath":path,"officeStyles":styles,"cellStyles":cell_styles,"usedRows":row_count,"usedColumns":col_count}));
+        if !arrays.is_empty() {
+            sheets.last_mut().unwrap()["arrayFormulas"] = Value::Object(arrays);
+        }
         sheets.last_mut().unwrap()["styleDefaults"] = inherited_styles.projection(&styles_catalog);
         sheets.last_mut().unwrap()["styleDefaults"]["normalFont"] = normal_font.clone();
         let (tables, hidden) = crate::xlsx_tables::read(pkg, &path)?;

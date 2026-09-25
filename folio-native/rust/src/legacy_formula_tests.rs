@@ -87,7 +87,9 @@ fn workbook_with_cells(cells: &str) -> std::path::PathBuf {
             .unwrap();
         out.write_all(&data).unwrap();
     }
-    let path = std::env::temp_dir().join(format!("folio-legacy-{}.xlsx", std::process::id()));
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!("folio-legacy-{}-{n}.xlsx", std::process::id()));
     std::fs::write(&path, out.finish().unwrap().into_inner()).unwrap();
     path
 }
@@ -205,4 +207,54 @@ fn a_unary_plus_range_intersects_by_column() {
     .unwrap();
     // Excel's cached value for this corpus cell (FormulaEvalTestData).
     assert_eq!(c.snapshot()["calculated"][&id]["G87"], json!(2.3456));
+}
+
+#[test]
+fn array_formulas_fill_their_declared_range() {
+    let path = workbook_with_cells(concat!(
+        r#"<row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>2</v></c>"#,
+        r#"<c r="D1"><f t="array" ref="D1:E2">TRANSPOSE(A1:B2)</f><v>1</v></c><c r="E1"><v>3</v></c>"#,
+        r#"<c r="G1"><f t="array" ref="G1">SUM(A1:B2*2)</f><v>20</v></c>"#,
+        r#"<c r="H1"><f t="array" ref="H1:H2">TRANSPOSE(A1:B2)</f><v>1</v></c></row>"#,
+        r#"<row r="2"><c r="A2"><v>3</v></c><c r="B2"><v>4</v></c><c r="D2"><v>2</v></c><c r="E2"><v>4</v></c>"#,
+        r#"<c r="H2"><v>2</v></c></row>"#,
+    ));
+    let mut core = Core::new();
+    core.dispatch(json!({"op":"importOffice","path":path}))
+        .unwrap();
+    let sheet = core.workspace["sheets"][1].clone();
+    let id = sheet["id"].as_str().unwrap().to_string();
+    assert_eq!(sheet["arrayFormulas"]["D1"], "D1:E2");
+    assert_eq!(sheet["cells"]["D1"], "=TRANSPOSE(A1:B2)");
+    assert!(sheet["cells"]["E1"].is_null(), "array cells aren't inputs");
+    let snapshot = core.snapshot();
+    let value = |a: &str| snapshot["calculated"][&id][a].clone();
+    for (a, want) in [
+        ("D1", 1.0),
+        ("E1", 3.0),
+        ("D2", 2.0),
+        ("E2", 4.0),
+        ("G1", 20.0),
+        ("H1", 1.0),
+        ("H2", 2.0),
+    ] {
+        assert_eq!(value(a), json!(want), "{a}");
+    }
+    // Excel's cached values match; recalculation follows the inputs.
+    core.dispatch(json!({"op":"cells","cells":[{"sheetId":id,"address":"B1","value":"20"}]}))
+        .unwrap();
+    assert_eq!(core.snapshot()["calculated"][&id]["D2"], json!(20.0));
+
+    let out = std::env::temp_dir().join(format!("folio-array-out-{}.xlsx", std::process::id()));
+    core.dispatch(json!({"op":"exportOffice","format":"xlsx","path":out}))
+        .unwrap();
+    let xml = sheet_xml(&out);
+    assert!(xml.contains(r#"t="array" ref="D1:E2""#), "{xml}");
+    let mut again = Core::new();
+    again
+        .dispatch(json!({"op":"importOffice","path":out}))
+        .unwrap();
+    assert_eq!(again.workspace["sheets"][1]["arrayFormulas"]["D1"], "D1:E2");
+    let _ = std::fs::remove_file(path);
+    let _ = std::fs::remove_file(out);
 }

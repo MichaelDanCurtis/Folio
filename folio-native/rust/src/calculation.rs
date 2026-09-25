@@ -243,7 +243,31 @@ impl WorkbookCalculator {
             .collect();
         let table_state: Vec<_> = sheets
             .iter()
-            .map(|s| json!({"tables":s.get("tables"),"hiddenRows":s.get("hiddenRows"),"autoFilter":s.get("autoFilter")}))
+            .map(|s| json!({"tables":s.get("tables"),"hiddenRows":s.get("hiddenRows"),"autoFilter":s.get("autoFilter"),"arrayFormulas":s.get("arrayFormulas")}))
+            .collect();
+        // Array (CSE) formulas: anchor -> the range they fill, as (top,
+        // left, rows, columns).
+        let arrays: Vec<HashMap<String, (usize, usize, usize, usize)>> = sheets
+            .iter()
+            .map(|s| {
+                s["arrayFormulas"]
+                    .as_object()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|(a, range)| {
+                        let area = crate::tables::Area::parse(range.as_str()?).ok()?;
+                        Some((
+                            a.clone(),
+                            (
+                                area.top,
+                                area.left,
+                                area.bottom - area.top + 1,
+                                area.right - area.left + 1,
+                            ),
+                        ))
+                    })
+                    .collect()
+            })
             .collect();
         let rebuild = self.rebuild
             || identity != self.identity
@@ -366,13 +390,40 @@ impl WorkbookCalculator {
             } else {
                 self.formulas[*i].remove(address);
             }
-            model.set_user_input(*i as u32, r as i32 + 1, c as i32 + 1, value)?;
+            match arrays[*i].get(address).filter(|_| value.starts_with('=')) {
+                Some(&(_, _, rows, columns)) => model.set_user_array_formula(
+                    *i as u32,
+                    r as i32 + 1,
+                    c as i32 + 1,
+                    columns as i32,
+                    rows as i32,
+                    &value,
+                )?,
+                None => model.set_user_input(*i as u32, r as i32 + 1, c as i32 + 1, value)?,
+            }
         }
         model.set_calculation_clock(clock.millis, clock.offset_seconds)?;
         crate::perf_stages::record("calc.set", started);
         crate::perf_stages::time("calc.evaluate", || model.evaluate());
         let started = Instant::now();
         // Only edited cells and formulas can hold a new value after evaluation.
+        // The other cells an array formula fills hold its values.
+        let mut followers: Vec<(usize, String, usize, usize)> = vec![];
+        for (i, anchors) in arrays.iter().enumerate() {
+            for (a, &(top, left, rows, columns)) in anchors {
+                if !self.inputs[i].contains_key(a) {
+                    continue;
+                }
+                for r in top..top + rows {
+                    for c in left..left + columns {
+                        let address = crate::formula::address(r, c);
+                        if address != *a {
+                            followers.push((i, address, r, c));
+                        }
+                    }
+                }
+            }
+        }
         let mut read: Vec<(usize, &str, usize, usize)> = changed
             .iter()
             .zip(&positions)
@@ -382,6 +433,15 @@ impl WorkbookCalculator {
         for (i, formulas) in self.formulas.iter().enumerate() {
             read.extend(formulas.iter().map(|(a, (r, c))| (i, a.as_str(), *r, *c)));
         }
+        read.extend(
+            followers
+                .iter()
+                .map(|(i, a, r, c)| (*i, a.as_str(), *r, *c)),
+        );
+        let filled: std::collections::HashSet<(usize, &str)> = followers
+            .iter()
+            .map(|(i, a, _, _)| (*i, a.as_str()))
+            .collect();
         let mut updated = vec![];
         for (i, a, r, c) in read {
             let id = identity[i].0.as_str();
@@ -389,7 +449,7 @@ impl WorkbookCalculator {
             let errors = self.cell_errors[id]
                 .as_object_mut()
                 .ok_or("Invalid errors")?;
-            let (value, error) = if self.inputs[i].contains_key(a) {
+            let (value, error) = if self.inputs[i].contains_key(a) || filled.contains(&(i, a)) {
                 let v = match model.get_cell_value_by_index(i as u32, r as i32 + 1, c as i32 + 1)? {
                     CellValue::None => json!(""),
                     CellValue::Number(n) => json!(n),
