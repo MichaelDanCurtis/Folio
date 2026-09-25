@@ -45,6 +45,8 @@ import 'src/document_history_change.dart';
 import 'package:dart_quill_delta/dart_quill_delta.dart';
 import 'src/document_view.dart';
 import 'src/sheet_view.dart';
+import 'src/sheet_status.dart';
+import 'src/table_controls.dart' show VisibleRows, VisibleColumns;
 import 'src/sheet_reviews.dart';
 import 'src/document_anchor.dart';
 import 'src/assistant_ui.dart';
@@ -200,6 +202,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
   late Future<void> filesReady;
   late String sheetId;
   String selectedCell = 'B4', _lastDocument = '';
+  Set<SelectionAggregate> _statusAggregates = defaultAggregates;
   int _epoch = 0, _wordCount = 0;
   int _documentSession = 0, _modelRevision = 0;
   Future<void> _documentPending = Future.value();
@@ -4019,16 +4022,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
               style: const TextStyle(fontSize: 9, color: muted),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                spreadsheet
-                    ? '1,048,576 rows · 16,384 columns'
-                    : 'Local workspace',
-                textAlign: TextAlign.right,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 9, color: muted),
-              ),
-            ),
+            Expanded(child: _statusSummary(spreadsheet)),
             const SizedBox(width: 20),
             const Text('100%', style: TextStyle(fontSize: 9, color: muted)),
           ],
@@ -4036,6 +4030,49 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
       ),
     ],
   );
+
+  /// Selection aggregates for a worksheet range (Average, Count and Sum
+  /// by default; right-click to choose), otherwise the workspace summary.
+  Widget _statusSummary(bool spreadsheet) {
+    SelectionStats? stats;
+    if (spreadsheet) {
+      final sheet = currentSheet;
+      final rows = VisibleRows(sheet), columns = VisibleColumns(sheet);
+      stats = selectionStats(
+        range: selectedCell,
+        cells: sheet['cells'] as Map? ?? {},
+        calculated: (model.snapshot['calculated'] as Map?)?[sheetId] ?? {},
+        formatted: (model.snapshot['formatted'] as Map?)?[sheetId] ?? {},
+        rowHidden: rows.isHidden,
+        columnHidden: columns.isHidden,
+      );
+    }
+    final text = stats == null
+        ? (spreadsheet ? '1,048,576 rows · 16,384 columns' : 'Local workspace')
+        : statusText(stats, _statusAggregates);
+    return GestureDetector(
+      key: const Key('status-summary'),
+      onSecondaryTapDown: !spreadsheet
+          ? null
+          : (details) async {
+              final chosen = await chooseAggregates(
+                context,
+                details.globalPosition,
+                _statusAggregates,
+              );
+              if (chosen != null && mounted) {
+                setState(() => _statusAggregates = chosen);
+              }
+            },
+      child: Text(
+        text,
+        textAlign: TextAlign.right,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 9, color: muted),
+      ),
+    );
+  }
+
   Widget _assistant() => Container(
     decoration: const BoxDecoration(
       color: Color(0xfffcfbf8),

@@ -11,7 +11,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | D01.03 | Contextual tabs that appear for the selected object (table, picture, chart, header/footer) | M2 | Specified | — | Not built |
 | D01.04 | Command search ("Tell me") that runs any ribbon command by name | M2 | Specified | — | Not built |
 | D01.05 | Document status bar: page, word count including tables, language, view and zoom controls | M1 | Automated verified | 0.15 word count includes table text | Page/language/zoom items; native check |
-| D01.06 | Workbook status bar: Sum, Average, Count and other selection aggregates | M1 | Specified | — | Not built |
+| D01.06 | Workbook status bar: Sum, Average, Count and other selection aggregates | M1 | Automated verified | Workbook essentials Task 2 ([plan](../../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)) | Persist the chosen aggregates; which hidden cells Excel counts; native check |
 | D01.07 | Several documents and workbooks open at once, as tabs or windows, with independent save state | M2 | Specified | — | One workspace window today |
 | D01.08 | Separate windows for one file (New Window, Arrange All) and task switching | M4 | Specified | — | Not built |
 | D01.09 | Window size, position and open files restored after restart | M2 | Specified | — | Window recovery not built |

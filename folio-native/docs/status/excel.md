@@ -8,7 +8,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 |---|---|---|---|---|---|
 | X01.01 | Select a cell or rectangular range by mouse, keyboard and F8 extend mode | M1 | Native verified | 0.11.1, 0.76–0.77 ([CELL_ACTIONS](../CELL_ACTIONS.md)) | Excel comparison |
 | X01.02 | Multi-area selection (Command/Ctrl-click) used by formatting, copy and delete | M2 | Specified | — | Not built |
-| X01.03 | Select whole rows, columns and the sheet; Ctrl+arrow and Ctrl+Shift+arrow to data edges | M1 | Specified | — | Not qualified; audit against Excel |
+| X01.03 | Select whole rows, columns and the sheet; Ctrl+arrow and Ctrl+Shift+arrow to data edges | M1 | Automated verified | Workbook essentials Task 1 ([plan](../../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)) | Native check; Excel comparison. Whole-row/column formatting is still limited to 2,000 cells |
 | X01.04 | Type into a cell, commit with Enter/Tab/Shift variants, cancel with Escape, and keep fast first keys | M1 | Native verified | 0.31, 0.42–0.43 ([VALIDATION](../../VALIDATION.md#0310-multiline-cell-and-formula-editing-2026-09-19)) | IME and dead keys |
 | X01.05 | Formula bar editing, expandable, with multiline text (Option/Alt+Enter) | M1 | Native verified | 0.31 | Excel comparison |
 | X01.06 | In-cell edit mode (F2) with caret movement and reference pointing by arrows | M1 | Specified | — | F2 exists; point mode not built |
@@ -23,7 +23,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | X01.15 | Flash Fill equivalent | M3 | Specified | — | Not built |
 | X01.16 | Conditional formatting copied by paste and fill | M2 | Automated verified | 0.50 ([CONDITIONAL_COPY](../CONDITIONAL_COPY.md)) | Native check |
 | X01.17 | Clear menu: formats, comments, hyperlinks or all (Delete already clears contents) | M1 | Specified | — | Not built |
-| X01.18 | Delete/Backspace clears the selected cells' contents in one Undo step | M1 | Implemented | `sheet_view.dart` key handling | Dedicated test; native check |
+| X01.18 | Delete/Backspace clears the selected cells' contents in one Undo step; on whole rows or columns, only the populated cells | M1 | Automated verified | Workbook essentials Task 1 | Native check |
 
 ## X02 Find, replace, Go To and navigation
 
@@ -131,6 +131,9 @@ Coverage of Excel's catalog of 514 worksheet functions, measured by `formula_cat
 | X08.11 | Circular references: warning, and iterative calculation settings | M3 | Specified | — | #CIRC shown; no iteration settings |
 | X08.12 | Locale-specific formula syntax (argument separators, decimal comma) | M4 | Specified | — | en-US only |
 | X08.13 | Formulas over huge ranges stay bounded (read budget, clipping) | M1 | Automated verified | Phase 3 ([formula limits](../../rust/src/formula_limits_tests.rs)) | Iterate only populated cells |
+| X08.14 | Legacy formulas passing a range to a scalar function use implicit intersection, as Excel does for pre-dynamic-array files | M1 | Specified | [CORPUS](CORPUS.md#office-created-corpus-real-files) | About 150 corpus cells show #SPILL! or #N/IMPL |
+| X08.15 | 3-D references (`Sheet1:Sheet3!A1`) in SUM, MIN, MAX and the other aggregates | M2 | Specified | [CORPUS](CORPUS.md#office-created-corpus-real-files) | 13 corpus cells give #VALUE! |
+| X08.16 | Whole-column lookups (VLOOKUP, HLOOKUP, MATCH, LOOKUP) read only populated rows, and sorted searches end at the last value not greater than the target | M1 | Automated verified | Corpus finding; [formula limits](../../rust/src/formula_limits_tests.rs) | Excel comparison of blank-cell edge cases |
 
 ## X09 Arrays, spill, names and external references
 
@@ -143,6 +146,7 @@ Coverage of Excel's catalog of 514 worksheet functions, measured by `formula_cat
 | X09.05 | Defined names: Name Manager to create, edit and delete; names used in formulas | M2 | Specified | — | Package names kept; no Name Manager |
 | X09.06 | Names follow structural edits and sheet renames | M2 | Automated verified | 0.6 | Named-formula evaluation parity |
 | X09.07 | External workbook references: display cached values; update links | M4 | Specified | — | Not built |
+| X09.08 | Defined names evaluate in formulas (workbook and sheet scope) | M1 | Specified | [CORPUS](CORPUS.md#office-created-corpus-real-files) | About 100 corpus cells give #NAME? |
 
 ## X10 Auditing
 
@@ -233,6 +237,9 @@ Coverage of Excel's catalog of 514 worksheet functions, measured by `formula_cat
 | X17.07 | CSV export with correct encoding and quoting | M1 | Implemented | Core CSV export (`workspace.rs`) | Tests; delimiter/locale options |
 | X17.08 | ODS open and save | M4 | Specified | — | Not built |
 | X17.09 | Per-feature compatibility matrix for workbooks | M1 | Specified | — | ROADMAP §2 matrix |
+| X17.10 | Excel-created workbooks from the corpus open, round-trip and recalculate like Excel | M1 | Automated verified | 272/291 open; 271 round-trip; 95.9% of 23,116 formulas match ([CORPUS](CORPUS.md#office-created-corpus-real-files)) | X08.14, X09.08, X08.15, X17.11–X17.12 |
+| X17.11 | Strict Open XML workbooks | M2 | Specified | [CORPUS](CORPUS.md#office-created-corpus-real-files) | 3 corpus files rejected |
+| X17.12 | Tolerant XLSX reading: cells without `r`, unusual shared strings, dimensions and relationship targets | M1 | Specified | [CORPUS](CORPUS.md#office-created-corpus-real-files) | 7 corpus files rejected; one export content type fails to reimport |
 
 ## X18 Page setup, printing and PDF for workbooks
 
