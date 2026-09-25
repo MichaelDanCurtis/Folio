@@ -51,6 +51,14 @@ pub struct Core {
     /// The last `document` and `officeDocument` that document normalization
     /// left unchanged, so cell edits can skip re-checking them.
     stable_document: Option<(Value, Value)>,
+    /// `defined_names` for a package and sheet part paths. Holding the
+    /// package keeps its address from being reused by another one.
+    #[allow(clippy::type_complexity)]
+    names_cache: Option<(
+        Arc<crate::office::Package>,
+        Vec<Value>,
+        Vec<crate::xlsx_names::Name>,
+    )>,
     #[cfg(test)]
     pub(crate) slow_cells: bool,
     /// Test-only: stage layout edits the original way (full sync, full
@@ -438,6 +446,7 @@ impl Core {
             .and_then(|id| self.packages.get(id))
             .map(AsRef::as_ref);
         let (date1904, palette) = crate::number_format::settings(pkg);
+        self.calculator.names = self.defined_names();
         let hint = match changes {
             ChangeSet::Cells(cells) => Some(cells.as_slice()),
             ChangeSet::Structural => None,
@@ -717,6 +726,30 @@ impl Core {
             && self.workspace["sheets"] == json!([{"id":"sheet-1","name":"Sheet 1","cells":{}}])
             && self.workspace.get("officeDocument").is_none()
             && self.workspace.get("officeWorkbook").is_none()
+    }
+    /// The workbook package's defined names for calculation, cached per
+    /// package revision and sheet layout (parsing workbook.xml on every edit
+    /// would be wasted work).
+    fn defined_names(&mut self) -> Vec<crate::xlsx_names::Name> {
+        let Some(pkg) = self.workspace["officeWorkbook"]["packageId"]
+            .as_str()
+            .and_then(|id| self.packages.get(id))
+            .cloned()
+        else {
+            return vec![];
+        };
+        let paths: Vec<Value> = self.workspace["sheets"]
+            .as_array()
+            .map(|s| s.iter().map(|s| s["officePath"].clone()).collect())
+            .unwrap_or_default();
+        if let Some((cached, cached_paths, names)) = &self.names_cache {
+            if Arc::ptr_eq(cached, &pkg) && *cached_paths == paths {
+                return names.clone();
+            }
+        }
+        let names = crate::xlsx_names::read(&pkg, &self.workspace["sheets"]);
+        self.names_cache = Some((pkg, paths, names.clone()));
+        names
     }
     fn clipboard_package(&self) -> Result<Vec<u8>, String> {
         let pkg = self.workspace["officeWorkbook"]["packageId"]
@@ -1658,6 +1691,7 @@ impl Core {
                 | "commitLayoutEdit"
                 | "cancelLayoutEdit"
                 | "get"
+                | "definedNames"
                 | "fileStates"
                 | "documentRevisions"
                 | "documentReviewView"
@@ -1983,6 +2017,19 @@ impl Core {
                 Ok(self.snapshot())
             }
             "get" => Ok(self.snapshot()),
+            // The workbook's defined names, for Go To and the name box.
+            "definedNames" => {
+                let sheets = self.workspace["sheets"].clone();
+                let names = self.defined_names();
+                Ok(json!({"names": names
+                    .into_iter()
+                    .map(|(name, scope, formula)| json!({
+                        "name": name,
+                        "sheetId": scope.map(|i| sheets[i]["id"].clone()),
+                        "refersTo": formula,
+                    }))
+                    .collect::<Vec<_>>()}))
+            }
             #[cfg(test)]
             "panicForTest" => {
                 self.workspace["title"] = json!("half-finished");

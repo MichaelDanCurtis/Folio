@@ -2,7 +2,12 @@
 //! transformed as syntax nodes, never by replacing text inside a formula.
 use crate::formula::{address, parse_address, COLS, ROWS};
 use ironcalc_base::expressions::{
-    parser::{new_parser_english, stringify::to_english_string, Node},
+    parser::{
+        new_parser_english,
+        static_analysis::{add_implicit_intersection, remove_redundant_implicit_intersection},
+        stringify::{to_english_string, to_excel_string},
+        Node,
+    },
     token::Error,
     types::CellReferenceRC,
 };
@@ -64,6 +69,93 @@ pub fn copy_formula(
         to_english_string(&node, &context(to)?),
         refs,
     ))
+}
+
+/// Parses a formula (with or without `=`) at `at` on sheet `sheet`, with
+/// structured table references masked. None if it doesn't parse.
+fn parse_at(
+    formula: &str,
+    names: &[String],
+    sheet: usize,
+    at: &str,
+    defined: &[(String, Option<u32>, String)],
+) -> Option<(Node, CellReferenceRC, Vec<(String, String)>)> {
+    let (r, c) = parse_address(at).ok()?;
+    let context = CellReferenceRC {
+        sheet: names.get(sheet)?.clone(),
+        row: r as i32 + 1,
+        column: c as i32 + 1,
+    };
+    let body = formula.strip_prefix('=').unwrap_or(formula);
+    let (masked, refs) = crate::table_refs::protect(body).ok()?;
+    // The parser must know the workbook's names, or it reads them as bare
+    // identifiers. Masked table references are single cells or ranges it
+    // can't see, so they are declared as names that need no `@`.
+    let mut known = defined.to_vec();
+    known.extend(
+        refs.iter()
+            .map(|(placeholder, _)| (placeholder.clone(), None, "$A$1".to_string())),
+    );
+    let mut parser = new_parser_english(names.to_vec(), known, HashMap::new());
+    let node = parser.parse(&masked, &context);
+    (!matches!(node, Node::ParseErrorKind { .. })).then_some((node, context, refs))
+}
+
+/// A legacy (pre-dynamic-array) Excel formula as Excel 365 shows it, with
+/// `@` wherever the old engine intersected a range with the formula's row
+/// or column (X08.14): `=ABS(A1:A9)` in row 5 means `=ABS(@A1:A9)`, the
+/// value in A5. Formulas that need no `@`, or don't parse, are returned
+/// unchanged, so most imported formulas keep their exact text.
+pub fn legacy_formula(
+    formula: &str,
+    names: &[String],
+    sheet: usize,
+    at: &str,
+    defined: &[(String, Option<u32>, String)],
+) -> String {
+    let Some((mut node, context, refs)) = parse_at(formula, names, sheet, at, defined) else {
+        return formula.to_string();
+    };
+    let plain = to_english_string(&node, &context);
+    // Rewrite only a formula the parser read completely: printed back, it
+    // must match the original apart from case and spacing. Anything else
+    // keeps its text rather than risk changing its meaning.
+    let squash = |text: &str| {
+        text.chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>()
+            .to_uppercase()
+    };
+    let original = formula.strip_prefix('=').unwrap_or(formula);
+    if squash(&crate::table_refs::restore(plain.clone(), refs.clone())) != squash(original) {
+        return formula.to_string();
+    }
+    add_implicit_intersection(&mut node, true);
+    let intersected = to_english_string(&node, &context);
+    if intersected == plain {
+        return formula.to_string();
+    }
+    format!("={}", crate::table_refs::restore(intersected, refs))
+}
+
+/// A formula in the form a worksheet part stores it. Newer functions get
+/// their `_xlfn.` prefixes, so Excel doesn't read them as unknown names.
+/// `@` operators that legacy semantics already imply are dropped, and any
+/// other `@` is written as `_xlfn.SINGLE(...)`. Without the `=`; formulas
+/// that don't parse are written as they are.
+pub fn excel_formula(
+    formula: &str,
+    names: &[String],
+    sheet: usize,
+    at: &str,
+    defined: &[(String, Option<u32>, String)],
+) -> String {
+    let body = formula.strip_prefix('=').unwrap_or(formula);
+    let Some((mut node, context, refs)) = parse_at(body, names, sheet, at, defined) else {
+        return body.to_string();
+    };
+    remove_redundant_implicit_intersection(&mut node, true);
+    crate::table_refs::restore(to_excel_string(&node, &context), refs)
 }
 
 /// Check reference nodes, rather than guessing sheet qualifiers from text.

@@ -38,14 +38,14 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | W16 | [Document format fidelity](status/word.md#w16-document-format-fidelity) | 7 | 0 | 3 | 0 | 0 | 0 | 10 |
 | W17 | [Views, zoom and accessibility checking](status/word.md#w17-views-zoom-and-accessibility-checking) | 6 | 0 | 0 | 1 | 0 | 0 | 7 |
 | X01 | [Selection, editing, clipboard and fill](status/excel.md#x01-selection-editing-clipboard-and-fill) | 9 | 0 | 5 | 4 | 0 | 0 | 18 |
-| X02 | [Find, replace, Go To and navigation](status/excel.md#x02-find-replace-go-to-and-navigation) | 5 | 0 | 1 | 1 | 0 | 0 | 7 |
+| X02 | [Find, replace, Go To and navigation](status/excel.md#x02-find-replace-go-to-and-navigation) | 4 | 0 | 3 | 1 | 0 | 0 | 8 |
 | X03 | [Rows, columns and sheets](status/excel.md#x03-rows-columns-and-sheets) | 5 | 1 | 2 | 3 | 0 | 0 | 11 |
 | X04 | [Cell formatting and styles](status/excel.md#x04-cell-formatting-and-styles) | 7 | 0 | 4 | 2 | 0 | 0 | 13 |
 | X05 | [Views, panes and zoom](status/excel.md#x05-views-panes-and-zoom) | 5 | 0 | 0 | 1 | 0 | 0 | 6 |
 | X06 | [Sort, filter and tables](status/excel.md#x06-sort-filter-and-tables) | 5 | 0 | 1 | 4 | 0 | 0 | 10 |
 | X07 | [Data validation and conditional formatting](status/excel.md#x07-data-validation-and-conditional-formatting) | 3 | 0 | 2 | 5 | 0 | 0 | 10 |
-| X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 8 | 0 | 6 | 2 | 0 | 0 | 16 |
-| X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 6 | 0 | 2 | 0 | 0 | 0 | 8 |
+| X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 7 | 0 | 7 | 2 | 0 | 0 | 16 |
+| X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
 | X10 | [Auditing](status/excel.md#x10-auditing) | 4 | 0 | 0 | 2 | 0 | 0 | 6 |
 | X11 | [Charts, sparklines and drawings](status/excel.md#x11-charts-sparklines-and-drawings) | 6 | 1 | 1 | 0 | 0 | 0 | 8 |
 | X12 | [PivotTables](status/excel.md#x12-pivottables) | 6 | 0 | 0 | 0 | 0 | 0 | 6 |
@@ -53,17 +53,17 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X14 | [What-if analysis](status/excel.md#x14-what-if-analysis) | 4 | 0 | 0 | 3 | 0 | 0 | 7 |
 | X15 | [Notes, comments, protection and sharing](status/excel.md#x15-notes-comments-protection-and-sharing) | 4 | 0 | 1 | 0 | 0 | 0 | 5 |
 | X16 | [Macros, add-ins and scripts](status/excel.md#x16-macros-add-ins-and-scripts) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
-| X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 7 | 1 | 3 | 1 | 0 | 0 | 12 |
+| X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 7 | 1 | 4 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **239** | **6** | **74** | **80** | **0** | **0** | **399** |
+| **All** | | **236** | **6** | **79** | **80** | **0** | **0** | **401** |
 
 By milestone, the M1 (daily report and budget) children are:
-- 135 in total;
+- 136 in total;
 - 52 native verified;
-- 48 automated verified only;
+- 53 automated verified only;
 - 4 implemented without dedicated tests;
-- 31 not built.
+- 27 not built.
 
 ## Ranked gap list
 

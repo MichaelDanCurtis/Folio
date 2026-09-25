@@ -160,7 +160,8 @@ impl<'a> Model<'a> {
                     Node::LambdaDefKind { parameters, body } => {
                         ParsedDefinedName::LambdaDefinition(parameters, *body)
                     }
-                    _ => ParsedDefinedName::InvalidDefinedNameFormula,
+                    Node::ParseErrorKind { .. } => ParsedDefinedName::InvalidDefinedNameFormula,
+                    node => ParsedDefinedName::Formula(node),
                 }
             };
 
@@ -699,6 +700,7 @@ impl<'a> Model<'a> {
             support: HashMap::new(),
             cf_cache: HashMap::new(),
             formula_reads: Vec::new(),
+            evaluating_names: Vec::new(),
         };
         model.parse_formulas();
         model.evaluate_conditional_formatting();

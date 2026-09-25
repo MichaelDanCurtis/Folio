@@ -24,6 +24,7 @@ import 'sheet_autofit.dart';
 import 'sheet_column_metrics.dart';
 import 'sheet_editing_keys.dart';
 import 'sheet_navigation.dart';
+import 'sheet_go_to.dart';
 import 'sheet_clipboard.dart';
 import 'sheet_reviews.dart';
 import 'sheet_validation_dialog.dart';
@@ -85,6 +86,12 @@ class SheetView extends StatefulWidget {
   final Future<void> Function(Map<String, dynamic>)? onAutoFilter;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
   onFilterChoices;
+
+  /// The workbook's defined names, for the name box and Go To.
+  final Future<List<Map>> Function()? onDefinedNames;
+
+  /// Go to a reference on another sheet; returns false if there is none.
+  final Future<bool> Function(SheetTarget target)? onGoToSheet;
   const SheetView({
     super.key,
     required this.sheet,
@@ -119,6 +126,8 @@ class SheetView extends StatefulWidget {
     this.onSortRange,
     this.onAutoFilter,
     this.onFilterChoices,
+    this.onDefinedNames,
+    this.onGoToSheet,
   });
   @override
   State<SheetView> createState() => SheetViewState();
@@ -1698,6 +1707,75 @@ class SheetViewState extends State<SheetView> {
     widget.onSelection(selectedRange);
   }
 
+  final _recentTargets = <String>[];
+
+  /// Selects a target on this sheet: its range, keeping whole-row or
+  /// whole-column selections as such.
+  Future<void> selectTarget(SheetTarget target) async {
+    final ok = await select(target.top, target.left, shiftPressed: false);
+    if (!ok || !mounted) return;
+    setState(() {
+      final range = target.top != target.bottom || target.left != target.right;
+      rangeRow = range ? target.bottom : null;
+      rangeCol = range ? target.right : null;
+      wholeRows = target.wholeRows;
+      wholeColumns = target.wholeColumns;
+      regionSelection = null;
+    });
+    widget.onSelection(selectedRange);
+  }
+
+  /// Name box and Go To: a cell, range, whole rows or columns, a reference
+  /// on another sheet, or a defined name.
+  Future<void> goTo(String text) async {
+    try {
+      final names = await widget.onDefinedNames?.call() ?? const [];
+      final target = parseTarget(
+        text,
+        names: names,
+        currentSheetId: widget.sheet['id'] as String?,
+      );
+      if (target == null) {
+        throw FormatException('"$text" is not a cell, range or name.');
+      }
+      final elsewhere =
+          target.sheetName != null &&
+          target.sheetName!.toLowerCase() !=
+              (widget.sheet['name'] as String).toLowerCase();
+      if (!elsewhere) {
+        await selectTarget(target);
+      } else if (await widget.onGoToSheet?.call(target) != true) {
+        throw FormatException('There is no sheet named ${target.sheetName}.');
+      }
+      _recentTargets
+        ..remove(text.trim())
+        ..insert(0, text.trim());
+      if (_recentTargets.length > 4) _recentTargets.removeLast();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  /// Go To (F5, Ctrl+G): defined names, recent targets and a reference.
+  Future<void> openGoTo() async {
+    try {
+      final names = await widget.onDefinedNames?.call() ?? const [];
+      if (!mounted) return;
+      final text = await showDialog<String>(
+        context: context,
+        builder: (_) => SheetGoToDialog(
+          names: names,
+          recent: List.of(_recentTargets),
+          currentSheetId: widget.sheet['id'] as String?,
+        ),
+      );
+      if (text != null) await goTo(text);
+      if (mounted) gridFocus.requestFocus();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
   /// Excel's data-aware navigation and selection keys (X01.03):
   /// Ctrl/Command+arrow to data edges (Shift extends), Ctrl/Command+Home
   /// and +End, Home, Shift+Space, Ctrl+Space and Ctrl/Command+A.
@@ -1709,6 +1787,11 @@ class SheetViewState extends State<SheetView> {
     if (keyboard.isAltPressed) return null;
     final command = keyboard.isControlPressed || keyboard.isMetaPressed;
     final shift = keyboard.isShiftPressed || extendSelectionMode;
+    if ((k == LogicalKeyboardKey.f5 && !command && !keyboard.isShiftPressed) ||
+        (command && !keyboard.isShiftPressed && k == LogicalKeyboardKey.keyG)) {
+      openGoTo();
+      return KeyEventResult.handled;
+    }
     void go(int r, int c) {
       _entryNavigation = replay != null
           ? _select(r, c, shiftPressed: shift)
@@ -3502,29 +3585,7 @@ class SheetViewState extends State<SheetView> {
                     isDense: true,
                     contentPadding: EdgeInsets.all(7),
                   ),
-                  onFieldSubmitted: (value) {
-                    try {
-                      final area = TableArea.parse(
-                        value.replaceAll(r'$', '').toUpperCase(),
-                      );
-                      select(area.top, area.left, extend: false).then((
-                        selected,
-                      ) {
-                        if (selected &&
-                            mounted &&
-                            (area.top != area.bottom ||
-                                area.left != area.right)) {
-                          setState(() {
-                            rangeRow = area.bottom;
-                            rangeCol = area.right;
-                          });
-                          widget.onSelection(selectedRange);
-                        }
-                      });
-                    } catch (e) {
-                      fail(e);
-                    }
-                  },
+                  onFieldSubmitted: goTo,
                 ),
               ),
               const SizedBox(width: 12),

@@ -110,6 +110,10 @@ pub(crate) enum ParsedDefinedName {
     RangeReference(Range),
     /// `=LAMBDA(params..., body)`
     LambdaDefinition(Vec<NamedVariable>, Node),
+    /// Any other formula (`=0.07`, `=2*Sheet1!$A$1`), evaluated where the
+    /// name is used (Folio). Excel allows these and workbooks use them
+    /// for constants and derived values.
+    Formula(Node),
     /// `=SomethingElse`
     InvalidDefinedNameFormula,
 }
@@ -232,6 +236,9 @@ pub struct Model<'a> {
     /// Cells read so far by each formula being evaluated, innermost last.
     /// See [`MAX_FORMULA_READS`].
     pub(crate) formula_reads: Vec<u64>,
+    /// Formula-valued defined names being evaluated, to report a name that
+    /// refers to itself as #CIRC! rather than recurse forever (Folio).
+    pub(crate) evaluating_names: Vec<(Option<u32>, String)>,
 }
 
 /// The most cells one formula may read directly (Folio). A formula over a
@@ -853,6 +860,20 @@ impl<'a> Model<'a> {
                             let lambda_id = self.get_next_lambda_id();
                             self.lambdas.insert(lambda_id, (param_names, body));
                             CalcResult::Lambda(lambda_id)
+                        }
+                        ParsedDefinedName::Formula(node) => {
+                            let key = (*scope, name.to_lowercase());
+                            if self.evaluating_names.contains(&key) {
+                                return CalcResult::new_error(
+                                    Error::CIRC,
+                                    cell,
+                                    format!("Defined name \"{name}\" refers to itself."),
+                                );
+                            }
+                            self.evaluating_names.push(key);
+                            let result = self.evaluate_node_in_context(&node, cell);
+                            self.evaluating_names.pop();
+                            result
                         }
                         ParsedDefinedName::InvalidDefinedNameFormula => CalcResult::new_error(
                             Error::NAME,
@@ -1574,11 +1595,16 @@ impl<'a> Model<'a> {
     /// `None` means it read too many cells and was abandoned.
     pub(crate) fn with_read_budget<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> Option<T> {
         self.formula_reads.push(0);
+        let names = self.evaluating_names.len();
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(self)));
         self.formula_reads.pop();
         match result {
             Ok(value) => Some(value),
-            Err(payload) if payload.is::<FormulaReadsExceeded>() => None,
+            Err(payload) if payload.is::<FormulaReadsExceeded>() => {
+                // The unwind skipped the name-evaluation bookkeeping.
+                self.evaluating_names.truncate(names);
+                None
+            }
             Err(payload) => std::panic::resume_unwind(payload),
         }
     }
@@ -1917,6 +1943,7 @@ impl<'a> Model<'a> {
             support: HashMap::new(),
             cf_cache: HashMap::new(),
             formula_reads: Vec::new(),
+            evaluating_names: Vec::new(),
         };
 
         model.parse_formulas();
@@ -3807,7 +3834,9 @@ impl<'a> Model<'a> {
             if let Node::ParseErrorKind { .. } = node {
                 node = self.parse_internal_formula(formula_body, &dummy_ref);
             }
-            if !matches!(node, Node::LambdaDefKind { .. }) {
+            // Folio: any formula that parses is a valid name (Excel allows
+            // constants and calculations), not only references and LAMBDAs.
+            if matches!(node, Node::ParseErrorKind { .. }) {
                 return Err("Formula: Invalid defined name formula".to_string());
             }
         }

@@ -3,7 +3,7 @@
 //! than hanging the engine or exhausting memory.
 use crate::workspace::Core;
 use serde_json::{json, Value};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 fn blank() -> Core {
     let mut c = Core::new();
@@ -21,7 +21,7 @@ fn with(cells: &[(&str, &str)]) -> (Core, Value) {
     let started = Instant::now();
     c.dispatch(json!({"op":"cells","cells":cells})).unwrap();
     assert!(
-        started.elapsed() < Duration::from_secs(10),
+        started.elapsed() < crate::fuzz_tests::slow_limit(),
         "took {:?}",
         started.elapsed()
     );
@@ -84,7 +84,10 @@ fn whole_sheet_aggregates_are_exact_and_fast() {
     for (address, formula, expected) in &formulas {
         assert_eq!(text(&formatted, address), *expected, "{formula}");
     }
-    assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
+    assert!(
+        elapsed < crate::fuzz_tests::slow_limit(),
+        "took {elapsed:?}"
+    );
 }
 
 /// Data at opposite corners makes the populated extent the whole sheet, so
@@ -169,7 +172,10 @@ fn a_conditional_format_rule_that_reads_too_many_cells_is_false() {
     let snapshot = c.snapshot();
     let formatted = &snapshot["formatted"][&sheet];
     // One budget's worth of reads, not one per cell (200 would take minutes).
-    assert!(elapsed < Duration::from_secs(20), "took {elapsed:?}");
+    assert!(
+        elapsed < crate::fuzz_tests::slow_limit(),
+        "took {elapsed:?}"
+    );
     for row in [1, 200] {
         let cell = &formatted[format!("A{row}")];
         assert!(cell["conditionalStyle"]["fill"].is_null(), "{cell}");

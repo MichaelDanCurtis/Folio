@@ -13,7 +13,11 @@ static RANGE_REFERENCE_REGEX: OnceLock<Regex> = OnceLock::new();
 #[allow(clippy::expect_used)]
 fn get_re() -> &'static Regex {
     RANGE_REFERENCE_REGEX
-        .get_or_init(|| Regex::new(r":[A-Z]*[0-9]*$").expect("Regex is known to be valid"))
+        // Folio: allow `$`, since name definitions use absolute references
+        // (`Sheet1!$A$1:$A$9`); without it no range name got its `@`.
+        .get_or_init(|| {
+            Regex::new(r":\$?[A-Z]*\$?[0-9]*$").expect("Regex is known to be valid")
+        })
 }
 
 fn is_range_reference(s: &str) -> bool {

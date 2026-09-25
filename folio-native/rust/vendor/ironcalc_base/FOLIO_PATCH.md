@@ -165,3 +165,39 @@ last populated cell, once the vector is longer than 65,536 cells:
 Folio's `formula_limits_tests.rs` covers both kinds of search, MATCH,
 LOOKUP, HLOOKUP across a whole row, and 2,000 whole-column lookups.
 Modified: src/functions/lookup_and_reference/mod.rs.
+
+## Formula-valued defined names
+
+Upstream accepted only references and LAMBDA definitions as defined names;
+anything else was refused and showed `#NAME?`. Excel allows any formula, and
+workbooks use it for constants (`TaxRate = 0.07`) and derived values
+(`=2*Inputs!$A$1`). Such names now parse to `ParsedDefinedName::Formula`,
+which is evaluated in the context of the cell using the name. A relative
+reference is therefore relative to that cell, as in Excel.
+`Model::evaluating_names` reports a name that refers to itself as `#CIRC!`
+instead of recursing. `with_read_budget` restores that stack when a formula
+is abandoned for reading too many cells.
+
+Two upstream tests are updated to the Excel behaviour, in
+`test_defined_names.rs`:
+- `invalid_formula`: `=A1` is a valid, relative name, and only unparsable
+  formulas are refused.
+- `delete_sheet`: a name pointing at a deleted sheet shows `#REF!`.
+
+Folio passes a workbook's defined names to the model from the package's
+`definedNames` (`xlsx_names.rs`). Before this, no imported name reached the
+calculation at all.
+
+Modified: src/model.rs, src/new_empty.rs,
+src/functions/information/mod.rs, src/test/user_model/test_defined_names.rs.
+
+## Range names in implicit intersection
+
+`is_range_reference` in `static_analysis.rs` decides whether a defined name
+needs an automatic `@`. Its pattern, `:[A-Z]*[0-9]*$`, didn't allow `$`, and
+name definitions almost always use absolute references (`Sheet1!$A$1:$A$9`).
+So a range name used where one value is expected was never intersected. The
+pattern now accepts `$`. Folio's `legacy_formula` (`structure.rs`) relies on
+`add_implicit_intersection` to give imported legacy formulas Excel 365's
+automatic `@`; `legacy_formula_tests.rs` covers it.
+Modified: src/expressions/parser/static_analysis.rs.

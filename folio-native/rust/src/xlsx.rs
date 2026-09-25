@@ -5,7 +5,7 @@ use crate::{
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
 const S: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-fn resolve(target: &str) -> Result<String, String> {
+pub(crate) fn resolve(target: &str) -> Result<String, String> {
     let p = if target.starts_with('/') {
         target.trim_start_matches('/').to_string()
     } else {
@@ -22,6 +22,20 @@ fn resolve(target: &str) -> Result<String, String> {
         }
     }
     Ok(parts.join("/"))
+}
+/// The workbook's defined names as the formula parser takes them: name,
+/// sheet index for a sheet-scoped name, and formula.
+pub(crate) fn defined_names(wb: &roxmltree::Document) -> Vec<(String, Option<u32>, String)> {
+    wb.descendants()
+        .filter(|n| n.has_tag_name((S, "definedName")))
+        .filter_map(|n| {
+            Some((
+                attr(n, "name")?.to_string(),
+                attr(n, "localSheetId").and_then(|i| i.parse().ok()),
+                n.text().unwrap_or("").trim().to_string(),
+            ))
+        })
+        .collect()
 }
 pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
     let input_parser = ironcalc_base::Model::new_empty("Import", "en", "UTC", "en")?;
@@ -49,6 +63,7 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
         .filter(|n| n.has_tag_name((S, "sheet")))
         .map(|n| attr(n, "name").unwrap_or("Sheet").into())
         .collect();
+    let defined = defined_names(&wb);
     let mut warnings=vec!["Charts, pivot tables, macros and other advanced objects are not editable in Folio. Unmodified package parts are retained on export.".to_string()];
     if crate::number_format::settings(Some(pkg)).0 {
         warnings.push(DATE1904_NOTICE.into());
@@ -116,6 +131,17 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
                     _ => value.into(),
                 }
             };
+            // A formula saved without dynamic-array metadata follows Excel's
+            // legacy rules: ranges passed where one value is expected are
+            // intersected with the formula's row or column. Show and
+            // evaluate it with Excel 365's automatic `@` (X08.14). Array
+            // (CSE) formulas and dynamic formulas (`cm`) keep their text.
+            if let Some(f) = child(c, "f") {
+                if raw.starts_with('=') && attr(f, "t") != Some("array") && attr(f, "cm").is_none()
+                {
+                    raw = crate::structure::legacy_formula(&raw, &names, sheets.len(), a, &defined);
+                }
+            }
             if child(c, "f").is_none()
                 && matches!(t, "s" | "inlineStr" | "str")
                 && (input_parser.input_parses_as_number(&raw)
@@ -630,11 +656,36 @@ fn export_impl(
         crate::xlsx_tables::rewrite_references(&mut p, before, sheets)?;
     }
     let mut style_cache = HashMap::<(String, String), String>::new();
-    for original_sheet in list {
+    let sheet_names: Vec<String> = list
+        .iter()
+        .map(|s| s["name"].as_str().unwrap_or("").to_string())
+        .collect();
+    let defined = p
+        .text("xl/workbook.xml")
+        .and_then(parse)
+        .map(|wb| defined_names(&wb))
+        .unwrap_or_default();
+    for (index, original_sheet) in list.iter().enumerate() {
         let mut prepared = original_sheet.clone();
         let baseline_sheet = baseline
             .and_then(|b| b.as_array())
             .and_then(|a| a.iter().find(|v| v["id"] == prepared["id"]));
+        // Formulas entered or changed in Folio are written the way a
+        // worksheet part stores them (`_xlfn.` prefixes, `@` resolved).
+        // Unchanged formulas keep their original XML.
+        if let Some(cells) = prepared["cells"].as_object_mut() {
+            for (a, value) in cells.iter_mut() {
+                let Some(formula) = value.as_str().filter(|v| v.starts_with('=')) else {
+                    continue;
+                };
+                if baseline_sheet.is_some_and(|b| b["cells"][a.as_str()] == *value) {
+                    continue;
+                }
+                let stored =
+                    crate::structure::excel_formula(formula, &sheet_names, index, a, &defined);
+                *value = json!(format!("={stored}"));
+            }
+        }
         let style_bases =
             crate::xlsx_styles::SheetStyleBases::read(&p, original_sheet["officePath"].as_str())?;
         if let Some(styles) = original_sheet["cellStyles"].as_object() {

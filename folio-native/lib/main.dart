@@ -3796,6 +3796,26 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                 Expanded(
                   child: SheetView(
                     key: sheetKey,
+                    onDefinedNames: () async {
+                      final result = await model.core.call({
+                        'op': 'definedNames',
+                      });
+                      return (result['names'] as List? ?? []).cast<Map>();
+                    },
+                    onGoToSheet: (target) async {
+                      final name = target.sheetName!.toLowerCase();
+                      final sheet = model.sheets.cast<Map?>().firstWhere(
+                        (s) => (s!['name'] as String).toLowerCase() == name,
+                        orElse: () => null,
+                      );
+                      if (sheet == null) return false;
+                      await flush();
+                      setState(() => sheetId = sheet['id']);
+                      WidgetsBinding.instance.addPostFrameCallback(
+                        (_) => sheetKey.currentState?.selectTarget(target),
+                      );
+                      return true;
+                    },
                     sheet: currentSheet,
                     workspaceId: model.workspace['id'] as String?,
                     revision: model.revision,
