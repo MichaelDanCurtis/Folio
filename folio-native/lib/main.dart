@@ -45,6 +45,7 @@ import 'src/document_history_change.dart';
 import 'package:dart_quill_delta/dart_quill_delta.dart';
 import 'src/document_view.dart';
 import 'src/sheet_view.dart';
+import 'src/sheet_zoom.dart';
 import 'src/sheet_status.dart';
 import 'src/table_controls.dart' show VisibleRows, VisibleColumns;
 import 'src/sheet_reviews.dart';
@@ -607,6 +608,12 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
         enabled: index < model.sheets.length - 1,
         child: const Text('Move sheet right'),
       ),
+      PopupMenuItem(
+        key: const Key('sheet-duplicate'),
+        value: 'duplicate',
+        enabled: model.sheets.length < 30,
+        child: const Text('Duplicate sheet'),
+      ),
       const PopupMenuDivider(),
       PopupMenuItem(
         value: 'delete',
@@ -650,6 +657,19 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
           'action': 'rename',
           'name': name,
         }, target: id);
+      }
+    } else if (action == 'duplicate') {
+      await flush();
+      final before = model.sheets.length;
+      await model.mutate({
+        'op': 'duplicateSheet',
+        'sheetId': id,
+        'baseRevision': model.revision,
+      }, refreshDocument: true);
+      // Excel shows the copy.
+      if (mounted && model.sheets.length > before) {
+        final index = model.sheets.indexWhere((s) => s['id'] == id) + 1;
+        setState(() => sheetId = model.sheets[index]['id']);
       }
     } else if (action == 'delete') {
       final remove = await showDialog<bool>(
@@ -3870,6 +3890,16 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                         ...action,
                       }, refreshDocument: true);
                     },
+                    onZoom: (percent) async {
+                      await flush();
+                      await model.mutate({
+                        'op': 'sheetView',
+                        'sheetId': sheetId,
+                        'action': 'zoom',
+                        'zoom': percent,
+                        'baseRevision': model.revision,
+                      });
+                    },
                     onBorders: (action) async {
                       await flush();
                       await model.mutate({
@@ -4060,7 +4090,17 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
             const SizedBox(width: 12),
             Expanded(child: _statusSummary(spreadsheet)),
             const SizedBox(width: 20),
-            const Text('100%', style: TextStyle(fontSize: 9, color: muted)),
+            if (spreadsheet)
+              SheetZoomControl(
+                key: ValueKey('zoom-control-$sheetId'),
+                zoom: clampZoom((currentSheet['zoom'] as num?) ?? 100),
+                onZoom: (percent, {required commit}) =>
+                    sheetKey.currentState?.setZoom(percent, commit: commit),
+                onZoomToSelection: () =>
+                    sheetKey.currentState?.zoomToSelection(),
+              )
+            else
+              const Text('100%', style: TextStyle(fontSize: 9, color: muted)),
           ],
         ),
       ),

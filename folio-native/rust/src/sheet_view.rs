@@ -8,7 +8,15 @@ use crate::{
 use serde_json::{json, Value};
 const S: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
+/// Excel's zoom range, in percent.
+pub const ZOOM: std::ops::RangeInclusive<u64> = 10..=400;
+
 pub fn validate(sheet: &Value) -> Result<(), String> {
+    if let Some(zoom) = sheet.get("zoom").filter(|z| !z.is_null()) {
+        if !zoom.as_u64().is_some_and(|z| ZOOM.contains(&z)) {
+            return Err("Choose a zoom from 10% to 400%".into());
+        }
+    }
     let pane = &sheet["frozenPane"];
     if pane.is_null() {
         return Ok(());
@@ -43,6 +51,18 @@ pub fn change(workspace: &Value, request: &Value) -> Result<Value, String> {
         .iter_mut()
         .find(|s| s["id"] == request["sheetId"])
         .ok_or("Worksheet missing")?;
+    if request["action"] == "zoom" {
+        let zoom = request["zoom"]
+            .as_u64()
+            .filter(|z| ZOOM.contains(z))
+            .ok_or("Choose a zoom from 10% to 400%")?;
+        if zoom == 100 {
+            sheet.as_object_mut().unwrap().remove("zoom");
+        } else {
+            sheet["zoom"] = json!(zoom);
+        }
+        return Ok(next);
+    }
     sheet["frozenPane"] = match request["action"].as_str() {
         Some("unfreeze") => Value::Null,
         Some("freeze") => {
@@ -76,6 +96,14 @@ fn primary<'a, 'input>(views: roxmltree::Node<'a, 'input>) -> Option<roxmltree::
 pub fn read(pkg: &Package, path: &str, sheet: &mut Value) -> Result<(), String> {
     let doc = parse(pkg.text(path)?)?;
     sheet["frozenPane"] = Value::Null;
+    if let Some(zoom) = child(doc.root_element(), "sheetViews")
+        .and_then(primary)
+        .and_then(|v| attr(v, "zoomScale"))
+        .and_then(|z| z.parse::<u64>().ok())
+        .filter(|z| ZOOM.contains(z) && *z != 100)
+    {
+        sheet["zoom"] = json!(zoom);
+    }
     if let Some(pane) = child(doc.root_element(), "sheetViews")
         .and_then(primary)
         .and_then(|v| child(v, "pane"))
@@ -234,6 +262,62 @@ pub fn write(
         (
             at..at,
             format!("<sheetViews xmlns=\"{S}\">{replacement}</sheetViews>"),
+        )
+    };
+    pkg.set(path, replace_ranges(&xml, vec![edit]));
+    Ok(())
+}
+
+/// Writes the sheet's zoom as the primary view's `zoomScale`, keeping
+/// everything else about the view.
+pub fn write_zoom(
+    pkg: &mut Package,
+    sheet: &Value,
+    before: Option<&Value>,
+    path: &str,
+) -> Result<(), String> {
+    let zoom = sheet
+        .get("zoom")
+        .and_then(Value::as_u64)
+        .filter(|z| *z != 100);
+    let was = before
+        .and_then(|b| b.get("zoom"))
+        .and_then(Value::as_u64)
+        .filter(|z| *z != 100);
+    if zoom == was {
+        return Ok(());
+    }
+    let xml = pkg.text(path)?.to_string();
+    let doc = parse(&xml)?;
+    let root = doc.root_element();
+    let scale = zoom.map(|z| z.to_string());
+    let edit = if let Some(view) = child(root, "sheetViews").and_then(primary) {
+        (
+            view.range(),
+            attributes(&xml, view, &[("zoomScale", scale)]),
+        )
+    } else if let Some(views) = child(root, "sheetViews") {
+        let at = views.range().end - "</sheetViews>".len();
+        (
+            at..at,
+            format!(
+                "<sheetView xmlns=\"{S}\" workbookViewId=\"0\"{}/>",
+                scale
+                    .map(|z| format!(" zoomScale=\"{z}\""))
+                    .unwrap_or_default()
+            ),
+        )
+    } else {
+        let Some(z) = scale else { return Ok(()) };
+        let at = root
+            .children()
+            .find(|n| n.is_element() && !matches!(n.tag_name().name(), "sheetPr" | "dimension"))
+            .ok_or("Worksheet data missing")?
+            .range()
+            .start;
+        (
+            at..at,
+            format!("<sheetViews xmlns=\"{S}\"><sheetView workbookViewId=\"0\" zoomScale=\"{z}\"/></sheetViews>"),
         )
     };
     pkg.set(path, replace_ranges(&xml, vec![edit]));

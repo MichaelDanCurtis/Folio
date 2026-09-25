@@ -818,6 +818,7 @@ fn export_impl(
         crate::xlsx_tables::write(&mut p, sheet, &path)?;
         crate::sheet_geometry::write(&mut p, sheet, &path)?;
         crate::sheet_view::write(&mut p, sheet, before, &path)?;
+        crate::sheet_view::write_zoom(&mut p, sheet, before, &path)?;
         crate::cell_watches::write(&mut p, sheet, before, &path)?;
         crate::scenarios::write(&mut p, sheet, before, &path)?;
         crate::data_validation::write(&mut p, sheet, before, &path)?;

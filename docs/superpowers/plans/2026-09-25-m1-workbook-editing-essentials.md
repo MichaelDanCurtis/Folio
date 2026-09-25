@@ -87,19 +87,19 @@ Native qualification joins the rank 2 Mac sweep. The register rows and counts ar
 
 **Files:** `lib/src/sheet_zoom.dart` (new), grid scale plumbing, tests
 
-- [ ] **Zoom 10–400%:** a status-bar slider, Zoom to Selection, and Command/Ctrl with + and −.
-- [ ] Keep the zoom per sheet, read from and written to `sheetView/@zoomScale` in XLSX.
-- [ ] Hit testing, selection and editing stay correct at every zoom level.
+- [x] **Zoom 10–400%:** a status-bar slider, Zoom to Selection, and Command/Ctrl with + and −.
+- [x] Keep the zoom per sheet, read from and written to `sheetView/@zoomScale` in XLSX.
+- [x] Hit testing, selection and editing stay correct at every zoom level.
 
 ### Task 7: Duplicate sheet (X03.06)
 
 **Files:** engine op `duplicateSheet` (`rust/src/sheet_duplicate.rs`), tab context menu, tests
 
-- [ ] Copy the sheet's cells, styles, dimensions, merges, validation, conditional formats, notes and view.
-- [ ] Give copied tables new unique names and adjust their structured references.
+- [x] Copy the sheet's cells, styles, dimensions, merges, validation, conditional formats, notes and view.
+- [x] Give copied tables new unique names and adjust their structured references.
 - [ ] Copy sheet-scoped names, pointing at the copy.
-- [ ] Insert the copy after the source, with an Excel-style name ("Budget (2)").
-- [ ] One Undo step; round trip through XLSX.
+- [x] Insert the copy after the source, with an Excel-style name ("Budget (2)").
+- [x] One Undo step; round trip through XLSX.
 
 ### Task 8: Formula point mode (X01.06)
 

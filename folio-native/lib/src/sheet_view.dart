@@ -26,6 +26,7 @@ import 'sheet_editing_keys.dart';
 import 'sheet_navigation.dart';
 import 'sheet_borders.dart';
 import 'sheet_go_to.dart';
+import 'sheet_zoom.dart';
 import 'sheet_clipboard.dart';
 import 'sheet_reviews.dart';
 import 'sheet_validation_dialog.dart';
@@ -85,6 +86,9 @@ class SheetView extends StatefulWidget {
   /// hyperlinks).
   final Future<void> Function(Map<String, dynamic>)? onClear;
 
+  /// Changes the sheet's zoom, in percent (X05.03).
+  final Future<void> Function(int percent)? onZoom;
+
   /// Borders: `range`, `preset`, `line` (style) and `color`.
   final Future<void> Function(Map<String, dynamic>)? onBorders;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>)? onCopy;
@@ -130,6 +134,7 @@ class SheetView extends StatefulWidget {
     this.onFill,
     this.onClear,
     this.onBorders,
+    this.onZoom,
     this.onCopy,
     this.onPaste,
     this.onTable,
@@ -306,8 +311,13 @@ class SheetViewState extends State<SheetView> {
     }
   }
 
-  Widget frozenGrid(Widget Function() buildGrid) => LayoutBuilder(
-    builder: (context, constraints) {
+  Widget frozenGrid(Widget Function() buildGrid) => ZoomedViewport(
+    zoom: zoomPercent / 100,
+    builder: (constraints) {
+      _gridScreenSize = Size(
+        constraints.maxWidth * zoomPercent / 100,
+        constraints.maxHeight * zoomPercent / 100,
+      );
       // Retain the exact saved boundary even if this window cannot contain it.
       // Temporarily unpin an oversized axis rather than build millions of
       // pinned cells or conceal the entire editable viewport.
@@ -1485,6 +1495,51 @@ class SheetViewState extends State<SheetView> {
     }
   }
 
+  /// A zoom shown while the slider moves, before it is committed.
+  int? _zoomPreview;
+  int get zoomPercent =>
+      _zoomPreview ?? clampZoom((widget.sheet['zoom'] as num?) ?? 100);
+
+  /// Shows [percent] at once and, when [commit] is true, saves it as the
+  /// sheet's zoom.
+  Future<void> setZoom(int percent, {bool commit = true}) async {
+    percent = clampZoom(percent);
+    setState(() => _zoomPreview = percent);
+    if (!commit) return;
+    try {
+      if (percent != clampZoom((widget.sheet['zoom'] as num?) ?? 100)) {
+        await widget.onZoom?.call(percent);
+      }
+    } catch (e) {
+      fail(e);
+    } finally {
+      if (mounted) setState(() => _zoomPreview = null);
+    }
+  }
+
+  /// The grid's size on screen, measured each layout.
+  Size? _gridScreenSize;
+
+  /// Zoom to Selection: the largest zoom at which the selected cells and
+  /// the headings fit the grid.
+  Future<void> zoomToSelection() async {
+    final screen = _gridScreenSize;
+    if (screen == null) return;
+    final area = selectionArea;
+    await setZoom(
+      zoomToFit(
+        selectionWidth:
+            columnLayout.offset(area.right + 1) -
+            columnLayout.offset(area.left) +
+            43,
+        selectionHeight:
+            rowLayout.offset(area.bottom + 1) - rowLayout.offset(area.top) + 32,
+        viewportWidth: screen.width,
+        viewportHeight: screen.height,
+      ),
+    );
+  }
+
   // Four buttons fit the 120 px font group.
   static const _compact = BoxConstraints.tightFor(width: 30, height: 32);
   static final _compactStyle = IconButton.styleFrom(
@@ -1859,6 +1914,17 @@ class SheetViewState extends State<SheetView> {
     if ((k == LogicalKeyboardKey.f5 && !command && !keyboard.isShiftPressed) ||
         (command && !keyboard.isShiftPressed && k == LogicalKeyboardKey.keyG)) {
       openGoTo();
+      return KeyEventResult.handled;
+    }
+    // Command/Ctrl with + and − step the zoom.
+    final zoomIn =
+        k == LogicalKeyboardKey.equal ||
+        k == LogicalKeyboardKey.add ||
+        k == LogicalKeyboardKey.numpadAdd;
+    final zoomOut =
+        k == LogicalKeyboardKey.minus || k == LogicalKeyboardKey.numpadSubtract;
+    if (command && widget.onZoom != null && (zoomIn || zoomOut)) {
+      setZoom(stepZoom(zoomPercent, up: zoomIn));
       return KeyEventResult.handled;
     }
     void go(int r, int c) {
