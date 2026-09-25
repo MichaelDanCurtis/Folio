@@ -64,5 +64,5 @@
 
 ### Task 8: Close-out
 
-- [ ] Update the register rows, STATUS.md counts and the change log.
+- [x] Update the register rows, STATUS.md counts and the change log.
 - [ ] Run the local CI mirror. The Flutter baseline is 7 failures that happen only on Linux.

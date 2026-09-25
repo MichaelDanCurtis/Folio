@@ -55,7 +55,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | D03.07 | Office keyboard shortcuts for formatting, navigation and editing in both editors | M1 | Native verified | 0.11.1, 0.31, 0.42 subsets ([VALIDATION](../../VALIDATION.md)) | Full shortcut inventory against Office; Windows Ctrl mapping |
 | D03.08 | Input methods: IME composition, dead keys and international keyboards in both editors | M1 | Automated verified | Composition guards 0.17.3, 0.31 | Native IME and dead-key checks |
 | D03.09 | Repeat last action (F4 / Command-Y) | M2 | Specified | — | Not built |
-| D03.10 | Format Painter in documents and workbooks | M1 | Specified | — | Not built |
+| D03.10 | Format Painter in documents and workbooks | M1 | Automated verified | Documents: character and paragraph formatting painted onto the next selection or the word clicked, one Undo step (`format_painter.dart`); workbooks: see X04.12; a double-click keeps it on until Esc | Drag-selecting a target range in the grid; native check |
 
 ## D04 Accessibility, zoom and localization
 

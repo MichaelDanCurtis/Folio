@@ -18,8 +18,8 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | W01.10 | Insert Symbol and special characters (em dash, non-breaking space, optional hyphen) | M2 | Specified | — | Not built |
 | W01.11 | Paragraph borders and shading | M2 | Specified | — | Not built |
 | W01.12 | Drop caps | M4 | Specified | — | Not built |
-| W01.13 | Change Case, Clear Formatting, and the other Home-tab text commands | M1 | Specified | — | Not built |
-| W01.14 | Hyperlinks: insert, edit, remove and follow; external and internal targets | M1 | Implemented | DOCX hyperlink import/export (`docx.rs`); internal links 0.46 ([BOOKMARKS](../BOOKMARKS.md)) | Insert/edit UI; external-link tests |
+| W01.13 | Change Case, Clear Formatting, and the other Home-tab text commands | M1 | Automated verified | Change Case (five cases; Shift+F3 cycles UPPERCASE, lowercase, Capitalize Each Word) and Clear All Formatting (keeps links, lists and Office identity; paragraphs back to Normal), one Undo step each, through DOCX (`document_case.dart`) | The rest of the Home-tab text commands (grow/shrink font, highlighter pen); native check |
+| W01.14 | Hyperlinks: insert, edit, remove and follow; external and internal targets | M1 | Automated verified | Ctrl/Cmd+K inserts and edits links to web and email addresses or to headings and bookmarks (a heading gets a hidden `_` bookmark); remove from the dialog or menu; Ctrl/Cmd+click follows only http, https, mailto and in-document links (`document_links.dart`); DOCX round trip | ScreenTips; links in tables and headers; native check |
 | W01.15 | Complex scripts and bidirectional paragraphs in the editor | M2 | Specified | — | See D04.07 |
 
 ## W02 Styles, themes and templates
@@ -99,7 +99,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | W07.03 | Merge and split cells | M1 | Native verified | 0.15 | Arbitrary split counts |
 | W07.04 | Nested tables | M2 | Automated verified | 0.15 | Native check |
 | W07.05 | Column widths and row heights (auto, at least, exactly) | M1 | Native verified | 0.16, 0.72 ([TABLE_ROW_HEIGHTS](../TABLE_ROW_HEIGHTS.md)) | Equal-distribution native check |
-| W07.06 | Drag to resize columns and rows | M1 | Specified | — | Numeric sizing only |
+| W07.06 | Drag to resize columns and rows | M1 | Automated verified | Drag an interior column border (the columns on either side share the change) or a row's bottom border (at-least height; exact stays exact); no borders inside merged cells; one Undo step; DOCX round trip (`document_table_resize.dart`) | Resizing the outer table edge; live reflow while dragging; native check |
 | W07.07 | AutoFit to contents and window | M2 | Specified | — | Not built |
 | W07.08 | Cell shading, vertical alignment and table alignment | M1 | Native verified | 0.16 | Borders editing |
 | W07.09 | Cell and table borders | M2 | Specified | — | Not built |
@@ -167,7 +167,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | W12.06 | Proofing language per paragraph; spelling in other languages | M4 | Specified | — | English only |
 | W12.07 | Thesaurus | M3 | Specified | — | Not built |
 | W12.08 | Translation of a selection or document | M4 | Specified | — | Not built |
-| W12.09 | Word count dialog (pages, words, characters, paragraphs, including notes) | M1 | Specified | — | Status-bar count only (D01.05) |
+| W12.09 | Word count dialog (pages, words, characters, paragraphs, including notes) | M1 | Automated verified | Word Count from the status bar or Ctrl+Shift+G: pages and lines from the page layout, words, characters with and without spaces, paragraphs, for the document or the selection; text boxes, footnotes and endnotes from the source package (`document_word_count.dart`, `docx_note_text.rs`) | Lines for a selection; notes added in Folio (notes are read from the source package); native check |
 | W12.10 | AutoCorrect and AutoFormat as you type (quotes, lists, capitalisation) | M2 | Specified | — | Not built |
 
 ## W13 Comments, track changes, compare and merge
@@ -222,9 +222,9 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | ID | Requirement | M | State | Evidence | Gap / next step |
 |---|---|---|---|---|---|
 | W17.01 | Continuous authoring view with page preview | M1 | Native verified | 0.68 ([PAGINATION](../PAGINATION.md)) | Print layout editing (W05.07) |
-| W17.02 | Zoom in the editor: percentage, page width, whole page | M1 | Specified | — | Preview zoom only |
+| W17.02 | Zoom in the editor: percentage, page width, whole page | M1 | Automated verified | 10–500% from the status bar, Command/Ctrl with + and −, Page Width and Whole Page; the page is laid out unscaled and drawn scaled, so clicks, the caret and scrolling follow; kept per document for the session (`scaled_box.dart`) | A Draft view to zoom; pinch zoom; native check |
 | W17.03 | Outline view: promote, demote, collapse and move headings | M3 | Specified | — | Not built |
 | W17.04 | Draft, web layout, read mode and focus mode | M3 | Specified | — | Not built |
 | W17.05 | Split window and side-by-side documents | M4 | Specified | — | Not built |
 | W17.06 | Accessibility checker with fixes | M3 | Specified | — | Not built |
-| W17.07 | Show/hide formatting marks (¶) | M1 | Specified | — | Not built |
+| W17.07 | Show/hide formatting marks (¶) | M1 | Automated verified | Show/Hide ¶ (Ctrl/Cmd+Shift+8) paints paragraph marks, spaces, tabs and line breaks from the editor's caret geometry; never copied, saved or counted (`document_formatting_marks.dart`) | Marks inside tables (edited in a dialog) and hidden text; native check |

@@ -69,7 +69,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | X04.09 | Merge and unmerge cells (Merge & Center, Across) with rendering and editing | M2 | Specified | — | Imported merges shown read-only (0.44) |
 | X04.10 | Cell styles gallery and custom named styles | M2 | Specified | — | Not built |
 | X04.11 | Theme colours and fonts; indexed colours | M2 | Specified | — | Not built |
-| X04.12 | Format Painter (see D03.10) | M1 | Specified | — | Not built |
+| X04.12 | Format Painter (see D03.10) | M1 | Automated verified | Copies the selected cells' formats and pastes them (Paste Formatting) from the next clicked cell over the copied size; a double-click keeps it on until Esc (`sheet_view.dart`) | Drag-selecting a larger target; native check |
 | X04.13 | Automatic column widening for numbers entered in General columns | M2 | Specified | — | Not built |
 
 ## X05 Views, panes and zoom
