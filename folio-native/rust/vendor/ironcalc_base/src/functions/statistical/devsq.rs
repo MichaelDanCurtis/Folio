@@ -114,9 +114,9 @@ impl<'a> Model<'a> {
         }
 
         if count == 0 {
-            // No numeric data at all
+            // No numeric data at all. FOLIO PATCH: #NUM!, as in Excel.
             return CalcResult::new_error(
-                Error::DIV,
+                Error::NUM,
                 cell,
                 "DEVSQ with no numeric data".to_string(),
             );

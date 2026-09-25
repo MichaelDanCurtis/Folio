@@ -2302,6 +2302,104 @@ impl<'a> Model<'a> {
         args: &[Node],
         cell: CellReferenceIndex,
     ) -> CalcResult {
+        // FOLIO PATCH: in Excel's numeric aggregates, text that reads as a
+        // number and logical values typed directly into the argument list
+        // count as numbers (`SUMSQ("2","3",4)` is 29, `STDEV(TRUE,FALSE)`
+        // is 0.707…), and other typed text is #VALUE!. Values reached
+        // through references keep their own rules.
+        if matches!(
+            kind,
+            Function::Sum
+                | Function::Sumsq
+                | Function::Product
+                | Function::Min
+                | Function::Max
+                | Function::MinA
+                | Function::MaxA
+                | Function::Average
+                | Function::Averagea
+                | Function::Median
+                | Function::Geomean
+                | Function::Harmean
+                | Function::Avedev
+                | Function::Devsq
+                | Function::Kurt
+                | Function::Skew
+                | Function::SkewP
+                | Function::Stdev
+                | Function::StDevP
+                | Function::StDevS
+                | Function::Stdeva
+                | Function::Stdevpa
+                | Function::VarP
+                | Function::VarS
+                | Function::VarA
+                | Function::VarpA
+                | Function::VarCompat
+                | Function::VarPCompat
+        ) && args
+            .iter()
+            .any(|a| matches!(a, Node::StringKind(_) | Node::BooleanKind(_)))
+        {
+            let mut coerced = Vec::with_capacity(args.len());
+            for arg in args {
+                coerced.push(match arg {
+                    Node::StringKind(text) => match text.trim().parse::<f64>() {
+                        Ok(v) if v.is_finite() => Node::NumberKind(v),
+                        _ => {
+                            return CalcResult::new_error(
+                                Error::VALUE,
+                                cell,
+                                "Text in the argument list is not a number".to_string(),
+                            )
+                        }
+                    },
+                    Node::BooleanKind(b) => Node::NumberKind(if *b { 1.0 } else { 0.0 }),
+                    other => other.clone(),
+                });
+            }
+            return self.evaluate_function_coerced(kind, &coerced, cell);
+        }
+        // FOLIO PATCH: typed text is #VALUE! in AND/OR/XOR (except the
+        // words TRUE and FALSE, and an empty string, which is ignored) and in
+        // MODE, as in Excel (`AND("1",1)` is #VALUE!).
+        let logical = matches!(kind, Function::And | Function::Or | Function::Xor);
+        if logical || matches!(kind, Function::ModeSingl | Function::ModeCompat) {
+            let mut coerced = Vec::with_capacity(args.len());
+            let mut changed = false;
+            for arg in args {
+                coerced.push(match arg {
+                    // An empty string is ignored, as before.
+                    Node::StringKind(text) if logical && text.is_empty() => arg.clone(),
+                    Node::StringKind(text) => {
+                        let word = text.trim().to_uppercase();
+                        if logical && (word == "TRUE" || word == "FALSE") {
+                            changed = true;
+                            Node::BooleanKind(word == "TRUE")
+                        } else {
+                            return CalcResult::new_error(
+                                Error::VALUE,
+                                cell,
+                                "Text in the argument list is not a value".to_string(),
+                            );
+                        }
+                    }
+                    other => other.clone(),
+                });
+            }
+            if changed {
+                return self.evaluate_function_coerced(kind, &coerced, cell);
+            }
+        }
+        self.evaluate_function_coerced(kind, args, cell)
+    }
+
+    fn evaluate_function_coerced(
+        &mut self,
+        kind: &Function,
+        args: &[Node],
+        cell: CellReferenceIndex,
+    ) -> CalcResult {
         match kind {
             Function::And => self.fn_and(args, cell),
             Function::False => self.fn_false(args, cell),

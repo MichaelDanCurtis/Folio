@@ -47,15 +47,22 @@ impl TextArg {
 }
 
 /// Coerces a single array element to a number for the start/length arguments of
-/// LEFT/RIGHT/MID. Booleans and strings are rejected with `#VALUE!`, matching the
-/// scalar behaviour of these functions; empties are treated as 0 and errors
+/// LEFT/RIGHT/MID. FOLIO PATCH: as in Excel, logical values count as 1 or 0
+/// and text that reads as a number counts as that number (`LEFT("abc","2")`,
+/// `RIGHT("abc",TRUE)`); other text is `#VALUE!`. Empties are 0 and errors
 /// propagate.
 fn text_num_arg(node: &ArrayNode) -> Result<f64, Error> {
     match node {
         ArrayNode::Number(v) => Ok(*v),
         ArrayNode::Empty => Ok(0.0),
         ArrayNode::Error(e) => Err(e.clone()),
-        ArrayNode::Boolean(_) | ArrayNode::String(_) => Err(Error::VALUE),
+        ArrayNode::Boolean(b) => Ok(if *b { 1.0 } else { 0.0 }),
+        ArrayNode::String(s) => s
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|v| v.is_finite())
+            .ok_or(Error::VALUE),
     }
 }
 

@@ -2,6 +2,8 @@ pub mod api;
 #[cfg(test)]
 mod api_tests;
 mod builtin_styles;
+#[cfg(test)]
+mod excel_coercion_tests;
 mod file_state;
 #[cfg(test)]
 mod file_state_tests;

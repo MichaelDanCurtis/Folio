@@ -16,59 +16,89 @@ fn is_same_shape_or_1d(rows1: i32, cols1: i32, rows2: i32, cols2: i32) -> bool {
 impl<'a> Model<'a> {
     // SUMX2MY2(array_x, array_y) - Returns the sum of the difference of squares
     pub(crate) fn fn_sumx2my2(&mut self, args: &[Node], cell: CellReferenceIndex) -> CalcResult {
-        let result = match self.fn_get_two_matrices(args, cell) {
-            Ok(s) => s,
-            Err(s) => return s,
-        };
-
-        let (_, _, values_left, values_right) = result;
-
-        let mut sum = 0.0;
-        for (x_opt, y_opt) in values_left.into_iter().zip(values_right) {
-            let x = x_opt.unwrap_or(0.0);
-            let y = y_opt.unwrap_or(0.0);
-            sum += x * x - y * y;
-        }
-
-        CalcResult::Number(sum)
+        self.sum_of_pairs(args, cell, |x, y| x * x - y * y)
     }
 
     // SUMX2PY2(array_x, array_y) - Returns the sum of the sum of squares
     pub(crate) fn fn_sumx2py2(&mut self, args: &[Node], cell: CellReferenceIndex) -> CalcResult {
-        let result = match self.fn_get_two_matrices(args, cell) {
-            Ok(s) => s,
-            Err(s) => return s,
-        };
-
-        let (_rows, _cols, values_left, values_right) = result;
-
-        let mut sum = 0.0;
-        for (x_opt, y_opt) in values_left.into_iter().zip(values_right) {
-            let x = x_opt.unwrap_or(0.0);
-            let y = y_opt.unwrap_or(0.0);
-            sum += x * x + y * y;
-        }
-
-        CalcResult::Number(sum)
+        self.sum_of_pairs(args, cell, |x, y| x * x + y * y)
     }
 
     // SUMXMY2(array_x, array_y) - Returns the sum of squares of differences
     pub(crate) fn fn_sumxmy2(&mut self, args: &[Node], cell: CellReferenceIndex) -> CalcResult {
-        let result = match self.fn_get_two_matrices(args, cell) {
-            Ok(s) => s,
-            Err(s) => return s,
-        };
+        self.sum_of_pairs(args, cell, |x, y| (x - y) * (x - y))
+    }
 
-        let (_, _, values_left, values_right) = result;
-
-        let mut sum = 0.0;
-        for (x_opt, y_opt) in values_left.into_iter().zip(values_right) {
-            let x = x_opt.unwrap_or(0.0);
-            let y = y_opt.unwrap_or(0.0);
-            let diff = x - y;
-            sum += diff * diff;
+    /// FOLIO PATCH: the SUMX2MY2 family as Excel computes it. Each argument
+    /// is a number, a range or an array; arguments with different numbers
+    /// of values are #N/A; a pair is skipped when either value is not a
+    /// number (text, a logical value or a blank); with no pairs left the
+    /// result is #DIV/0!. Errors propagate.
+    fn sum_of_pairs(
+        &mut self,
+        args: &[Node],
+        cell: CellReferenceIndex,
+        term: impl Fn(f64, f64) -> f64,
+    ) -> CalcResult {
+        if args.len() != 2 {
+            return CalcResult::new_args_number_error(cell);
         }
-
+        let mut sides = Vec::with_capacity(2);
+        for arg in args {
+            let values = match self.evaluate_node_in_context(arg, cell) {
+                CalcResult::Number(n) => vec![Some(n)],
+                CalcResult::Range { left, right } => {
+                    if left.sheet != right.sheet {
+                        return CalcResult::new_error(
+                            Error::VALUE,
+                            cell,
+                            "Ranges are in different sheets".to_string(),
+                        );
+                    }
+                    match self.values_from_range(left, right) {
+                        Ok(v) => v,
+                        Err(e) => return e,
+                    }
+                }
+                CalcResult::Array(array) => match self.values_from_array(array) {
+                    Ok(v) => v,
+                    Err(error) => {
+                        return CalcResult::Error {
+                            error,
+                            origin: cell,
+                            message: String::new(),
+                        }
+                    }
+                },
+                error @ CalcResult::Error { .. } => return error,
+                _ => {
+                    return CalcResult::new_error(
+                        Error::VALUE,
+                        cell,
+                        "Expected numbers, ranges or arrays".to_string(),
+                    )
+                }
+            };
+            sides.push(values);
+        }
+        if sides[0].len() != sides[1].len() {
+            return CalcResult::new_error(
+                Error::NA,
+                cell,
+                "The arrays have different numbers of values".to_string(),
+            );
+        }
+        let mut sum = 0.0;
+        let mut pairs = 0;
+        for (x, y) in sides[0].iter().zip(&sides[1]) {
+            if let (Some(x), Some(y)) = (x, y) {
+                sum += term(*x, *y);
+                pairs += 1;
+            }
+        }
+        if pairs == 0 {
+            return CalcResult::new_error(Error::DIV, cell, "No pairs of numbers".to_string());
+        }
         CalcResult::Number(sum)
     }
 

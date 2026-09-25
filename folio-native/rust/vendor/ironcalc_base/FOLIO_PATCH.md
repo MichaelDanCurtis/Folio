@@ -233,3 +233,31 @@ Excel). `consume_identifier` now continues through `\` after the first
 character, except where `\` separates array columns (comma-decimal
 locales), and `is_valid_a1_identifier` accepts `\` there too.
 Modified: src/expressions/lexer/mod.rs, src/expressions/utils/mod.rs.
+
+## Excel's coercion rules for typed arguments
+
+Found by the Office corpus (POI's FormulaEvalTestData, with Excel's cached
+results):
+- **Numeric aggregates.** In SUM, SUMSQ, PRODUCT, MIN/MAX(A), AVERAGE(A),
+  MEDIAN, GEOMEAN, HARMEAN, AVEDEV, DEVSQ, KURT, SKEW and the STDEV/VAR
+  family, text that reads as a number and logical values typed directly
+  into the argument list count as numbers. Other typed text is `#VALUE!`.
+  Values reached through references keep each function's own rules.
+  `evaluate_function` rewrites those literal arguments before dispatch
+  (`evaluate_function_coerced`).
+- **AND/OR/XOR and MODE.** Typed text is `#VALUE!`. AND/OR/XOR accept the
+  words TRUE and FALSE, and ignore an empty string (as the upstream tests
+  expect).
+- **LEFT/RIGHT/MID counts.** Logical values and numeric text count
+  (`LEFT("abc","2")`, `RIGHT("abc",TRUE)`), in `text_num_arg`.
+- **SUMX2MY2, SUMX2PY2 and SUMXMY2** share `sum_of_pairs`:
+  - arguments may be numbers, ranges or arrays;
+  - different numbers of values are `#N/A`;
+  - a pair with a non-number is skipped;
+  - no pairs gives `#DIV/0!`.
+- **AVEDEV and DEVSQ with no numbers** are `#NUM!`.
+
+Modified: src/functions/mod.rs, src/functions/text/common.rs,
+src/functions/math_and_trigonometry/sum.rs,
+src/functions/statistical/devsq.rs,
+src/functions/statistical/count_and_average.rs.
