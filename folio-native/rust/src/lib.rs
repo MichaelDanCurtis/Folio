@@ -196,6 +196,7 @@ mod xlsx_colors;
 mod xlsx_names;
 #[cfg(test)]
 mod xlsx_names_tests;
+mod xlsx_repair;
 mod xlsx_reviews;
 mod xlsx_structure;
 #[cfg(test)]

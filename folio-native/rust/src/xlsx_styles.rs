@@ -903,7 +903,7 @@ pub fn format_rich_cell(pkg: &Package, xml: &str, spec: &Value) -> Result<String
     let content = if attr(cell, "t") == Some("s") {
         let index = child(cell, "v")
             .and_then(|n| n.text())
-            .and_then(|v| v.parse::<usize>().ok())
+            .and_then(|v| v.trim().parse::<usize>().ok())
             .ok_or("Invalid shared string")?;
         let strings = pkg.text("xl/sharedStrings.xml")?;
         let sd = parse(strings)?;
@@ -987,7 +987,7 @@ fn character_cell(
     let content = if attr(cell, "t") == Some("s") {
         let index = child(cell, "v")
             .and_then(|n| n.text())
-            .and_then(|v| v.parse::<usize>().ok())
+            .and_then(|v| v.trim().parse::<usize>().ok())
             .ok_or("Invalid shared string")?;
         let strings = pkg.text("xl/sharedStrings.xml")?;
         let sd = parse(strings)?;

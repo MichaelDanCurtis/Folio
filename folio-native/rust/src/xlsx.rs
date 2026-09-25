@@ -58,17 +58,42 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
     let styles_catalog = crate::xlsx_styles::read(pkg);
     let normal_font = crate::xlsx_styles::normal_font(pkg);
     let mut sheets = vec![];
-    let names: Vec<String> = wb
+    // A sheet entry without a part (a leftover macro sheet, say) is skipped,
+    // as Excel skips it.
+    let sheet_nodes: Vec<_> = wb
         .descendants()
         .filter(|n| n.has_tag_name((S, "sheet")))
-        .map(|n| attr(n, "name").unwrap_or("Sheet").into())
+        .filter(|n| {
+            attr(*n, "id")
+                .and_then(|rid| relations.get(rid))
+                .is_some_and(|target| {
+                    pkg.entries
+                        .contains_key(&resolve(target).unwrap_or_default())
+                })
+        })
+        .collect();
+    let skipped = wb
+        .descendants()
+        .filter(|n| n.has_tag_name((S, "sheet")))
+        .count()
+        - sheet_nodes.len();
+    let names: Vec<String> = sheet_nodes
+        .iter()
+        .map(|n| attr(*n, "name").unwrap_or("Sheet").into())
         .collect();
     let defined = defined_names(&wb);
     let mut warnings=vec!["Charts, pivot tables, macros and other advanced objects are not editable in Folio. Unmodified package parts are retained on export.".to_string()];
     if crate::number_format::settings(Some(pkg)).0 {
         warnings.push(DATE1904_NOTICE.into());
     }
-    for sh in wb.descendants().filter(|n| n.has_tag_name((S, "sheet"))) {
+    if skipped > 0 {
+        warnings.push(format!(
+            "{skipped} sheet entr{} without worksheet data {} skipped.",
+            if skipped == 1 { "y" } else { "ies" },
+            if skipped == 1 { "was" } else { "were" }
+        ));
+    }
+    for sh in sheet_nodes.iter().copied() {
         let rid = attr(sh, "id").ok_or("Sheet relationship missing")?;
         let path = resolve(relations.get(rid).ok_or("Sheet target missing")?)?;
         let xml = pkg.text(&path)?;
@@ -109,6 +134,7 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
                     strings
                         .get(
                             value
+                                .trim()
                                 .parse::<usize>()
                                 .map_err(|_| "Invalid shared string")?,
                         )
