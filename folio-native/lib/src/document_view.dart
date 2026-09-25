@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'document_fields.dart';
 import 'document_links.dart';
+import 'sheet_zoom.dart';
 import 'document_page_setup.dart';
 import 'document_revisions.dart';
 import 'document_named_styles.dart';
@@ -29,6 +31,42 @@ import 'workbook_block.dart';
 import 'proofreading.dart';
 import 'search.dart';
 
+/// Command/Ctrl with + and − zoom the document (W17.02).
+class ZoomDocumentIntent extends Intent {
+  final bool up;
+  const ZoomDocumentIntent(this.up);
+}
+
+const documentZoomSteps = [10, 25, 50, 75, 100, 125, 150, 200, 300, 400, 500];
+
+const documentZoomShortcuts = <ShortcutActivator, Intent>{
+  SingleActivator(LogicalKeyboardKey.equal, meta: true): ZoomDocumentIntent(
+    true,
+  ),
+  SingleActivator(LogicalKeyboardKey.equal, control: true): ZoomDocumentIntent(
+    true,
+  ),
+  SingleActivator(LogicalKeyboardKey.equal, meta: true, shift: true):
+      ZoomDocumentIntent(true),
+  SingleActivator(LogicalKeyboardKey.equal, control: true, shift: true):
+      ZoomDocumentIntent(true),
+  SingleActivator(LogicalKeyboardKey.numpadAdd, meta: true): ZoomDocumentIntent(
+    true,
+  ),
+  SingleActivator(LogicalKeyboardKey.numpadAdd, control: true):
+      ZoomDocumentIntent(true),
+  SingleActivator(LogicalKeyboardKey.minus, meta: true): ZoomDocumentIntent(
+    false,
+  ),
+  SingleActivator(LogicalKeyboardKey.minus, control: true): ZoomDocumentIntent(
+    false,
+  ),
+  SingleActivator(LogicalKeyboardKey.numpadSubtract, meta: true):
+      ZoomDocumentIntent(false),
+  SingleActivator(LogicalKeyboardKey.numpadSubtract, control: true):
+      ZoomDocumentIntent(false),
+};
+
 class UndoWorkspace extends Intent {
   final bool redo;
   const UndoWorkspace([this.redo = false]);
@@ -44,6 +82,9 @@ class DocumentView extends StatefulWidget {
   final String ribbon;
   final ProofreadingController? proofreading;
   final void Function(WritingIssue, String)? onWritingFix;
+
+  /// The zoom percentage, shared with the status bar.
+  final ValueNotifier<int>? zoom;
   const DocumentView({
     super.key,
     required this.controller,
@@ -56,6 +97,7 @@ class DocumentView extends StatefulWidget {
     this.ribbon = 'Home',
     this.proofreading,
     this.onWritingFix,
+    this.zoom,
   });
   @override
   State<DocumentView> createState() => DocumentViewState();
@@ -64,6 +106,52 @@ class DocumentView extends StatefulWidget {
 class DocumentViewState extends State<DocumentView> {
   final _focus = FocusNode(), _scroll = ScrollController();
   final _editorKey = GlobalKey<q.EditorState>();
+
+  // Zoom is kept per document for the session; Word doesn't save it.
+  static final _zooms = <Object?, int>{};
+  final _ownZoom = ValueNotifier<int>(100);
+  ValueNotifier<int> get zoom => widget.zoom ?? _ownZoom;
+  Object? _zoomDocument = const Object();
+  Size? _viewport;
+
+  void _restoreZoom() {
+    final id = model?.workspace['id'];
+    if (id == _zoomDocument) return;
+    _zoomDocument = id;
+    final saved = _zooms[id] ?? 100;
+    if (zoom.value == saved) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) zoom.value = saved;
+    });
+  }
+
+  void setZoom(int percent) {
+    final value = clampZoom(percent, max: documentZoomSteps.last);
+    _zooms[_zoomDocument] = value;
+    zoom.value = value;
+  }
+
+  DocumentPageGeometry get _geometry =>
+      DocumentPageGeometry.fromDocument(model?.workspace['document'] as Map?);
+
+  /// Page Width: the page fills the view's width.
+  void zoomToPageWidth() {
+    final view = _viewport;
+    if (view == null) return;
+    setZoom(((view.width - 48) / _geometry.width * 100).floor());
+  }
+
+  /// Whole Page: one page fits the view.
+  void zoomToWholePage() {
+    final view = _viewport;
+    if (view == null) return;
+    final g = _geometry;
+    setZoom(
+      (math.min((view.width - 48) / g.width, (view.height - 64) / g.height) *
+              100)
+          .floor(),
+    );
+  }
 
   Map<int, String> _listLabels = {};
   q.Document? _configuredDocument;
@@ -559,6 +647,7 @@ class DocumentViewState extends State<DocumentView> {
   @override
   void dispose() {
     controller.removeListener(_listsChanged);
+    _ownZoom.dispose();
     _focus.dispose();
     _scroll.dispose();
     super.dispose();
@@ -726,6 +815,7 @@ class DocumentViewState extends State<DocumentView> {
 
   @override
   Widget build(BuildContext context) {
+    _restoreZoom();
     final page = DocumentPageGeometry.fromDocument(
       model?.workspace['document'] as Map?,
     );
@@ -830,8 +920,14 @@ class DocumentViewState extends State<DocumentView> {
           ),
         ),
         Expanded(
-          child: DocumentPageFrame(
-            geometry: page,
+          child: ValueListenableBuilder<int>(
+            valueListenable: zoom,
+            builder: (context, percent, editor) => DocumentPageFrame(
+              geometry: page,
+              zoom: percent / 100,
+              onViewport: (size) => _viewport = size,
+              child: editor!,
+            ),
             child: q.QuillEditor.basic(
               key: const Key('document-editor'),
               focusNode: _focus,
@@ -883,6 +979,7 @@ class DocumentViewState extends State<DocumentView> {
                   ...bookmarkShortcuts,
                   ...documentMarkShortcuts,
                   ...linkShortcuts,
+                  ...documentZoomShortcuts,
                   const SingleActivator(LogicalKeyboardKey.keyZ, meta: true):
                       const UndoWorkspace(),
                   const SingleActivator(
@@ -895,6 +992,18 @@ class DocumentViewState extends State<DocumentView> {
                 },
                 customActions: {
                   ...documentMarkActions(controller, _focus),
+                  ZoomDocumentIntent: CallbackAction<ZoomDocumentIntent>(
+                    onInvoke: (intent) {
+                      setZoom(
+                        stepZoom(
+                          zoom.value,
+                          up: intent.up,
+                          steps: documentZoomSteps,
+                        ),
+                      );
+                      return null;
+                    },
+                  ),
                   EditLinkIntent: CallbackAction<EditLinkIntent>(
                     onInvoke: (_) {
                       editLink();

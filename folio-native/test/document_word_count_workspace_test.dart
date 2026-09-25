@@ -106,6 +106,17 @@ void main() {
       expect(value('word-count-characters-spaces'), '7');
       await t.tap(find.byKey(const Key('word-count-close')));
       await t.pumpAndSettle();
+
+      // The status bar's zoom control drives the page.
+      await t.tap(find.byKey(const Key('zoom-in')));
+      await t.pumpAndSettle();
+      expect(screen.documentZoom.value, 125);
+      await t.tap(find.byKey(const Key('zoom-percent')));
+      await t.pumpAndSettle();
+      await t.tap(find.byKey(const Key('zoom-page-width')));
+      await t.pumpAndSettle();
+      expect(screen.documentZoom.value, isNot(125));
+      expect(find.text('${screen.documentZoom.value}%'), findsOneWidget);
     },
   );
 }

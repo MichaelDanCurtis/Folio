@@ -179,6 +179,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
   bool watchPanel = false;
   final searchKey = GlobalKey<SearchPanelState>();
   final documentKey = GlobalKey<DocumentViewState>();
+  final documentZoom = ValueNotifier<int>(100);
   DocumentAnchor? anchor;
   Map<String, dynamic>? attachedRange;
   String ribbon = 'Home';
@@ -3836,6 +3837,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                 key: documentKey,
                 controller: editor,
                 model: model,
+                zoom: documentZoom,
                 ribbon: ribbon,
                 proofreading: proofreading,
                 onBookmarks: () => guard(showBookmarks),
@@ -4153,7 +4155,28 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                     sheetKey.currentState?.zoomToSelection(),
               )
             else
-              const Text('100%', style: TextStyle(fontSize: 9, color: muted)),
+              ValueListenableBuilder<int>(
+                valueListenable: documentZoom,
+                builder: (_, percent, _) => SheetZoomControl(
+                  key: const Key('document-zoom-control'),
+                  zoom: percent,
+                  steps: documentZoomSteps,
+                  onZoom: (percent, {required commit}) =>
+                      documentKey.currentState?.setZoom(percent),
+                  presets: [
+                    (
+                      'zoom-page-width',
+                      'Page Width',
+                      () => documentKey.currentState?.zoomToPageWidth(),
+                    ),
+                    (
+                      'zoom-whole-page',
+                      'Whole Page',
+                      () => documentKey.currentState?.zoomToWholePage(),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
@@ -4709,6 +4732,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
     fileMenuChannel.setMethodCallHandler(null);
     _lifecycle?.dispose();
     _calendarRefresh.dispose();
+    documentZoom.dispose();
     model.removeListener(_modelChanged);
     agent.removeListener(_agentChanged);
     assistantUi.dispose();

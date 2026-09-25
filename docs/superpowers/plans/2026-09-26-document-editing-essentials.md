@@ -33,11 +33,11 @@
 
 ### Task 4: Editor zoom (W17.02)
 
-- [ ] **Zoom range and controls:**
-  - 10–500% in the Draft and Page views;
+- [x] **Zoom range and controls:**
+  - 10–500% in the page view (Folio has no separate Draft view yet);
   - a status-bar slider, Command/Ctrl with + and −, and presets including Page Width and Whole Page.
-- [ ] Hit testing, selection and the caret stay correct at every zoom.
-- [ ] The zoom is kept per document for the session. Word doesn't save it in the file.
+- [x] Hit testing, selection and the caret stay correct at every zoom.
+- [x] The zoom is kept per document for the session. Word doesn't save it in the file.
 
 ### Task 5: Formatting marks (W17.07)
 
