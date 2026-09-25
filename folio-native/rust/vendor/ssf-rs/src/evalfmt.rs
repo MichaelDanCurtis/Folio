@@ -359,9 +359,9 @@ pub fn eval_fmt(fmt: &str, v: &Value, date1904: bool, flen: usize) -> Result<Str
                     ev.dt = parse_date_code(vnum, date1904, false);
                 }
                 if chars_substr_upper(&ev.f, ev.i, 3) == "A/P" {
-                    if let Some(dt) = &ev.dt {
-                        q.v = if dt.h >= 12 { "P" } else { "A" }.into();
-                    }
+                    // Folio: keep the format's own letters. Excel writes
+                    // `a/p` as "a" or "p", in the case the format uses.
+                    q.v = chars_substr(&ev.f, ev.i, 3);
                     q.t = 'A';
                     ev.hr = 'h';
                     ev.i += 3;
@@ -565,10 +565,13 @@ pub fn eval_fmt(fmt: &str, v: &Value, date1904: bool, flen: usize) -> Result<Str
             'A' => {
                 let pm = ev.dt.as_ref().unwrap().h >= 12;
                 out[i].v = match out[i].v.as_str() {
-                    "A" | "P" => if pm { "P" } else { "A" },
-                    "AM" | "PM" => if pm { "PM" } else { "AM" },
-                    _ => if pm { "下午" } else { "上午" },
-                }.into();
+                    ap if ap.chars().count() == 3 && ap.chars().nth(1) == Some('/') => {
+                        let letters: Vec<char> = ap.chars().collect();
+                        (if pm { letters[2] } else { letters[0] }).to_string()
+                    }
+                    "AM" | "PM" => (if pm { "PM" } else { "AM" }).to_string(),
+                    _ => (if pm { "下午" } else { "上午" }).to_string(),
+                };
                 out[i].t = 't';
             }
             't' | 'T' | ' ' | 'D' => {}

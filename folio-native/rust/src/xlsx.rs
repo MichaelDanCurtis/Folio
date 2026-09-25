@@ -484,9 +484,21 @@ fn patch_sheet(
         {
             let a = attr(cell, "r").ok_or("Cell address missing")?;
             let (_, c) = parse_address(a)?;
+            // A cell cleared of its value and format (Clear All) goes.
+            if sheet["cells"].get(a).is_none()
+                && sheet["officeStyles"].get(a).is_none()
+                && sheet["cellStyles"].get(a).is_none()
+                && before["cells"].get(a).is_some()
+            {
+                changed = true;
+                continue;
+            }
             let value = sheet["cells"][a].as_str().unwrap_or("");
             let was = before["cells"][a].as_str().unwrap_or("");
-            if value == was {
+            // Clear Formats removes character runs: the text is rewritten.
+            let runs_cleared = before["cellStyles"][a].get("_richText").is_some()
+                && sheet["cellStyles"][a].get("_richText").is_none();
+            if value == was && !runs_cleared {
                 let font_edits = sheet["cellStyles"][a].get("_fontOverrides");
                 let style_changed = sheet["officeStyles"][a] != before["officeStyles"][a];
                 let mut updated = raw(xml, cell).to_string();

@@ -3870,6 +3870,22 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                         ...action,
                       }, refreshDocument: true);
                     },
+                    onBorders: (action) async {
+                      await flush();
+                      await model.mutate({
+                        'op': 'borderCells',
+                        'baseRevision': model.revision,
+                        ...action,
+                      }, refreshDocument: true);
+                    },
+                    onClear: (action) async {
+                      await flush();
+                      await model.mutate({
+                        'op': 'clearRange',
+                        'baseRevision': model.revision,
+                        ...action,
+                      }, refreshDocument: true);
+                    },
                     onCopy: (action) async {
                       await flush();
                       return model.core.call({

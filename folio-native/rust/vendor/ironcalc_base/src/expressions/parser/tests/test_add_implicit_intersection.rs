@@ -55,7 +55,8 @@ fn simple_test() {
         ("AND(A1:A10)", "AND(A1:A10)"),
         ("OR(A1:A10)", "OR(A1:A10)"),
         ("NOT(A1:A10)", "NOT(@A1:A10)"),
-        ("IF(A1:A10,B1:B10,C1:C10)", "IF(@A1:A10,@B1:B10,@C1:C10)"),
+        // FOLIO PATCH: IF passes its value arguments through, as in legacy Excel.
+        ("IF(A1:A10,B1:B10,C1:C10)", "@IF(@A1:A10,B1:B10,C1:C10)"),
         // Information
         // ("ISBLANK(A1:A10)", "ISBLANK(A1:A10)"),
         // ("ISERR(A1:A10)", "ISERR(A1:A10)"),

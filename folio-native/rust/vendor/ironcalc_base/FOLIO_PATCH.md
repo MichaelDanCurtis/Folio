@@ -201,3 +201,25 @@ pattern now accepts `$`. Folio's `legacy_formula` (`structure.rs`) relies on
 `add_implicit_intersection` to give imported legacy formulas Excel 365's
 automatic `@`; `legacy_formula_tests.rs` covers it.
 Modified: src/expressions/parser/static_analysis.rs.
+
+## Arguments that take ranges as they are
+
+`get_function_args_signature` marked every argument of about 300 functions
+as scalar. `add_implicit_intersection` then gave legacy formulas an `@`
+where Excel passes the range through. The Office corpus found
+`=WORKDAY(C2,6,D2:D5)`, whose holidays became `@D2:D5` and whose result was
+a day early. Now these are `Vector`:
+- WORKDAY and WORKDAY.INTL holidays;
+- the reference arguments of CELL, ISFORMULA, FORMULATEXT, SHEET and SHEETS;
+- the value arguments of IF and CHOOSE, which return the range they pick.
+  A new `passed_through` static result makes `=IF(1,A1:A5)` on its own
+  still a range (`=@IF(1,A1:A5)`), while `SUM(IF(1,A1:A5))` sums the range,
+  as in legacy Excel.
+
+`args_signature_with_vectors` is the helper. The upstream test
+`test_add_implicit_intersection::simple_test` now expects
+`@IF(@A1:A10,B1:B10,C1:C10)`, which gives the same value in a cell and
+keeps the ranges inside `SUM(IF(...))`. Covered by
+`range_arguments_keep_their_ranges` in Folio's `legacy_formula_tests.rs`.
+Modified: src/expressions/parser/static_analysis.rs,
+src/expressions/parser/tests/test_add_implicit_intersection.rs.

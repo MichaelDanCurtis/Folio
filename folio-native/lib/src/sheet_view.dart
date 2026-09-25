@@ -24,6 +24,7 @@ import 'sheet_autofit.dart';
 import 'sheet_column_metrics.dart';
 import 'sheet_editing_keys.dart';
 import 'sheet_navigation.dart';
+import 'sheet_borders.dart';
 import 'sheet_go_to.dart';
 import 'sheet_clipboard.dart';
 import 'sheet_reviews.dart';
@@ -79,6 +80,13 @@ class SheetView extends StatefulWidget {
   final Future<void> Function(Map<String, dynamic>)? onGeometry;
   final Future<void> Function(Map<String, dynamic>)? onView;
   final Future<void> Function(Map<String, dynamic>)? onFill;
+
+  /// Home > Clear: `range` and `what` (all, formats, contents, notes or
+  /// hyperlinks).
+  final Future<void> Function(Map<String, dynamic>)? onClear;
+
+  /// Borders: `range`, `preset`, `line` (style) and `color`.
+  final Future<void> Function(Map<String, dynamic>)? onBorders;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>)? onCopy;
   final Future<void> Function(Map<String, dynamic>)? onPaste;
   final Future<void> Function(Map<String, dynamic>)? onTable;
@@ -120,6 +128,8 @@ class SheetView extends StatefulWidget {
     this.onGeometry,
     this.onView,
     this.onFill,
+    this.onClear,
+    this.onBorders,
     this.onCopy,
     this.onPaste,
     this.onTable,
@@ -1472,6 +1482,55 @@ class SheetViewState extends State<SheetView> {
       fail(e);
     } finally {
       _filling = false;
+    }
+  }
+
+  /// The line style and colour the Borders menu draws with.
+  String borderLine = 'thin', borderColor = '#000000';
+
+  /// A Borders menu choice: a preset is applied to the selection with the
+  /// current line; `line:` and `color:` choices change the line.
+  Future<void> applyBorders(String choice) async {
+    if (choice.startsWith('line:')) {
+      setState(() => borderLine = choice.substring(5));
+      return;
+    }
+    if (choice.startsWith('color:')) {
+      setState(() => borderColor = choice.substring(6));
+      return;
+    }
+    if (widget.onBorders == null) return;
+    final range = selectedRange;
+    final id = widget.sheet['id'];
+    try {
+      if (!await commit() || !await commitFormula()) return;
+      if (!mounted || widget.sheet['id'] != id) return;
+      await widget.onBorders!({
+        'sheetId': id,
+        'range': range,
+        'preset': choice,
+        'line': choice == 'thickBox' ? 'thick' : borderLine,
+        'color': borderColor,
+      });
+      if (mounted) gridFocus.requestFocus();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  /// Home > Clear on the selection. Only populated cells are touched, so
+  /// whole rows and columns are cheap.
+  Future<void> clearSelection(String what) async {
+    if (widget.onClear == null) return;
+    final range = selectedRange;
+    final id = widget.sheet['id'];
+    try {
+      if (!await commit() || !await commitFormula()) return;
+      if (!mounted || widget.sheet['id'] != id) return;
+      await widget.onClear!({'sheetId': id, 'range': range, 'what': what});
+      if (mounted) gridFocus.requestFocus();
+    } catch (e) {
+      fail(e);
     }
   }
 
@@ -3078,14 +3137,64 @@ class SheetViewState extends State<SheetView> {
                                 }),
                                 icon: const Icon(Icons.format_italic, size: 19),
                               ),
-                              IconButton(
-                                tooltip: 'Highlight cells',
-                                onPressed: () => format({'fill': '#FFF2CC'}),
+                              PopupMenuButton<String>(
+                                key: const Key('fill-color-menu'),
+                                tooltip: 'Fill color',
                                 icon: const Icon(
                                   Icons.format_color_fill,
                                   size: 19,
                                 ),
+                                onSelected: (fill) => format({'fill': fill}),
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    key: Key('fill-none'),
+                                    value: 'none',
+                                    child: Text('No Fill'),
+                                  ),
+                                  const SwatchGrid(
+                                    valuePrefix: '',
+                                    colors: [
+                                      ('#FFF2CC', 'Light Yellow'),
+                                      ...standardColors,
+                                    ],
+                                  ),
+                                ],
                               ),
+                              if (widget.onBorders != null)
+                                PopupMenuButton<String>(
+                                  key: const Key('borders-menu'),
+                                  tooltip: 'Borders',
+                                  icon: const Icon(
+                                    Icons.border_all_outlined,
+                                    size: 19,
+                                  ),
+                                  onSelected: applyBorders,
+                                  itemBuilder: (_) => [
+                                    for (final (preset, label) in borderPresets)
+                                      PopupMenuItem(
+                                        key: Key('border-$preset'),
+                                        height: 30,
+                                        value: preset,
+                                        child: Text(label),
+                                      ),
+                                    const PopupMenuDivider(),
+                                    for (final (line, label)
+                                        in borderLineStyles)
+                                      CheckedPopupMenuItem(
+                                        key: Key('border-line-$line'),
+                                        height: 30,
+                                        value: 'line:$line',
+                                        checked: borderLine == line,
+                                        child: Text('Line: $label'),
+                                      ),
+                                    const PopupMenuDivider(),
+                                    SwatchGrid(
+                                      valuePrefix: 'color:',
+                                      colors: standardColors,
+                                      selected: borderColor,
+                                    ),
+                                  ],
+                                ),
                             ],
                           ),
                         ),
@@ -3268,6 +3377,49 @@ class SheetViewState extends State<SheetView> {
                               child: Center(
                                 child: Text(
                                   'Fill ▾',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (widget.onClear != null)
+                          PopupMenuButton<String>(
+                            key: const Key('clear-cells-menu'),
+                            tooltip: 'Clear',
+                            onSelected: clearSelection,
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                key: Key('clear-all'),
+                                value: 'all',
+                                child: Text('Clear All'),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clear-formats'),
+                                value: 'formats',
+                                child: Text('Clear Formats'),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clear-contents'),
+                                value: 'contents',
+                                child: Text('Clear Contents  ·  Delete'),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clear-notes'),
+                                value: 'notes',
+                                child: Text('Clear Comments and Notes'),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clear-hyperlinks'),
+                                value: 'hyperlinks',
+                                child: Text('Clear Hyperlinks'),
+                              ),
+                            ],
+                            child: const SizedBox(
+                              width: 48,
+                              height: 32,
+                              child: Center(
+                                child: Text(
+                                  'Clear ▾',
                                   style: TextStyle(fontSize: 12),
                                 ),
                               ),
@@ -4043,10 +4195,14 @@ class SheetViewState extends State<SheetView> {
                                       color: const Color(0xff107c41),
                                       width: 1.6,
                                     )
-                                  : const Border(
-                                      right: BorderSide(color: line),
-                                      bottom: BorderSide(color: line),
-                                    ),
+                                  : cellBorder(
+                                          style,
+                                          const BorderSide(color: line),
+                                        ) ??
+                                        const Border(
+                                          right: BorderSide(color: line),
+                                          bottom: BorderSide(color: line),
+                                        ),
                             ),
                             alignment: Alignment.centerLeft,
                             child: SheetReviewMarker(

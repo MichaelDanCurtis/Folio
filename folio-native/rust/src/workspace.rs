@@ -876,6 +876,72 @@ impl Core {
         let mut pkg = source.clone();
         crate::builtin_styles::materialize_document(&mut next["document"], &mut pkg)
     }
+    /// Commits `next` after applying a package-level edit to the current
+    /// file: the edit sees the package as exported now, and `next` is rebased
+    /// on the edited package. Without a source package, just commits.
+    fn commit_package_edit(
+        &mut self,
+        mut next: Value,
+        adopted: &[&str],
+        edit: impl FnOnce(&mut crate::office::Package, &Value) -> Result<(), String>,
+    ) -> Result<Value, String> {
+        if let Some(id) = self.workspace["officeWorkbook"]["packageId"].as_str() {
+            let pkg = self.packages.get(id).ok_or("Workbook source unavailable")?;
+            let bytes = crate::xlsx::export(
+                &self.workspace["sheets"],
+                &self.calculator.values,
+                &self.calculator.cell_errors,
+                Some(pkg),
+                self.workspace["officeWorkbook"].get("baseline"),
+            )?;
+            let mut updated = crate::office::Package::from_bytes(bytes)?;
+            let source = crate::xlsx::import(&updated)?.0;
+            edit(&mut updated, &source)?;
+            let mut projection = crate::xlsx::import(&updated)?.0;
+            bind_rules(&mut next["sheets"], &projection);
+            for (i, sheet) in next["sheets"]
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .enumerate()
+            {
+                projection[i]["id"] = sheet["id"].clone();
+                for key in adopted
+                    .iter()
+                    .chain(&["officePath", "usedRows", "usedColumns"])
+                {
+                    sheet[key] = projection[i][key].clone();
+                }
+            }
+            crate::xlsx_tables::bind_paths(
+                &mut next["sheets"],
+                &projection,
+                adopted.contains(&"officeStyles"),
+            )?;
+            let mut calc = crate::calculation::WorkbookCalculator::default();
+            calc.sync_calendar(&next["sheets"], self.calculator.date1904);
+            updated = crate::office::Package::from_bytes(crate::xlsx::export_recalculated(
+                &next["sheets"],
+                &calc.values,
+                &calc.cell_errors,
+                &updated,
+                &projection,
+            )?)?;
+            let id = format!(
+                "package-{}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            );
+            crate::file_state::replace_package(&mut next, "officeWorkbook", &id);
+            bind_rules(&mut next["sheets"], &crate::xlsx::import(&updated)?.0);
+            next["officeWorkbook"]["baseline"] = next["sheets"].clone();
+            validate(&next)?;
+            self.packages.insert(id, Arc::new(updated));
+        }
+        self.commit(next)
+    }
     fn commit(&mut self, next: Value) -> Result<Value, String> {
         self.commit_document(next, None)
     }
@@ -3167,64 +3233,65 @@ impl Core {
                     return Err("The workbook changed. Try filling the selection again.".into());
                 }
                 let fill = crate::sheet_fill::Fill::from_request(&self.workspace, &r)?;
-                let mut next = fill.apply(&self.workspace)?;
-                if let Some(id) = self.workspace["officeWorkbook"]["packageId"].as_str() {
-                    let pkg = self.packages.get(id).ok_or("Workbook source unavailable")?;
-                    let bytes = crate::xlsx::export(
-                        &self.workspace["sheets"],
-                        &self.calculator.values,
-                        &self.calculator.cell_errors,
-                        Some(pkg),
-                        self.workspace["officeWorkbook"].get("baseline"),
-                    )?;
-                    let mut updated = crate::office::Package::from_bytes(bytes)?;
-                    let source = crate::xlsx::import(&updated)?.0;
-                    fill.copy_package(&mut updated, &source)?;
-                    let mut projection = crate::xlsx::import(&updated)?.0;
-                    bind_rules(&mut next["sheets"], &projection);
-                    for (i, sheet) in next["sheets"]
-                        .as_array_mut()
-                        .unwrap()
-                        .iter_mut()
-                        .enumerate()
-                    {
-                        projection[i]["id"] = sheet["id"].clone();
-                        for key in [
-                            "officePath",
-                            "officeStyles",
-                            "cellStyles",
-                            "styleDefaults",
-                            "usedRows",
-                            "usedColumns",
-                        ] {
-                            sheet[key] = projection[i][key].clone();
-                        }
-                    }
-                    crate::xlsx_tables::bind_paths(&mut next["sheets"], &projection, true)?;
-                    let mut calc = crate::calculation::WorkbookCalculator::default();
-                    calc.sync_calendar(&next["sheets"], self.calculator.date1904);
-                    updated =
-                        crate::office::Package::from_bytes(crate::xlsx::export_recalculated(
-                            &next["sheets"],
-                            &calc.values,
-                            &calc.cell_errors,
-                            &updated,
-                            &projection,
-                        )?)?;
-                    let id = format!(
-                        "package-{}",
-                        SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_nanos()
-                    );
-                    crate::file_state::replace_package(&mut next, "officeWorkbook", &id);
-                    bind_rules(&mut next["sheets"], &crate::xlsx::import(&updated)?.0);
-                    next["officeWorkbook"]["baseline"] = next["sheets"].clone();
-                    validate(&next)?;
-                    self.packages.insert(id, Arc::new(updated));
+                let next = fill.apply(&self.workspace)?;
+                self.commit_package_edit(
+                    next,
+                    &["officeStyles", "cellStyles", "styleDefaults"],
+                    |pkg, source| fill.copy_package(pkg, source),
+                )
+            }
+            "borderCells" => {
+                if r.get("baseRevision")
+                    .is_some_and(|v| *v != self.workspace["revision"])
+                {
+                    return Err("The workbook changed. Try the borders again.".into());
                 }
-                self.commit(next)
+                let n = crate::sheet_borders::change(&self.workspace, &r)?;
+                self.commit(n)
+            }
+            "clearRange" => {
+                if r.get("baseRevision")
+                    .is_some_and(|v| *v != self.workspace["revision"])
+                {
+                    return Err("The workbook changed. Try clearing again.".into());
+                }
+                let what = crate::sheet_clear::What::from_request(&r)?;
+                let path = self.workspace["sheets"]
+                    .as_array()
+                    .and_then(|s| s.iter().find(|s| s["id"] == r["sheetId"]))
+                    .ok_or("Worksheet missing")?["officePath"]
+                    .as_str()
+                    .map(String::from);
+                let pkg = self.workspace["officeWorkbook"]["packageId"]
+                    .as_str()
+                    .and_then(|id| self.packages.get(id))
+                    .cloned();
+                let next = if let Some(pkg) = &pkg {
+                    let bases = crate::xlsx_styles::SheetStyleBases::read(pkg, path.as_deref())?;
+                    let catalog = crate::xlsx_styles::read(pkg);
+                    let line = |a: &str| {
+                        let id = bases.line(a).ok()?.to_string();
+                        let spec = id
+                            .parse::<usize>()
+                            .ok()
+                            .and_then(|i| catalog.get(i))
+                            .cloned()
+                            .unwrap_or(json!({}));
+                        Some((id, spec))
+                    };
+                    crate::sheet_clear::change(&self.workspace, &r, Some(&line))?
+                } else {
+                    crate::sheet_clear::change(&self.workspace, &r, None)?
+                };
+                match (what.clears_hyperlinks(), path) {
+                    (true, Some(path)) if pkg.is_some() => {
+                        let range = text(&r, "range")?.to_string();
+                        self.commit_package_edit(next, &[], |pkg, _| {
+                            crate::sheet_clear::clear_hyperlinks(pkg, &path, &range)
+                        })
+                    }
+                    _ => self.commit(next),
+                }
             }
             "sheetGeometry" => {
                 if r.get("baseRevision")

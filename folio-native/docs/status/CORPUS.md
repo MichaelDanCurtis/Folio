@@ -61,7 +61,7 @@ What `office_corpus_tests.rs` checks for each file:
 
 The cached-value comparison is real Excel output. It counts as differential evidence for the calculation children, per file and Excel build.
 
-### Results (2026-09-25, `main` + lookup fix)
+### Results (2026-09-25, defined names, implicit intersection, format fixes)
 
 | | DOCX | XLSX |
 |---|---:|---:|
@@ -69,9 +69,14 @@ The cached-value comparison is real Excel output. It counts as differential evid
 | Imported | 92 | 272 |
 | Round trip unchanged | 92 of 92 | 271 of 272 |
 
-- **Formulas:** 23,116 compared with Excel's cached results, and 947 differ (4.1%), in 30 files.
+- **Formulas:** 23,116 compared with Excel's cached results, and 744 differ (3.2%), in 21 files. The first run had 947 differences in 30 files.
 - **Documents:** 14 of the 92 have below 99% word overlap with Word's text.
-- **Time:** the whole run takes 55 s in release. The slowest import is 5.2 s (a sheet with many merges).
+- **Time:** the whole run takes about 57 s in release. The slowest import is 5.2 s (a sheet with many merges).
+
+What closed the gap since the first run:
+- workbook and sheet-scoped defined names now reach the calculation (X09.08);
+- legacy formulas get Excel's implicit intersection (X08.14), except where an argument takes a range (WORKDAY holidays, IF/CHOOSE values, reference arguments), which the corpus caught;
+- `a/p` keeps the format's letter case, and `s.00` no longer prints the fraction twice (TEXT and cell display).
 
 **Rejections.** Four are correct: two XXE/DTD attack files, and two clusterfuzz files with corrupt checksums. The rest are gaps:
 - **Strict Open XML** workbooks (3 files): "no supported worksheets". See X17.11.
@@ -85,15 +90,16 @@ The cached-value comparison is real Excel output. It counts as differential evid
 - **DOCX:** a paragraph spacing value, and a bookmark range (W16.10).
 - **Export:** one workbook's content type doesn't reimport (X17.12).
 
-**Formula differences, by cause:**
+**Remaining formula differences, by cause:**
 
 | Cause | Cells | Child |
 |---|---:|---|
-| `TEXT` date/time formats: `a/p` casing and other format-code cases (mostly POI's format-test workbooks) | 624 | X04.04, X08.01 |
-| Legacy formulas passing ranges to scalar functions (`=ABS(G7:G12)`): Excel intersects implicitly; Folio spills (`#SPILL!`) or returns `#N/IMPL` | ~150 | X08.14 |
-| Defined names in formulas give `#NAME?` | ~100 | X09.08 |
-| 3-D references (`SUM(Sheet1:Sheet4!C1)`) give `#VALUE!` | 13 | X08.15 |
-| Coercion and error-precedence cases (`LEFT("a","6")`, SUMX2MY2 size mismatch, MODE with text) | ~60 | X08.08 |
+| `TEXT` with unusual format codes, mostly POI's format torture tests: codes the formatter rejects (`#VALUE!`), elapsed-time text in brackets, conditions with literal text, `;;;` text sections | ~615 | X04.04, X08.01 |
+| Names that aren't valid in Folio (`HSI\10_1…`) give `#ERROR!` where Excel gives `#NAME?` | 26 | X09.08 |
+| `=+F9:H9` and similar unary-plus ranges aren't intersected (`#SPILL!`) | 25 | X08.14 |
+| 3-D references (`SUM(Sheet1:Sheet4!C1)`) give `#VALUE!` | 16 | X08.15 |
+| Coercion and error-precedence cases (`RIGHT("a string","6")`, SUMX2MY2 size mismatch, MODE with text, AVEDEV of nothing) | ~50 | X08.08 |
+| GETPIVOTDATA and HYPERLINK aren't implemented | 2 | X08.01 |
 
 **Documents below 99% text overlap:**
 - text in shapes and text boxes that isn't shown (W08.05);

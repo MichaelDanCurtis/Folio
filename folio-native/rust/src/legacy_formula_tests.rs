@@ -147,3 +147,37 @@ fn imported_legacy_formulas_calculate_like_excel_and_round_trip() {
     let _ = std::fs::remove_file(path);
     let _ = std::fs::remove_file(out);
 }
+
+#[test]
+fn range_arguments_keep_their_ranges() {
+    let names = sheets();
+    // Arguments that take references or pass ranges through, as in legacy
+    // Excel: no automatic `@` (found by the Office corpus: WORKDAY holidays).
+    for unchanged in [
+        "=WORKDAY(C2,6,D2:D5)",
+        "=WORKDAY.INTL(A1,5,1,B1:B5)",
+        "=NETWORKDAYS(A1,A2,B1:B5)",
+        "=SUM(IF(1,A1:A5))",
+        "=SUM(CHOOSE(2,A1:A5,B1:B5))",
+        "=ISFORMULA(A1:A5)",
+        "=FORMULATEXT(A1:A5)",
+        "=SHEET(A1:A5)",
+        "=SHEETS(A1:A5)",
+    ] {
+        assert_eq!(legacy_formula(unchanged, &names, 0, "H20", &[]), unchanged);
+    }
+    // Where legacy Excel intersects, the `@` is added: conditions, IFERROR's
+    // value, scalar arguments, and a range-valued IF or CHOOSE on its own.
+    for (formula, legacy) in [
+        ("=IF(A1:A5,1,2)", "=IF(@A1:A5,1,2)"),
+        ("=SUM(IFERROR(A1:A5,0))", "=SUM(IFERROR(@A1:A5,0))"),
+        ("=NPER(0.1,1,A1:A5)", "=NPER(0.1,1,@A1:A5)"),
+        ("=IF(1,A1:A5)", "=@IF(1,A1:A5)"),
+        ("=CHOOSE(1,A1:A5,B1:B5)", "=@CHOOSE(1,A1:A5,B1:B5)"),
+        // CELL's reference is kept; IronCalc treats CELL as dynamic, so the
+        // call gets a harmless `@`, dropped again on export.
+        ("=CELL(\"address\",A1:A5)", "=@CELL(\"address\",A1:A5)"),
+    ] {
+        assert_eq!(legacy_formula(formula, &names, 0, "H20", &[]), legacy);
+    }
+}

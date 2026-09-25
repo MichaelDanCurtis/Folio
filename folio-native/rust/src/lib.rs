@@ -149,6 +149,12 @@ mod xlsx_alignment_tests;
 mod xlsx_string_tests;
 mod xlsx_strings;
 
+mod sheet_borders;
+#[cfg(test)]
+mod sheet_borders_tests;
+mod sheet_clear;
+#[cfg(test)]
+mod sheet_clear_tests;
 mod sheet_clipboard;
 #[cfg(test)]
 mod sheet_clipboard_tests;
@@ -180,6 +186,7 @@ mod structure;
 mod structure_tests;
 mod table_refs;
 mod tables;
+mod xlsx_colors;
 mod xlsx_names;
 #[cfg(test)]
 mod xlsx_names_tests;
