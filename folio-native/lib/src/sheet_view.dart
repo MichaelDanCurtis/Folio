@@ -1485,6 +1485,9 @@ class SheetViewState extends State<SheetView> {
     }
   }
 
+  // Four buttons fit the 120 px font group.
+  static const _compact = BoxConstraints.tightFor(width: 30, height: 32);
+
   /// The line style and colour the Borders menu draws with.
   String borderLine = 'thin', borderColor = '#000000';
 
@@ -3127,6 +3130,8 @@ class SheetViewState extends State<SheetView> {
                             children: [
                               IconButton(
                                 tooltip: 'Bold',
+                                constraints: _compact,
+                                padding: EdgeInsets.zero,
                                 onPressed: () => format({
                                   'bold': activeFont['bold'] != true,
                                 }),
@@ -3134,6 +3139,8 @@ class SheetViewState extends State<SheetView> {
                               ),
                               IconButton(
                                 tooltip: 'Italic',
+                                constraints: _compact,
+                                padding: EdgeInsets.zero,
                                 onPressed: () => format({
                                   'italic': activeFont['italic'] != true,
                                 }),
@@ -3142,6 +3149,11 @@ class SheetViewState extends State<SheetView> {
                               PopupMenuButton<String>(
                                 key: const Key('fill-color-menu'),
                                 tooltip: 'Fill color',
+                                padding: EdgeInsets.zero,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(30, 32),
+                                  fixedSize: const Size(30, 32),
+                                ),
                                 icon: const Icon(
                                   Icons.format_color_fill,
                                   size: 19,
@@ -3166,6 +3178,11 @@ class SheetViewState extends State<SheetView> {
                                 PopupMenuButton<String>(
                                   key: const Key('borders-menu'),
                                   tooltip: 'Borders',
+                                  padding: EdgeInsets.zero,
+                                  style: IconButton.styleFrom(
+                                    minimumSize: const Size(30, 32),
+                                    fixedSize: const Size(30, 32),
+                                  ),
                                   icon: const Icon(
                                     Icons.border_all_outlined,
                                     size: 19,
@@ -3334,7 +3351,7 @@ class SheetViewState extends State<SheetView> {
                       children: [
                         SizedBox(
                           width: 48,
-                          height: 32,
+                          height: 21,
                           child: IconButton(
                             tooltip: 'Chart',
                             padding: const EdgeInsets.all(4),
@@ -3375,7 +3392,7 @@ class SheetViewState extends State<SheetView> {
                             ],
                             child: const SizedBox(
                               width: 48,
-                              height: 32,
+                              height: 21,
                               child: Center(
                                 child: Text(
                                   'Fill ▾',
@@ -3384,12 +3401,7 @@ class SheetViewState extends State<SheetView> {
                               ),
                             ),
                           ),
-                      ],
-                    ),
-                    if (widget.onClear != null)
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
+                        if (widget.onClear != null)
                           PopupMenuButton<String>(
                             key: const Key('clear-cells-menu'),
                             tooltip: 'Clear',
@@ -3423,7 +3435,7 @@ class SheetViewState extends State<SheetView> {
                             ],
                             child: const SizedBox(
                               width: 48,
-                              height: 32,
+                              height: 21,
                               child: Center(
                                 child: Text(
                                   'Clear ▾',
@@ -3432,8 +3444,8 @@ class SheetViewState extends State<SheetView> {
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                      ],
+                    ),
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
