@@ -1,5 +1,7 @@
 # Word and Excel parity ledger
 
+> **Current status lives in [docs/STATUS.md](docs/STATUS.md)** and the child-requirement register under [docs/status/](docs/status/README.md). This ledger remains the family map and the release-by-release history.
+
 The goal remains full Word and Excel parity, followed by at least 20 implemented, verified AI features unavailable in Word and Excel. A working prototype, preserved ZIP part, passing unit test, or limited feature slice does not satisfy that goal. Overall status: **incomplete**. Additional AI features accepted toward the 20-feature requirement: **0**.
 
 ## Acceptance rules

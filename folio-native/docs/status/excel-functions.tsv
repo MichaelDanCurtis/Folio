@@ -1,0 +1,518 @@
+# Excel worksheet functions and their status in Folio.
+# Source: https://support.microsoft.com/en-us/office/excel-functions-alphabetical-b3944572-255d-4efb-bb96-c6d90033e188 (read 2026-09-25).
+# Status is written by formula_catalog_tests.rs: implemented, not-implemented (#N/IMPL) or unknown (#NAME?).
+# name	category	status
+ABS	Math and trigonometry	implemented
+ACCRINT	Financial	implemented
+ACCRINTM	Financial	implemented
+ACOS	Math and trigonometry	implemented
+ACOSH	Math and trigonometry	implemented
+ACOT	Math and trigonometry	implemented
+ACOTH	Math and trigonometry	implemented
+ADDRESS	Lookup and reference	implemented
+AGGREGATE	Math and trigonometry	unknown
+AMORDEGRC	Financial	implemented
+AMORLINC	Financial	implemented
+AND	Logical	implemented
+ARABIC	Math and trigonometry	implemented
+AREAS	Lookup and reference	implemented
+ARRAYTOTEXT	Text	implemented
+ASC	Text	implemented
+ASIN	Math and trigonometry	implemented
+ASINH	Math and trigonometry	implemented
+ATAN	Math and trigonometry	implemented
+ATAN2	Math and trigonometry	implemented
+ATANH	Math and trigonometry	implemented
+AVEDEV	Statistical	implemented
+AVERAGE	Statistical	implemented
+AVERAGEA	Statistical	implemented
+AVERAGEIF	Statistical	implemented
+AVERAGEIFS	Statistical	implemented
+BAHTTEXT	Text	unknown
+BASE	Math and trigonometry	implemented
+BESSELI	Engineering	implemented
+BESSELJ	Engineering	implemented
+BESSELK	Engineering	implemented
+BESSELY	Engineering	implemented
+BETA.DIST	Statistical	implemented
+BETA.INV	Statistical	implemented
+BETADIST	Compatibility	implemented
+BETAINV	Compatibility	implemented
+BIN2DEC	Engineering	implemented
+BIN2HEX	Engineering	implemented
+BIN2OCT	Engineering	implemented
+BINOM.DIST	Statistical	implemented
+BINOM.DIST.RANGE	Statistical	implemented
+BINOM.INV	Statistical	implemented
+BINOMDIST	Compatibility	implemented
+BITAND	Engineering	implemented
+BITLSHIFT	Engineering	implemented
+BITOR	Engineering	implemented
+BITRSHIFT	Engineering	implemented
+BITXOR	Engineering	implemented
+BYCOL	Logical	implemented
+BYROW	Logical	implemented
+CALL	Add-in and Automation	unknown
+CEILING	Compatibility	implemented
+CEILING.MATH	Math and trigonometry	implemented
+CEILING.PRECISE	Math and trigonometry	implemented
+CELL	Information	implemented
+CHAR	Text	implemented
+CHIDIST	Compatibility	implemented
+CHIINV	Compatibility	implemented
+CHISQ.DIST	Statistical	implemented
+CHISQ.DIST.RT	Statistical	implemented
+CHISQ.INV	Statistical	implemented
+CHISQ.INV.RT	Statistical	implemented
+CHISQ.TEST	Statistical	implemented
+CHITEST	Compatibility	implemented
+CHOOSE	Lookup and reference	implemented
+CHOOSECOLS	Lookup and reference	implemented
+CHOOSEROWS	Lookup and reference	implemented
+CLEAN	Text	implemented
+CODE	Text	implemented
+COLUMN	Lookup and reference	implemented
+COLUMNS	Lookup and reference	implemented
+COMBIN	Math and trigonometry	implemented
+COMBINA	Math and trigonometry	implemented
+COMPLEX	Engineering	implemented
+CONCAT	Text	implemented
+CONCATENATE	Text	implemented
+CONFIDENCE	Compatibility	implemented
+CONFIDENCE.NORM	Statistical	implemented
+CONFIDENCE.T	Statistical	implemented
+CONVERT	Engineering	implemented
+CORREL	Statistical	implemented
+COS	Math and trigonometry	implemented
+COSH	Math and trigonometry	implemented
+COT	Math and trigonometry	implemented
+COTH	Math and trigonometry	implemented
+COUNT	Statistical	implemented
+COUNTA	Statistical	implemented
+COUNTBLANK	Statistical	implemented
+COUNTIF	Statistical	implemented
+COUNTIFS	Statistical	implemented
+COUPDAYBS	Financial	implemented
+COUPDAYS	Financial	implemented
+COUPDAYSNC	Financial	implemented
+COUPNCD	Financial	implemented
+COUPNUM	Financial	implemented
+COUPPCD	Financial	implemented
+COVAR	Compatibility	implemented
+COVARIANCE.P	Statistical	implemented
+COVARIANCE.S	Statistical	implemented
+CRITBINOM	Compatibility	implemented
+CSC	Math and trigonometry	implemented
+CSCH	Math and trigonometry	implemented
+CUBEKPIMEMBER	Cube	unknown
+CUBEMEMBER	Cube	unknown
+CUBEMEMBERPROPERTY	Cube	unknown
+CUBERANKEDMEMBER	Cube	unknown
+CUBESET	Cube	unknown
+CUBESETCOUNT	Cube	unknown
+CUBEVALUE	Cube	unknown
+CUMIPMT	Financial	implemented
+CUMPRINC	Financial	implemented
+DATE	Date and time	implemented
+DATEDIF	Date and time	implemented
+DATEVALUE	Date and time	implemented
+DAVERAGE	Database	implemented
+DAY	Date and time	implemented
+DAYS	Date and time	implemented
+DAYS360	Date and time	implemented
+DB	Financial	implemented
+DBCS	Text	unknown
+DCOUNT	Database	implemented
+DCOUNTA	Database	implemented
+DDB	Financial	implemented
+DEC2BIN	Engineering	implemented
+DEC2HEX	Engineering	implemented
+DEC2OCT	Engineering	implemented
+DECIMAL	Math and trigonometry	implemented
+DEGREES	Math and trigonometry	implemented
+DELTA	Engineering	implemented
+DETECTLANGUAGE	Text	unknown
+DEVSQ	Statistical	implemented
+DGET	Database	implemented
+DISC	Financial	implemented
+DMAX	Database	implemented
+DMIN	Database	implemented
+DOLLAR	Text	implemented
+DOLLARDE	Financial	implemented
+DOLLARFR	Financial	implemented
+DPRODUCT	Database	implemented
+DROP	Lookup and reference	implemented
+DSTDEV	Database	implemented
+DSTDEVP	Database	implemented
+DSUM	Database	implemented
+DURATION	Financial	implemented
+DVAR	Database	implemented
+DVARP	Database	implemented
+EDATE	Date and time	implemented
+EFFECT	Financial	implemented
+ENCODEURL	Web	unknown
+EOMONTH	Date and time	implemented
+ERF	Engineering	implemented
+ERF.PRECISE	Engineering	implemented
+ERFC	Engineering	implemented
+ERFC.PRECISE	Engineering	implemented
+ERROR.TYPE	Information	implemented
+EUROCONVERT	Add-in and Automation	unknown
+EVEN	Math and trigonometry	implemented
+EXACT	Text	implemented
+EXP	Math and trigonometry	implemented
+EXPAND	Lookup and reference	implemented
+EXPON.DIST	Statistical	implemented
+EXPONDIST	Compatibility	implemented
+F.DIST	Statistical	implemented
+F.DIST.RT	Statistical	implemented
+F.INV	Statistical	implemented
+F.INV.RT	Statistical	implemented
+F.TEST	Statistical	implemented
+FACT	Math and trigonometry	implemented
+FACTDOUBLE	Math and trigonometry	implemented
+FALSE	Logical	implemented
+FDIST	Compatibility	implemented
+FILTER	Lookup and reference	implemented
+FILTERXML	Web	unknown
+FIND	Text	implemented
+FINV	Compatibility	implemented
+FISHER	Statistical	implemented
+FISHERINV	Statistical	implemented
+FIXED	Text	implemented
+FLOOR	Compatibility	implemented
+FLOOR.MATH	Math and trigonometry	implemented
+FLOOR.PRECISE	Math and trigonometry	implemented
+FORECAST	Statistical	implemented
+FORECAST.ETS	Statistical	not-implemented
+FORECAST.ETS.CONFINT	Statistical	not-implemented
+FORECAST.ETS.SEASONALITY	Statistical	not-implemented
+FORECAST.ETS.STAT	Statistical	not-implemented
+FORECAST.LINEAR	Statistical	implemented
+FORMULATEXT	Lookup and reference	implemented
+FREQUENCY	Statistical	implemented
+FTEST	Compatibility	implemented
+FV	Financial	implemented
+FVSCHEDULE	Financial	implemented
+GAMMA	Statistical	implemented
+GAMMA.DIST	Statistical	implemented
+GAMMA.INV	Statistical	implemented
+GAMMADIST	Compatibility	implemented
+GAMMAINV	Compatibility	implemented
+GAMMALN	Statistical	implemented
+GAMMALN.PRECISE	Statistical	implemented
+GAUSS	Statistical	implemented
+GCD	Math and trigonometry	implemented
+GEOMEAN	Statistical	implemented
+GESTEP	Engineering	implemented
+GETPIVOTDATA	Lookup and reference	unknown
+GROUPBY	Lookup and reference	unknown
+GROWTH	Statistical	implemented
+HARMEAN	Statistical	implemented
+HEX2BIN	Engineering	implemented
+HEX2DEC	Engineering	implemented
+HEX2OCT	Engineering	implemented
+HLOOKUP	Lookup and reference	implemented
+HOUR	Date and time	implemented
+HSTACK	Lookup and reference	implemented
+HYPERLINK	Lookup and reference	unknown
+HYPGEOM.DIST	Statistical	implemented
+HYPGEOMDIST	Compatibility	implemented
+IF	Logical	implemented
+IFERROR	Logical	implemented
+IFNA	Logical	implemented
+IFS	Logical	implemented
+IMABS	Engineering	implemented
+IMAGE	Lookup and reference	unknown
+IMAGINARY	Engineering	implemented
+IMARGUMENT	Engineering	implemented
+IMCONJUGATE	Engineering	implemented
+IMCOS	Engineering	implemented
+IMCOSH	Engineering	implemented
+IMCOT	Engineering	implemented
+IMCSC	Engineering	implemented
+IMCSCH	Engineering	implemented
+IMDIV	Engineering	implemented
+IMEXP	Engineering	implemented
+IMLN	Engineering	implemented
+IMLOG10	Engineering	implemented
+IMLOG2	Engineering	implemented
+IMPOWER	Engineering	implemented
+IMPRODUCT	Engineering	implemented
+IMREAL	Engineering	implemented
+IMSEC	Engineering	implemented
+IMSECH	Engineering	implemented
+IMSIN	Engineering	implemented
+IMSINH	Engineering	implemented
+IMSQRT	Engineering	implemented
+IMSUB	Engineering	implemented
+IMSUM	Engineering	implemented
+IMTAN	Engineering	implemented
+INDEX	Lookup and reference	implemented
+INDIRECT	Lookup and reference	implemented
+INFO	Information	implemented
+INT	Math and trigonometry	implemented
+INTERCEPT	Statistical	implemented
+INTRATE	Financial	implemented
+IPMT	Financial	implemented
+IRR	Financial	implemented
+ISBLANK	Information	implemented
+ISERR	Information	implemented
+ISERROR	Information	implemented
+ISEVEN	Information	implemented
+ISFORMULA	Information	implemented
+ISLOGICAL	Information	implemented
+ISNA	Information	implemented
+ISNONTEXT	Information	implemented
+ISNUMBER	Information	implemented
+ISO.CEILING	Math and trigonometry	implemented
+ISODD	Information	implemented
+ISOMITTED	Information	implemented
+ISOWEEKNUM	Date and time	implemented
+ISPMT	Financial	implemented
+ISREF	Information	implemented
+ISTEXT	Information	implemented
+JIS	Text	unknown
+KURT	Statistical	implemented
+LAMBDA	Logical	implemented
+LARGE	Statistical	implemented
+LCM	Math and trigonometry	implemented
+LEFT	Text	implemented
+LEN	Text	implemented
+LET	Logical	implemented
+LINEST	Statistical	implemented
+LN	Math and trigonometry	implemented
+LOG	Math and trigonometry	implemented
+LOG10	Math and trigonometry	implemented
+LOGEST	Statistical	implemented
+LOGINV	Compatibility	implemented
+LOGNORM.DIST	Statistical	implemented
+LOGNORM.INV	Statistical	implemented
+LOGNORMDIST	Compatibility	implemented
+LOOKUP	Lookup and reference	implemented
+LOWER	Text	implemented
+MAKEARRAY	Logical	implemented
+MAP	Logical	implemented
+MATCH	Lookup and reference	implemented
+MAX	Statistical	implemented
+MAXA	Statistical	implemented
+MAXIFS	Statistical	implemented
+MDETERM	Math and trigonometry	implemented
+MDURATION	Financial	implemented
+MEDIAN	Statistical	implemented
+MID	Text	implemented
+MIN	Statistical	implemented
+MINA	Statistical	implemented
+MINIFS	Statistical	implemented
+MINUTE	Date and time	implemented
+MINVERSE	Math and trigonometry	implemented
+MIRR	Financial	implemented
+MMULT	Math and trigonometry	implemented
+MOD	Math and trigonometry	implemented
+MODE	Compatibility	implemented
+MODE.MULT	Statistical	implemented
+MODE.SNGL	Statistical	implemented
+MONTH	Date and time	implemented
+MROUND	Math and trigonometry	implemented
+MULTINOMIAL	Math and trigonometry	implemented
+MUNIT	Math and trigonometry	implemented
+N	Information	implemented
+NA	Information	implemented
+NEGBINOM.DIST	Statistical	implemented
+NEGBINOMDIST	Compatibility	implemented
+NETWORKDAYS	Date and time	implemented
+NETWORKDAYS.INTL	Date and time	implemented
+NOMINAL	Financial	implemented
+NORM.DIST	Statistical	implemented
+NORM.INV	Compatibility	implemented
+NORM.S.DIST	Statistical	implemented
+NORM.S.INV	Statistical	implemented
+NORMDIST	Compatibility	implemented
+NORMINV	Statistical	implemented
+NORMSDIST	Compatibility	implemented
+NORMSINV	Compatibility	implemented
+NOT	Logical	implemented
+NOW	Date and time	implemented
+NPER	Financial	implemented
+NPV	Financial	implemented
+NUMBERVALUE	Text	implemented
+OCT2BIN	Engineering	implemented
+OCT2DEC	Engineering	implemented
+OCT2HEX	Engineering	implemented
+ODD	Math and trigonometry	implemented
+ODDFPRICE	Financial	implemented
+ODDFYIELD	Financial	implemented
+ODDLPRICE	Financial	implemented
+ODDLYIELD	Financial	implemented
+OFFSET	Lookup and reference	implemented
+OR	Logical	implemented
+PDURATION	Financial	implemented
+PEARSON	Statistical	implemented
+PERCENTILE	Compatibility	implemented
+PERCENTILE.EXC	Statistical	implemented
+PERCENTILE.INC	Statistical	implemented
+PERCENTOF	Math and trigonometry	implemented
+PERCENTRANK	Compatibility	implemented
+PERCENTRANK.EXC	Statistical	implemented
+PERCENTRANK.INC	Statistical	implemented
+PERMUT	Statistical	implemented
+PERMUTATIONA	Statistical	implemented
+PHI	Statistical	implemented
+PHONETIC	Text	unknown
+PI	Math and trigonometry	implemented
+PIVOTBY	Lookup and reference	unknown
+PMT	Financial	implemented
+POISSON	Compatibility	implemented
+POISSON.DIST	Statistical	implemented
+POWER	Math and trigonometry	implemented
+PPMT	Financial	implemented
+PRICE	Financial	implemented
+PRICEDISC	Financial	implemented
+PRICEMAT	Financial	implemented
+PROB	Statistical	implemented
+PRODUCT	Math and trigonometry	implemented
+PROPER	Text	implemented
+PV	Financial	implemented
+QUARTILE	Compatibility	implemented
+QUARTILE.EXC	Statistical	implemented
+QUARTILE.INC	Statistical	implemented
+QUOTIENT	Math and trigonometry	implemented
+RADIANS	Math and trigonometry	implemented
+RAND	Math and trigonometry	implemented
+RANDARRAY	Math and trigonometry	implemented
+RANDBETWEEN	Math and trigonometry	implemented
+RANK	Compatibility	implemented
+RANK.AVG	Statistical	implemented
+RANK.EQ	Statistical	implemented
+RATE	Financial	implemented
+RECEIVED	Financial	implemented
+REDUCE	Logical	implemented
+REGEXEXTRACT	Text	implemented
+REGEXREPLACE	Text	implemented
+REGEXTEST	Text	implemented
+REGISTER.ID	Add-in and Automation	unknown
+REPLACE	Text	implemented
+REPT	Text	implemented
+RIGHT	Text	implemented
+ROMAN	Math and trigonometry	implemented
+ROUND	Math and trigonometry	implemented
+ROUNDDOWN	Math and trigonometry	implemented
+ROUNDUP	Math and trigonometry	implemented
+ROW	Lookup and reference	implemented
+ROWS	Lookup and reference	implemented
+RRI	Financial	implemented
+RSQ	Statistical	implemented
+RTD	Lookup and reference	unknown
+SCAN	Logical	implemented
+SEARCH	Text	implemented
+SEC	Math and trigonometry	implemented
+SECH	Math and trigonometry	implemented
+SECOND	Date and time	implemented
+SEQUENCE	Math and trigonometry	implemented
+SERIESSUM	Math and trigonometry	implemented
+SHEET	Information	implemented
+SHEETS	Information	implemented
+SIGN	Math and trigonometry	implemented
+SIN	Math and trigonometry	implemented
+SINH	Math and trigonometry	implemented
+SKEW	Statistical	implemented
+SKEW.P	Statistical	implemented
+SLN	Financial	implemented
+SLOPE	Statistical	implemented
+SMALL	Statistical	implemented
+SORT	Lookup and reference	implemented
+SORTBY	Lookup and reference	implemented
+SQRT	Math and trigonometry	implemented
+SQRTPI	Math and trigonometry	implemented
+STANDARDIZE	Statistical	implemented
+STDEV	Compatibility	implemented
+STDEV.P	Statistical	implemented
+STDEV.S	Statistical	implemented
+STDEVA	Statistical	implemented
+STDEVP	Compatibility	implemented
+STDEVPA	Statistical	implemented
+STEYX	Statistical	implemented
+STOCKHISTORY	Information	unknown
+SUBSTITUTE	Text	implemented
+SUBTOTAL	Math and trigonometry	implemented
+SUM	Math and trigonometry	implemented
+SUMIF	Math and trigonometry	implemented
+SUMIFS	Math and trigonometry	implemented
+SUMPRODUCT	Math and trigonometry	implemented
+SUMSQ	Math and trigonometry	implemented
+SUMX2MY2	Math and trigonometry	implemented
+SUMX2PY2	Math and trigonometry	implemented
+SUMXMY2	Math and trigonometry	implemented
+SWITCH	Logical	implemented
+SYD	Financial	implemented
+T	Text	implemented
+T.DIST	Statistical	implemented
+T.DIST.2T	Statistical	implemented
+T.DIST.RT	Statistical	implemented
+T.INV	Statistical	implemented
+T.INV.2T	Statistical	implemented
+T.TEST	Statistical	implemented
+TAKE	Lookup and reference	implemented
+TAN	Math and trigonometry	implemented
+TANH	Math and trigonometry	implemented
+TBILLEQ	Financial	implemented
+TBILLPRICE	Financial	implemented
+TBILLYIELD	Financial	implemented
+TDIST	Compatibility	implemented
+TEXT	Text	implemented
+TEXTAFTER	Text	implemented
+TEXTBEFORE	Text	implemented
+TEXTJOIN	Text	implemented
+TEXTSPLIT	Text	implemented
+TIME	Date and time	implemented
+TIMEVALUE	Date and time	implemented
+TINV	Compatibility	implemented
+TOCOL	Lookup and reference	implemented
+TODAY	Date and time	implemented
+TOROW	Lookup and reference	implemented
+TRANSLATE	Text	unknown
+TRANSPOSE	Lookup and reference	implemented
+TREND	Statistical	implemented
+TRIM	Text	implemented
+TRIMMEAN	Statistical	implemented
+TRIMRANGE	Lookup and reference	implemented
+TRUE	Logical	implemented
+TRUNC	Math and trigonometry	implemented
+TTEST	Compatibility	implemented
+TYPE	Information	implemented
+UNICHAR	Text	implemented
+UNICODE	Text	implemented
+UNIQUE	Lookup and reference	implemented
+UPPER	Text	implemented
+VALUE	Text	implemented
+VALUETOTEXT	Text	implemented
+VAR	Compatibility	implemented
+VAR.P	Statistical	implemented
+VAR.S	Statistical	implemented
+VARA	Statistical	implemented
+VARP	Compatibility	implemented
+VARPA	Statistical	implemented
+VDB	Financial	implemented
+VLOOKUP	Lookup and reference	implemented
+VSTACK	Lookup and reference	implemented
+WEBSERVICE	Web	unknown
+WEEKDAY	Date and time	implemented
+WEEKNUM	Date and time	implemented
+WEIBULL	Compatibility	implemented
+WEIBULL.DIST	Statistical	implemented
+WORKDAY	Date and time	implemented
+WORKDAY.INTL	Date and time	implemented
+WRAPCOLS	Lookup and reference	implemented
+WRAPROWS	Lookup and reference	implemented
+XIRR	Financial	implemented
+XLOOKUP	Lookup and reference	implemented
+XMATCH	Lookup and reference	implemented
+XNPV	Financial	implemented
+XOR	Logical	implemented
+YEAR	Date and time	implemented
+YEARFRAC	Date and time	implemented
+YIELD	Financial	implemented
+YIELDDISC	Financial	implemented
+YIELDMAT	Financial	implemented
+Z.TEST	Statistical	implemented
+ZTEST	Compatibility	implemented

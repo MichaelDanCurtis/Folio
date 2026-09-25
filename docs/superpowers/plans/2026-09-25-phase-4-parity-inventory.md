@@ -1,6 +1,6 @@
 # Phase 4: M0 Parity Inventory Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the prose-heavy parity ledger with a finite, checkable inventory. All 46 families are split into bounded child requirements, each with a stable ID and an acceptance state. The register is tied to recorded evidence and ends in a ranked gap list, which the M1 delivery packages are chosen from.
 
@@ -64,8 +64,8 @@ Each area file (`docs/status/desktop.md`, `word.md`, `excel.md`) has one section
 
 **Files:** `folio-native/docs/status/README.md`, `folio-native/test/status_register_test.dart`
 
-- [ ] Document the format above, the state rules and the ID rules.
-- [ ] The test parses every family table in `docs/status/*.md` and checks:
+- [x] Document the format above, the state rules and the ID rules.
+- [x] The test parses every family table in `docs/status/*.md` and checks:
   - all 46 family IDs (D01–D10, W01–W17, X01–X19) are present, each with at least one child;
   - IDs are unique, match their family, and have two-digit sequence numbers;
   - every state is valid;
@@ -75,28 +75,28 @@ Each area file (`docs/status/desktop.md`, `word.md`, `excel.md`) has one section
 
 ### Task 2: Shared desktop families D01–D10
 
-- [ ] Decompose each family from ROADMAP S01–S07 and the PARITY entry. Map existing evidence (feature docs, VALIDATION sections) to children.
+- [x] Decompose each family from ROADMAP S01–S07 and the PARITY entry. Map existing evidence (feature docs, VALIDATION sections) to children.
 
 ### Task 3: Word families W01–W17
 
-- [ ] Decompose from ROADMAP W-A…W-H, the PARITY entries and the Word feature docs (`docs/*.md`).
+- [x] Decompose from ROADMAP W-A…W-H, the PARITY entries and the Word feature docs (`docs/*.md`).
 
 ### Task 4: Excel families X01–X19
 
-- [ ] Decompose from ROADMAP X-A…X-J, the PARITY entries and the Excel feature docs.
-- [ ] **Measure formula-catalog coverage** for X08: list IronCalc's implemented functions against Excel's function catalog. Record the count and the missing functions by category, so X08 has real numbers.
+- [x] Decompose from ROADMAP X-A…X-J, the PARITY entries and the Excel feature docs.
+- [x] **Measure formula-catalog coverage** for X08: list IronCalc's implemented functions against Excel's function catalog. Record the count and the missing functions by category, so X08 has real numbers.
 
 ### Task 5: Baseline, corpus and benchmark records
 
-- [ ] `docs/status/OFFICE_BASELINE.md`: the fields ROADMAP §2 requires (Word/Excel version, build, channel, OS, locale, fonts, extensions, licenses, Copilot). Blocked on the user, who has the Office installs; stated as such.
-- [ ] Benchmark machine: link the Phase 1 record (`PERFORMANCE_BASELINE.md`, M4 Max) and list which ROADMAP §7 budgets are measured and which are not.
-- [ ] `docs/status/CORPUS.md`:
+- [x] `docs/status/OFFICE_BASELINE.md`: the fields ROADMAP §2 requires (Word/Excel version, build, channel, OS, locale, fonts, extensions, licenses, Copilot). Blocked on the user, who has the Office installs; stated as such.
+- [x] Benchmark machine: link the Phase 1 record (`PERFORMANCE_BASELINE.md`, M4 Max) and list which ROADMAP §7 budgets are measured and which are not.
+- [x] `docs/status/CORPUS.md`:
   - index the existing fixtures (`test/fixtures`), with the child IDs each one exercises;
   - list the Office-created comparison files the M1 daily-workflow scenario needs, marked "needs Office".
 
 ### Task 6: Risk register
 
-- [ ] For each ROADMAP §7 architecture risk, record what is known, what was measured or proved here, and the decision or proof still needed:
+- [x] For each ROADMAP §7 architecture risk, record what is known, what was measured or proved here, and the decision or proof still needed:
   - rich-text layout ceiling (Quill);
   - formula-engine coverage;
   - editable OOXML objects;
@@ -108,7 +108,23 @@ Each area file (`docs/status/desktop.md`, `word.md`, `excel.md`) has one section
 
 ### Task 7: Ranked gap list and STATUS.md
 
-- [ ] Rank the gaps by M1 daily-workflow impact first, then by milestone. Give each an effort range (S ≤ 1 week, M 1–3 weeks, L 3–8 weeks, XL > 8 weeks) and a confidence (high/medium/low).
-- [ ] Choose the first M1 delivery package from the top of the list.
-- [ ] Write `STATUS.md`, link it from PARITY.md and ROADMAP.md, and update the program plan's Phase 4 row.
-- [ ] Run the local CI steps.
+- [x] Rank the gaps by M1 daily-workflow impact first, then by milestone. Give each an effort range (S ≤ 1 week, M 1–3 weeks, L 3–8 weeks, XL > 8 weeks) and a confidence (high/medium/low).
+- [x] Choose the first M1 delivery package from the top of the list.
+- [x] Write `STATUS.md`, link it from PARITY.md and ROADMAP.md, and update the program plan's Phase 4 row.
+- [x] Run the local CI steps.
+
+## Progress (2026-09-25)
+
+| Task | State | Notes |
+|---|---|---|
+| 1. Format and integrity test | Done | `test/status_register_test.dart` also checks `#anchors` against the target file's headings (GitHub slug rules), ignoring fenced examples. |
+| 2–4. Families | Done | 391 children: 10 desktop, 17 Word and 19 Excel families. Evidence goes up to 0.82 and Phases 1–3. |
+| 4. Function catalog | Done | `formula_catalog_tests.rs` measures all 514 functions in Microsoft's alphabetical catalog (read 2026-09-25): 483 evaluate, 4 recognized but not implemented, 27 unknown. The committed TSV makes coverage drops fail CI. Microsoft's page lists "BETA.INVn", a typo for BETA.INV. |
+| 5. Baseline and corpus | Done, blocked on the owner | `OFFICE_BASELINE.md` has the fields to fill in. `CORPUS.md` records that all 53 fixtures are Folio-generated, and lists the Office-created files still needed. |
+| 6. Risks | Done | R1–R9 in STATUS.md, each with the proof or decision still needed. |
+| 7. Gap list | Done | 20 ranked gaps. First package: workbook editing essentials (rank 3). The Office baseline (rank 1) and the native Mac sweep (rank 2) need the owner. |
+
+Findings while building the register:
+- **The fixture corpus is entirely self-generated.** Nothing in the repository was produced by Word or Excel, so every "compatibility" claim so far is against the specification and independent readers, never against Office.
+- **Native evidence isn't reproducible from the repository.** The `release/validation` archives that VALIDATION.md cites live only on the owner's Mac.
+- **42 of the 129 M1 children have only automated evidence.** A native sweep on the Mac would move many of them up at once, and is cheaper than new features.
