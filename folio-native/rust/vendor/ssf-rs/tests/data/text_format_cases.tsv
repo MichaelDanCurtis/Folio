@@ -1,0 +1,806 @@
+# file	row	dates	kind	value	code	excel
+NumberFormatTests	2	1904	n	12.343999999999999	0.00	12.34
+NumberFormatTests	3	1904	n	12.343999999999999	0.0	12.3
+NumberFormatTests	4	1904	n	12.3	000.00	012.30
+NumberFormatTests	5	1904	n	12.3	£000.00	£012.30
+NumberFormatTests	6	1904	n	12.3	###.##	12.3
+NumberFormatTests	7	1904	n	12.3	#.##	12.3
+NumberFormatTests	8	1904	n	12.3	$###.##	$12.3
+NumberFormatTests	9	1904	n	12.34	$#.#	$12.3
+NumberFormatTests	10	1904	n	12.3	$###.00	$12.30
+NumberFormatTests	11	1904	n	-12.3	###.##	-12.3
+NumberFormatTests	12	1904	n	-12.3	#.##	-12.3
+NumberFormatTests	13	1904	n	-12.3	$###.##	-$12.3
+NumberFormatTests	14	1904	n	-12.34	$#.#	-$12.3
+NumberFormatTests	15	1904	n	-12.3	$###.00	-$12.30
+NumberFormatTests	17	1904	n	12.3	\\a $#.00" profit"	a $12.30 profit
+NumberFormatTests	18	1904	n	12.3	¥#.00" after"	¥12.30 after
+NumberFormatTests	19	1904	n	12.3	"before "¥#.00	before ¥12.30
+NumberFormatTests	20	1904	n	-12.3	\\a $#.00" profit"	-a $12.30 profit
+NumberFormatTests	21	1904	n	-12.3	¥#.00" after"	-¥12.30 after
+NumberFormatTests	22	1904	n	-12.3	"before "¥#.00	-before ¥12.30
+NumberFormatTests	24	1904	n	1234567	#,###	1,234,567
+NumberFormatTests	25	1904	n	1234567	#,##	1,234,567
+NumberFormatTests	26	1904	n	1234567	#,#	1,234,567
+NumberFormatTests	27	1904	n	1234567	,#	,1234567
+NumberFormatTests	28	1904	n	1234567	#,##.#	1,234,567.
+NumberFormatTests	29	1904	n	1234567	0,000	1,234,567
+NumberFormatTests	30	1904	n	1234567	0,00	1,234,567
+NumberFormatTests	31	1904	n	1234567	0,0	1,234,567
+NumberFormatTests	32	1904	n	1234567	,0	,1234567
+NumberFormatTests	33	1904	n	1234567	0,00.0	1,234,567.0
+NumberFormatTests	34	1904	n	12	0,0	12
+NumberFormatTests	35	1904	n	123	0,00	123
+NumberFormatTests	36	1904	n	1234	0,000	1,234
+NumberFormatTests	37	1904	n	12345	0,0000	12,345
+NumberFormatTests	38	1904	n	123456	0,00000	123,456
+NumberFormatTests	39	1904	n	1234567	0,000000	1,234,567
+NumberFormatTests	40	1904	n	1234567	?,???	1,234,567
+NumberFormatTests	41	1904	n	1234567	?,????	1,234,567
+NumberFormatTests	42	1904	n	1234567	?,?????	1,234,567
+NumberFormatTests	43	1904	n	1234567	?,??????	1,234,567
+NumberFormatTests	44	1904	n	1234567	?,???????	
+NumberFormatTests	45	1904	n	1234567	?,????????	
+NumberFormatTests	46	1904	n	1234567	?,?????????	
+NumberFormatTests	47	1904	n	12	?,?	12
+NumberFormatTests	48	1904	n	123	?,??	123
+NumberFormatTests	49	1904	n	1234	?,???	1,234
+NumberFormatTests	50	1904	n	12345	?,????	12,345
+NumberFormatTests	51	1904	n	123456	?,?????	123,456
+NumberFormatTests	52	1904	n	1234567	?,??????	1,234,567
+NumberFormatTests	53	1904	n	-1234567	#,###	-1,234,567
+NumberFormatTests	54	1904	n	-1234567	#,##	-1,234,567
+NumberFormatTests	55	1904	n	-1234567	#,#	-1,234,567
+NumberFormatTests	56	1904	n	-1234567	,#	-,1234567
+NumberFormatTests	57	1904	n	-1234567	#,##.#	-1,234,567.
+NumberFormatTests	58	1904	n	-1234567	0,000	-1,234,567
+NumberFormatTests	59	1904	n	-1234567	0,00	-1,234,567
+NumberFormatTests	60	1904	n	-1234567	0,0	-1,234,567
+NumberFormatTests	61	1904	n	-1234567	,0	-,1234567
+NumberFormatTests	62	1904	n	-1234567	0,00.0	-1,234,567.0
+NumberFormatTests	63	1904	n	1234567	0,000	1,234,567
+NumberFormatTests	64	1904	n	1234567	0,0000	1,234,567
+NumberFormatTests	65	1904	n	1234567	0,00000	1,234,567
+NumberFormatTests	66	1904	n	1234567	0,000000	1,234,567
+NumberFormatTests	67	1904	n	1234567	0,0000000	01,234,567
+NumberFormatTests	68	1904	n	1234567	0,00000000	001,234,567
+NumberFormatTests	69	1904	n	1234567	0,000000000	0,001,234,567
+NumberFormatTests	70	1904	n	-12	0,0	-12
+NumberFormatTests	71	1904	n	-123	0,00	-123
+NumberFormatTests	72	1904	n	-1234	0,000	-1,234
+NumberFormatTests	73	1904	n	-12345	0,0000	-12,345
+NumberFormatTests	74	1904	n	-123456	0,00000	-123,456
+NumberFormatTests	75	1904	n	-1234567	0,000000	-1,234,567
+NumberFormatTests	76	1904	n	-1234567	?,???	-1,234,567
+NumberFormatTests	77	1904	n	-1234567	?,????	-1,234,567
+NumberFormatTests	78	1904	n	-1234567	?,?????	-1,234,567
+NumberFormatTests	79	1904	n	-1234567	?,??????	-1,234,567
+NumberFormatTests	80	1904	n	-1234567	?,???????	- 1,234,567
+NumberFormatTests	81	1904	n	-1234567	?,????????	-  1,234,567
+NumberFormatTests	82	1904	n	-1234567	?,?????????	-    1,234,567
+NumberFormatTests	83	1904	n	-12	?,?	-12
+NumberFormatTests	84	1904	n	-123	?,??	-123
+NumberFormatTests	85	1904	n	-1234	?,???	-1,234
+NumberFormatTests	86	1904	n	-12345	?,????	-12,345
+NumberFormatTests	87	1904	n	-123456	?,?????	-123,456
+NumberFormatTests	88	1904	n	-1234567	?,??????	-1,234,567
+NumberFormatTests	90	1904	n	1234567	0,	1235
+NumberFormatTests	91	1904	n	1234567	#,,	1
+NumberFormatTests	92	1904	n	1234567	0.#,	1234.6
+NumberFormatTests	93	1904	n	1234567	#,.#,	1.2
+NumberFormatTests	94	1904	n	-1234567	0,	-1235
+NumberFormatTests	95	1904	n	-1234567	#,,	-1
+NumberFormatTests	96	1904	n	-1234567	0.#,	-1234.6
+NumberFormatTests	97	1904	n	-1234567	#,.#,	-1.2
+NumberFormatTests	99	1904	n	1.23E-2	0.00%	1.23%
+NumberFormatTests	100	1904	n	123.45	0,0.00%	12,345.00%
+NumberFormatTests	101	1904	n	123.45	0,0.00%%	1,234,500.00%%
+NumberFormatTests	102	1904	n	-1.23E-2	0.00%	-1.23%
+NumberFormatTests	103	1904	n	-123.45	0,0.00%	-12,345.00%
+NumberFormatTests	104	1904	n	-123.45	0,0.00%%	-1,234,500.00%%
+NumberFormatTests	105	1904	n	3.5E-4	#,##0.00%	0.04%
+NumberFormatTests	107	1904	n	1.1000000000000001	|?.?|	|1.1|
+NumberFormatTests	108	1904	n	1.1000000000000001	|??.?|	| 1.1|
+NumberFormatTests	109	1904	n	1.1000000000000001	|?.??|	|1.1 |
+NumberFormatTests	110	1904	n	1.1000000000000001	|??.??|	| 1.1 |
+NumberFormatTests	111	1904	n	1234567	?,?	1,234,567
+NumberFormatTests	112	1904	n	1234567	?,?????????	
+NumberFormatTests	113	1904	n	-1.1000000000000001	|?.?|	-|1.1|
+NumberFormatTests	114	1904	n	-1.1000000000000001	|??.?|	-| 1.1|
+NumberFormatTests	115	1904	n	-1.1000000000000001	|?.??|	-|1.1 |
+NumberFormatTests	116	1904	n	-1.1000000000000001	|??.??|	-| 1.1 |
+NumberFormatTests	117	1904	n	-1234567	?,?	-1,234,567
+NumberFormatTests	118	1904	n	-1234567	?,?????????	-    1,234,567
+NumberFormatTests	120	1904	n	23.75	|#\\:#/#|	|23:3/4|
+NumberFormatTests	121	1904	n	-23.75	|#\\:#/#|	-|23:3/4|
+NumberFormatTests	122	1904	n	0.75	|#\\:#/#|	|3/4|
+NumberFormatTests	123	1904	n	-0.75	|#\\:#/#|	-|3/4|
+NumberFormatTests	124	1904	n	0	|#\\:#/#|	|0|
+NumberFormatTests	125	1904	n	1	|#\\:#/#|	|1|
+NumberFormatTests	126	1904	n	-1	|#\\:#/#|	-|1|
+NumberFormatTests	127	1904	n	23.75	|#-#-#\\:#/#|	|-2-3:3/4|
+NumberFormatTests	128	1904	n	-23.75	|#-#-#\\:#/#|	-|-2-3:3/4|
+NumberFormatTests	129	1904	n	0.75	|#-#-#\\:#/#|	|--3/4|
+NumberFormatTests	130	1904	n	-0.75	|#-#-#\\:#/#|	-|--3/4|
+NumberFormatTests	131	1904	n	0	|#-#-#\\:#/#|	|--0|
+NumberFormatTests	132	1904	n	1	|#-#-#\\:#/#|	|--1|
+NumberFormatTests	133	1904	n	-1	|#-#-#\\:#/#|	-|--1|
+NumberFormatTests	134	1904	n	23.75	|#\\:#=/=#|	|23:3=/=4|
+NumberFormatTests	135	1904	n	-23.75	|#\\:#=/=#|	-|23:3=/=4|
+NumberFormatTests	136	1904	n	0	|#\\:#=/=#|	|0|
+NumberFormatTests	137	1904	n	1	|#\\:#=/=#|	|1|
+NumberFormatTests	138	1904	n	-1	|#\\:#=/=#|	-|1|
+NumberFormatTests	139	1904	n	23.75	|#\\:#=/=?|	|23:3=/=4|
+NumberFormatTests	140	1904	n	-23.75	|#\\:#=/=?|	-|23:3=/=4|
+NumberFormatTests	141	1904	n	0	|#\\:#=/=?|	|0      |
+NumberFormatTests	142	1904	n	1	|#\\:#=/=?|	|1      |
+NumberFormatTests	143	1904	n	-1	|#\\:#=/=?|	-|1      |
+NumberFormatTests	144	1904	n	23.75	|#\\:#=/=0|	|23:3=/=4|
+NumberFormatTests	145	1904	n	-23.75	|#\\:#=/=0|	-|23:3=/=4|
+NumberFormatTests	146	1904	n	0	|#\\:#=/=0|	|0|
+NumberFormatTests	147	1904	n	1	|#\\:#=/=0|	|1|
+NumberFormatTests	148	1904	n	-1	|#\\:#=/=0|	-|1|
+NumberFormatTests	149	1904	n	23.75	|#\\:? ?=/=#|	|2:3 3=/=4|
+NumberFormatTests	150	1904	n	-23.75	|#\\:? ?=/=#|	-|2:3 3=/=4|
+NumberFormatTests	151	1904	n	0	|#\\:? ?=/=#|	|:0      |
+NumberFormatTests	152	1904	n	1	|#\\:? ?=/=#|	|:1      |
+NumberFormatTests	153	1904	n	-1	|#\\:? ?=/=#|	-|:1      |
+NumberFormatTests	154	1904	n	23.75	|#\\:? ?=/=?|	|2:3 3=/=4|
+NumberFormatTests	155	1904	n	-23.75	|#\\:? ?=/=?|	-|2:3 3=/=4|
+NumberFormatTests	156	1904	n	0	|#\\:? ?=/=?|	|:0      |
+NumberFormatTests	157	1904	n	1	|#\\:? ?=/=?|	|:1      |
+NumberFormatTests	158	1904	n	-1	|#\\:? ?=/=?|	-|:1      |
+NumberFormatTests	159	1904	n	23.75	|#\\:? ?#/#|	|2:3  3/4|
+NumberFormatTests	160	1904	n	23.75	|#\\:? ?0#/000	|2:3  03/004
+NumberFormatTests	161	1904	n	0.75	|?\\:?0=/=#|	|   3=/=4|
+NumberFormatTests	162	1904	n	0	|#\\:? ?0#/000	|:0  00/001
+NumberFormatTests	163	1904	n	1	|#\\:? ?0#/000	|:1  00/001
+NumberFormatTests	165	1904	n	3.75	|#_#/#|	|15 /4|
+NumberFormatTests	166	1904	n	-3.75	|#_#/#|	-|15 /4|
+NumberFormatTests	167	1904	n	0.75	|#_#/#|	|3 /4|
+NumberFormatTests	168	1904	n	-0.75	|#_#/#|	-|3 /4|
+NumberFormatTests	169	1904	n	0	|#_#/#|	|0 /1|
+NumberFormatTests	170	1904	n	1	|#_#/#|	|1 /1|
+NumberFormatTests	171	1904	n	-1	|#_#/#|	-|1 /1|
+NumberFormatTests	172	1904	n	3.75	|#_#=/=#|	|15 =/=4|
+NumberFormatTests	173	1904	n	-3.75	|#_#=/=#|	-|15 =/=4|
+NumberFormatTests	174	1904	n	0	|#_#=/=#|	|0 =/=1|
+NumberFormatTests	175	1904	n	1	|#_#=/=#|	|1 =/=1|
+NumberFormatTests	176	1904	n	-1	|#_#=/=#|	-|1 =/=1|
+NumberFormatTests	177	1904	n	3.75	|#_#=/=?|	|15 =/=4|
+NumberFormatTests	178	1904	n	-3.75	|#_#=/=?|	-|15 =/=4|
+NumberFormatTests	179	1904	n	0	|#_#=/=?|	|0 =/=1|
+NumberFormatTests	180	1904	n	1	|#_#=/=?|	|1 =/=1|
+NumberFormatTests	181	1904	n	-1	|#_#=/=?|	-|1 =/=1|
+NumberFormatTests	182	1904	n	3.75	|#_#=/=0|	|15 =/=4|
+NumberFormatTests	183	1904	n	-3.75	|#_#=/=0|	-|15 =/=4|
+NumberFormatTests	184	1904	n	0	|#_#=/=0|	|0 =/=1|
+NumberFormatTests	185	1904	n	1	|#_#=/=0|	|1 =/=1|
+NumberFormatTests	186	1904	n	-1	|#_#=/=0|	-|1 =/=1|
+NumberFormatTests	187	1904	n	3.75	|#_?=/=#|	|15 =/=4|
+NumberFormatTests	188	1904	n	-3.75	|#_?=/=#|	-|15 =/=4|
+NumberFormatTests	189	1904	n	0	|#_?=/=#|	|0 =/=1|
+NumberFormatTests	190	1904	n	1	|#_?=/=#|	|1 =/=1|
+NumberFormatTests	191	1904	n	-1	|#_?=/=#|	-|1 =/=1|
+NumberFormatTests	192	1904	n	3.75	|#_?=/=?|	|15 =/=4|
+NumberFormatTests	193	1904	n	-3.75	|#_?=/=?|	-|15 =/=4|
+NumberFormatTests	194	1904	n	0	|#_?=/=?|	|0 =/=1|
+NumberFormatTests	195	1904	n	1	|#_?=/=?|	|1 =/=1|
+NumberFormatTests	196	1904	n	-1	|#_?=/=?|	-|1 =/=1|
+NumberFormatTests	198	1904	n	0	|#\\:#=/=#|	|0|
+NumberFormatTests	199	1904	n	0	|#\\:#=/=?|	|0      |
+NumberFormatTests	200	1904	n	0	|#\\:#=/=0|	|0|
+NumberFormatTests	201	1904	n	0	|#\\:?=/=#|	|0      |
+NumberFormatTests	202	1904	n	0	|#\\:?=/=?|	|0      |
+NumberFormatTests	203	1904	n	0	|#\\:?=/=0|	|0      |
+NumberFormatTests	204	1904	n	0	|#\\:0=/=#|	|0=/=1|
+NumberFormatTests	205	1904	n	0	|#\\:0=/=?|	|0=/=1|
+NumberFormatTests	206	1904	n	0	|#\\:0=/=0|	|0=/=1|
+NumberFormatTests	207	1904	n	0	|?\\:#=/=#|	|0      |
+NumberFormatTests	208	1904	n	0	|?\\:#=/=?|	|0      |
+NumberFormatTests	209	1904	n	0	|?\\:#=/=0|	|0      |
+NumberFormatTests	210	1904	n	0	|?\\:?=/=#|	|0      |
+NumberFormatTests	211	1904	n	0	|?\\:?=/=?|	|0      |
+NumberFormatTests	212	1904	n	0	|?\\:?=/=0|	|0      |
+NumberFormatTests	213	1904	n	0	|?\\:0=/=#|	|0:0=/=1|
+NumberFormatTests	214	1904	n	0	|?\\:0=/=?|	|0:0=/=1|
+NumberFormatTests	215	1904	n	0	|?\\:0=/=0|	|0:0=/=1|
+NumberFormatTests	216	1904	n	0	|0\\:#=/=#|	|0|
+NumberFormatTests	217	1904	n	0	|0\\:#=/=?|	|0      |
+NumberFormatTests	218	1904	n	0	|0\\:#=/=0|	|0|
+NumberFormatTests	219	1904	n	0	|0\\:?=/=#|	|0      |
+NumberFormatTests	220	1904	n	0	|0\\:?=/=?|	|0      |
+NumberFormatTests	221	1904	n	0	|0\\:?=/=0|	|0      |
+NumberFormatTests	222	1904	n	0	|0\\:0=/=#|	|0:0=/=1|
+NumberFormatTests	223	1904	n	0	|0\\:0=/=?|	|0:0=/=1|
+NumberFormatTests	224	1904	n	0	|0\\:0=/=0|	|0:0=/=1|
+NumberFormatTests	225	1904	n	0.75	|#\\:#=/=#|	|3=/=4|
+NumberFormatTests	226	1904	n	0.75	|#\\:#=/=?|	|3=/=4|
+NumberFormatTests	227	1904	n	0.75	|#\\:#=/=0|	|3=/=4|
+NumberFormatTests	228	1904	n	0.75	|#\\:?=/=#|	| 3=/=4|
+NumberFormatTests	229	1904	n	0.75	|#\\:?=/=?|	| 3=/=4|
+NumberFormatTests	230	1904	n	0.75	|#\\:?=/=0|	| 3=/=4|
+NumberFormatTests	231	1904	n	0.75	|#\\:0=/=#|	|3=/=4|
+NumberFormatTests	232	1904	n	0.75	|#\\:0=/=?|	|3=/=4|
+NumberFormatTests	233	1904	n	0.75	|#\\:0=/=0|	|3=/=4|
+NumberFormatTests	234	1904	n	0.75	|?\\:#=/=#|	|  3=/=4|
+NumberFormatTests	235	1904	n	0.75	|?\\:#=/=?|	|  3=/=4|
+NumberFormatTests	236	1904	n	0.75	|?\\:#=/=0|	|  3=/=4|
+NumberFormatTests	237	1904	n	0.75	|?\\:?=/=#|	|  3=/=4|
+NumberFormatTests	238	1904	n	0.75	|?\\:?=/=?|	|  3=/=4|
+NumberFormatTests	239	1904	n	0.75	|?\\:?=/=0|	|  3=/=4|
+NumberFormatTests	240	1904	n	0.75	|?\\:0=/=#|	|  3=/=4|
+NumberFormatTests	241	1904	n	0.75	|?\\:0=/=?|	|  3=/=4|
+NumberFormatTests	242	1904	n	0.75	|?\\:0=/=0|	|  3=/=4|
+NumberFormatTests	243	1904	n	0.75	|0\\:#=/=#|	|0:3=/=4|
+NumberFormatTests	244	1904	n	0.75	|0\\:#=/=?|	|0:3=/=4|
+NumberFormatTests	245	1904	n	0.75	|0\\:#=/=0|	|0:3=/=4|
+NumberFormatTests	246	1904	n	0.75	|0\\:?=/=#|	|0:3=/=4|
+NumberFormatTests	247	1904	n	0.75	|0\\:?=/=?|	|0:3=/=4|
+NumberFormatTests	248	1904	n	0.75	|0\\:?=/=0|	|0:3=/=4|
+NumberFormatTests	249	1904	n	0.75	|0\\:0=/=#|	|0:3=/=4|
+NumberFormatTests	250	1904	n	0.75	|0\\:0=/=?|	|0:3=/=4|
+NumberFormatTests	251	1904	n	0.75	|0\\:0=/=0|	|0:3=/=4|
+NumberFormatTests	252	1904	n	1	|#\\:#=/=#|	|1|
+NumberFormatTests	253	1904	n	1	|#\\:#=/=?|	|1      |
+NumberFormatTests	254	1904	n	1	|#\\:#=/=0|	|1|
+NumberFormatTests	255	1904	n	1	|#\\:?=/=#|	|1      |
+NumberFormatTests	256	1904	n	1	|#\\:?=/=?|	|1      |
+NumberFormatTests	257	1904	n	1	|#\\:?=/=0|	|1      |
+NumberFormatTests	258	1904	n	1	|#\\:0=/=#|	|1:0=/=1|
+NumberFormatTests	259	1904	n	1	|#\\:0=/=?|	|1:0=/=1|
+NumberFormatTests	260	1904	n	1	|#\\:0=/=0|	|1:0=/=1|
+NumberFormatTests	261	1904	n	1	|?\\:#=/=#|	|1      |
+NumberFormatTests	262	1904	n	1	|?\\:#=/=?|	|1      |
+NumberFormatTests	263	1904	n	1	|?\\:#=/=0|	|1      |
+NumberFormatTests	264	1904	n	1	|?\\:?=/=#|	|1      |
+NumberFormatTests	265	1904	n	1	|?\\:?=/=?|	|1      |
+NumberFormatTests	266	1904	n	1	|?\\:?=/=0|	|1      |
+NumberFormatTests	267	1904	n	1	|?\\:0=/=#|	|1:0=/=1|
+NumberFormatTests	268	1904	n	1	|?\\:0=/=?|	|1:0=/=1|
+NumberFormatTests	269	1904	n	1	|?\\:0=/=0|	|1:0=/=1|
+NumberFormatTests	270	1904	n	1	|0\\:#=/=#|	|1|
+NumberFormatTests	271	1904	n	1	|0\\:#=/=?|	|1      |
+NumberFormatTests	272	1904	n	1	|0\\:#=/=0|	|1|
+NumberFormatTests	273	1904	n	1	|0\\:?=/=#|	|1      |
+NumberFormatTests	274	1904	n	1	|0\\:?=/=?|	|1      |
+NumberFormatTests	275	1904	n	1	|0\\:?=/=0|	|1      |
+NumberFormatTests	276	1904	n	1	|0\\:0=/=#|	|1:0=/=1|
+NumberFormatTests	277	1904	n	1	|0\\:0=/=?|	|1:0=/=1|
+NumberFormatTests	278	1904	n	1	|0\\:0=/=0|	|1:0=/=1|
+NumberFormatTests	279	1904	n	-0.75	|#\\:#=/=#|	-|3=/=4|
+NumberFormatTests	280	1904	n	-0.75	|#\\:#=/=?|	-|3=/=4|
+NumberFormatTests	281	1904	n	-0.75	|#\\:#=/=0|	-|3=/=4|
+NumberFormatTests	282	1904	n	-0.75	|#\\:?=/=#|	-| 3=/=4|
+NumberFormatTests	283	1904	n	-0.75	|#\\:?=/=?|	-| 3=/=4|
+NumberFormatTests	284	1904	n	-0.75	|#\\:?=/=0|	-| 3=/=4|
+NumberFormatTests	285	1904	n	-0.75	|#\\:0=/=#|	-|3=/=4|
+NumberFormatTests	286	1904	n	-0.75	|#\\:0=/=?|	-|3=/=4|
+NumberFormatTests	287	1904	n	-0.75	|#\\:0=/=0|	-|3=/=4|
+NumberFormatTests	288	1904	n	-0.75	|?\\:#=/=#|	-|  3=/=4|
+NumberFormatTests	289	1904	n	-0.75	|?\\:#=/=?|	-|  3=/=4|
+NumberFormatTests	290	1904	n	-0.75	|?\\:#=/=0|	-|  3=/=4|
+NumberFormatTests	291	1904	n	-0.75	|?\\:?=/=#|	-|  3=/=4|
+NumberFormatTests	292	1904	n	-0.75	|?\\:?=/=?|	-|  3=/=4|
+NumberFormatTests	293	1904	n	-0.75	|?\\:?=/=0|	-|  3=/=4|
+NumberFormatTests	294	1904	n	-0.75	|?\\:0=/=#|	-|  3=/=4|
+NumberFormatTests	295	1904	n	-0.75	|?\\:0=/=?|	-|  3=/=4|
+NumberFormatTests	296	1904	n	-0.75	|?\\:0=/=0|	-|  3=/=4|
+NumberFormatTests	297	1904	n	-0.75	|0\\:#=/=#|	-|0:3=/=4|
+NumberFormatTests	298	1904	n	-0.75	|0\\:#=/=?|	-|0:3=/=4|
+NumberFormatTests	299	1904	n	-0.75	|0\\:#=/=0|	-|0:3=/=4|
+NumberFormatTests	300	1904	n	-0.75	|0\\:?=/=#|	-|0:3=/=4|
+NumberFormatTests	301	1904	n	-0.75	|0\\:?=/=?|	-|0:3=/=4|
+NumberFormatTests	302	1904	n	-0.75	|0\\:?=/=0|	-|0:3=/=4|
+NumberFormatTests	303	1904	n	-0.75	|0\\:0=/=#|	-|0:3=/=4|
+NumberFormatTests	304	1904	n	-0.75	|0\\:0=/=?|	-|0:3=/=4|
+NumberFormatTests	305	1904	n	-0.75	|0\\:0=/=0|	-|0:3=/=4|
+NumberFormatTests	306	1904	n	-1	|#\\:#=/=#|	-|1|
+NumberFormatTests	307	1904	n	-1	|#\\:#=/=?|	-|1      |
+NumberFormatTests	308	1904	n	-1	|#\\:#=/=0|	-|1|
+NumberFormatTests	309	1904	n	-1	|#\\:?=/=#|	-|1      |
+NumberFormatTests	310	1904	n	-1	|#\\:?=/=?|	-|1      |
+NumberFormatTests	311	1904	n	-1	|#\\:?=/=0|	-|1      |
+NumberFormatTests	312	1904	n	-1	|#\\:0=/=#|	-|1:0=/=1|
+NumberFormatTests	313	1904	n	-1	|#\\:0=/=?|	-|1:0=/=1|
+NumberFormatTests	314	1904	n	-1	|#\\:0=/=0|	-|1:0=/=1|
+NumberFormatTests	315	1904	n	-1	|?\\:#=/=#|	-|1      |
+NumberFormatTests	316	1904	n	-1	|?\\:#=/=?|	-|1      |
+NumberFormatTests	317	1904	n	-1	|?\\:#=/=0|	-|1      |
+NumberFormatTests	318	1904	n	-1	|?\\:?=/=#|	-|1      |
+NumberFormatTests	319	1904	n	-1	|?\\:?=/=?|	-|1      |
+NumberFormatTests	320	1904	n	-1	|?\\:?=/=0|	-|1      |
+NumberFormatTests	321	1904	n	-1	|?\\:0=/=#|	-|1:0=/=1|
+NumberFormatTests	322	1904	n	-1	|?\\:0=/=?|	-|1:0=/=1|
+NumberFormatTests	323	1904	n	-1	|?\\:0=/=0|	-|1:0=/=1|
+NumberFormatTests	324	1904	n	-1	|0\\:#=/=#|	-|1|
+NumberFormatTests	325	1904	n	-1	|0\\:#=/=?|	-|1      |
+NumberFormatTests	326	1904	n	-1	|0\\:#=/=0|	-|1|
+NumberFormatTests	327	1904	n	-1	|0\\:?=/=#|	-|1      |
+NumberFormatTests	328	1904	n	-1	|0\\:?=/=?|	-|1      |
+NumberFormatTests	329	1904	n	-1	|0\\:?=/=0|	-|1      |
+NumberFormatTests	330	1904	n	-1	|0\\:0=/=#|	-|1:0=/=1|
+NumberFormatTests	331	1904	n	-1	|0\\:0=/=?|	-|1:0=/=1|
+NumberFormatTests	332	1904	n	-1	|0\\:0=/=0|	-|1:0=/=1|
+NumberFormatTests	334	1904	n	314159	#,##0.00	314,159.00
+NumberFormatTests	335	1904	n	314159	$000,000,000	$000,314,159
+NumberFormatApproxTests	2	1904	n	123456.789	|#,e-#|	|1e5|
+NumberFormatApproxTests	3	1904	n	123456.789	|#e-#,|	|1e5|
+NumberFormatApproxTests	4	1904	n	123456.789	|#%e-#|	|1%e5|
+NumberFormatApproxTests	5	1904	n	123456.789	|#e-#%|	|1e5%|
+NumberFormatApproxTests	6	1904	n	123456.789	|#|e-|#|	|1|e|5|
+NumberFormatApproxTests	7	1904	n	123456.789	|#.#|e-|#|	|1.2|e|5|
+NumberFormatApproxTests	8	1904	n	123456.789	|####.####|e-|#|	|12.3457|e|4|
+NumberFormatApproxTests	9	1904	n	123456.789	|#######.####|e-|#|	|123456.789|e|0|
+NumberFormatApproxTests	10	1904	n	123456.789	|#,######.####|e-|#|	|123,456.789|e|0|
+NumberFormatApproxTests	11	1904	n	123456.789	|0|e-|0|	|1|e|5|
+NumberFormatApproxTests	12	1904	n	123456.789	|0.0|e-|0|	|1.2|e|5|
+NumberFormatApproxTests	13	1904	n	123456.789	|0000.0000|e-|0|	|0012.3457|e|4|
+NumberFormatApproxTests	14	1904	n	123456.789	|0000000.0000|e-|0|	|0123456.7890|e|0|
+NumberFormatApproxTests	15	1904	n	123456.789	|0,000000.0000|e-|0|	|0,123,456.7890|e|0|
+NumberFormatApproxTests	16	1904	n	123456.789	|?|e-|?|	|1|e|5|
+NumberFormatApproxTests	17	1904	n	123456.789	|?.?|e-|?|	|1.2|e|5|
+NumberFormatApproxTests	18	1904	n	123456.789	|????.????|e-|?|	|  12.3457|e|4|
+NumberFormatApproxTests	19	1904	n	123456.789	|???????.????|e-|?|	| 123456.789 |e|0|
+NumberFormatApproxTests	20	1904	n	123456.789	|?,??????.????|e-|?|	|  123,456.789 |e|0|
+NumberFormatApproxTests	21	1904	n	123456.789	|#,e+#|	|1e+5|
+NumberFormatApproxTests	22	1904	n	123456.789	|#e+#,|	|1e+5|
+NumberFormatApproxTests	23	1904	n	123456.789	|#%e+#|	|1%e+5|
+NumberFormatApproxTests	24	1904	n	123456.789	|#e+#%|	|1e+5%|
+NumberFormatApproxTests	25	1904	n	123456.789	|#|e+|#|	|1|e|+5|
+NumberFormatApproxTests	26	1904	n	123456.789	|#.#|e+|#|	|1.2|e|+5|
+NumberFormatApproxTests	27	1904	n	123456.789	|####.####|e+|#|	|12.3457|e|+4|
+NumberFormatApproxTests	28	1904	n	123456.789	|#######.####|e+|#|	|123456.789|e|+0|
+NumberFormatApproxTests	29	1904	n	123456.789	|#,######.####|e+|#|	|123,456.789|e|+0|
+NumberFormatApproxTests	30	1904	n	123456.789	|0|e+|0|	|1|e|+5|
+NumberFormatApproxTests	31	1904	n	123456.789	|0.0|e+|0|	|1.2|e|+5|
+NumberFormatApproxTests	32	1904	n	123456.789	|0000.0000|e+|0|	|0012.3457|e|+4|
+NumberFormatApproxTests	33	1904	n	123456.789	|0000000.0000|e+|0|	|0123456.7890|e|+0|
+NumberFormatApproxTests	34	1904	n	123456.789	|0,000000.0000|e+|0|	|0,123,456.7890|e|+0|
+NumberFormatApproxTests	35	1904	n	123456.789	|?|e+|?|	|1|e|+5|
+NumberFormatApproxTests	36	1904	n	123456.789	|?.?|e+|?|	|1.2|e|+5|
+NumberFormatApproxTests	37	1904	n	123456.789	|????.????|e+|?|	|  12.3457|e|+4|
+NumberFormatApproxTests	38	1904	n	123456.789	|???????.????|e+|?|	| 123456.789 |e|+0|
+NumberFormatApproxTests	39	1904	n	123456.789	|?,??????.????|e+|?|	|  123,456.789 |e|+0|
+NumberFormatApproxTests	40	1904	n	123456.789	|#.#|E-|#|	|1.2|E|5|
+NumberFormatApproxTests	41	1904	n	123456.789	|#.#|E+|#|	|1.2|E|+5|
+NumberFormatApproxTests	42	1904	n	1.23456789E-5	|#,e-#|	|1e-5|
+NumberFormatApproxTests	43	1904	n	1.23456789E-5	|#e-#,|	|1e-5|
+NumberFormatApproxTests	44	1904	n	1.23456789E-5	|#%e-#|	|1%e-5|
+NumberFormatApproxTests	45	1904	n	1.23456789E-5	|#e-#%|	|1e-5%|
+NumberFormatApproxTests	46	1904	n	1.23456789E-5	|#|e-|#|	|1|e|-5|
+NumberFormatApproxTests	47	1904	n	1.23456789E-5	|#.#|e-|#|	|1.2|e|-5|
+NumberFormatApproxTests	48	1904	n	1.23456789E-5	|####.####|e-|#|	|1234.5679|e|-8|
+NumberFormatApproxTests	49	1904	n	1.23456789E-5	|#######.####|e-|#|	|123.4568|e|-7|
+NumberFormatApproxTests	50	1904	n	1.23456789E-5	|#,######.####|e-|#|	|123.4568|e|-7|
+NumberFormatApproxTests	51	1904	n	1.23456789E-5	|0|e-|0|	|1|e|-5|
+NumberFormatApproxTests	52	1904	n	1.23456789E-5	|0.0|e-|0|	|1.2|e|-5|
+NumberFormatApproxTests	53	1904	n	1.23456789E-5	|0000.0000|e-|0|	|1234.5679|e|-8|
+NumberFormatApproxTests	54	1904	n	1.23456789E-5	|0000000.0000|e-|0|	|0000123.4568|e|-7|
+NumberFormatApproxTests	55	1904	n	1.23456789E-5	|0,000000.0000|e-|0|	|0,000,123.4568|e|-7|
+NumberFormatApproxTests	56	1904	n	1.23456789E-5	|?|e-|?|	|1|e|-5|
+NumberFormatApproxTests	57	1904	n	1.23456789E-5	|?.?|e-|?|	|1.2|e|-5|
+NumberFormatApproxTests	58	1904	n	1.23456789E-5	|????.????|e-|?|	|1234.5679|e|-8|
+NumberFormatApproxTests	59	1904	n	1.23456789E-5	|???????.????|e-|?|	|    123.4568|e|-7|
+NumberFormatApproxTests	60	1904	n	1.23456789E-5	|?,??????.????|e-|?|	|      123.4568|e|-7|
+NumberFormatApproxTests	61	1904	n	1.23456789E-5	|#,e+#|	|1e-5|
+NumberFormatApproxTests	62	1904	n	1.23456789E-5	|#e+#,|	|1e-5|
+NumberFormatApproxTests	63	1904	n	1.23456789E-5	|#%e+#|	|1%e-5|
+NumberFormatApproxTests	64	1904	n	1.23456789E-5	|#e+#%|	|1e-5%|
+NumberFormatApproxTests	65	1904	n	1.23456789E-5	|#|e+|#|	|1|e|-5|
+NumberFormatApproxTests	66	1904	n	1.23456789E-5	|#.#|e+|#|	|1.2|e|-5|
+NumberFormatApproxTests	67	1904	n	1.23456789E-4	|#.####|e+|#|	|1.2346|e|-4|
+NumberFormatApproxTests	68	1904	n	1.23456789E-4	|##.####|e+|#|	|1.2346|e|-4|
+NumberFormatApproxTests	69	1904	n	1.23456789E-4	|###.####|e+|#|	|123.4568|e|-6|
+NumberFormatApproxTests	70	1904	n	1.23456789E-4	|####.####|e+|#|	|1.2346|e|-4|
+NumberFormatApproxTests	71	1904	n	1.23456789E-4	|#####.####|e+|#|	|12.3457|e|-5|
+NumberFormatApproxTests	72	1904	n	1.23456789E-4	|#######.####|e+|#|	|1234.5679|e|-7|
+NumberFormatApproxTests	73	1904	n	1.23456789E-5	|#.####|e+|#|	|1.2346|e|-5|
+NumberFormatApproxTests	74	1904	n	1.23456789E-5	|##.####|e+|#|	|12.3457|e|-6|
+NumberFormatApproxTests	75	1904	n	1.23456789E-5	|###.####|e+|#|	|12.3457|e|-6|
+NumberFormatApproxTests	76	1904	n	1.23456789E-5	|####.####|e+|#|	|1234.5679|e|-8|
+NumberFormatApproxTests	77	1904	n	1.23456789E-5	|#####.####|e+|#|	|1.2346|e|-5|
+NumberFormatApproxTests	78	1904	n	1.23456789E-5	|#######.####|e+|#|	|123.4568|e|-7|
+NumberFormatApproxTests	79	1904	n	1.23456789E-6	|#.####|e+|#|	|1.2346|e|-6|
+NumberFormatApproxTests	80	1904	n	1.23456789E-6	|##.####|e+|#|	|1.2346|e|-6|
+NumberFormatApproxTests	81	1904	n	1.23456789E-6	|###.####|e+|#|	|1.2346|e|-6|
+NumberFormatApproxTests	82	1904	n	1.23456789E-6	|####.####|e+|#|	|123.4568|e|-8|
+NumberFormatApproxTests	83	1904	n	1.23456789E-6	|#####.####|e+|#|	|12345.6789|e|-10|
+NumberFormatApproxTests	84	1904	n	1.23456789E-6	|#######.####|e+|#|	|12.3457|e|-7|
+NumberFormatApproxTests	85	1904	n	1.23456789E-6	|#,######.####|e+|#|	|12.3457|e|-7|
+NumberFormatApproxTests	86	1904	n	1.23456789E-5	|0|e+|0|	|1|e|-5|
+NumberFormatApproxTests	87	1904	n	1.23456789E-5	|0.0|e+|0|	|1.2|e|-5|
+NumberFormatApproxTests	88	1904	n	1.23456789E-5	|0000.0000|e+|0|	|1234.5679|e|-8|
+NumberFormatApproxTests	89	1904	n	1.23456789E-5	|0000000.0000|e+|0|	|0000123.4568|e|-7|
+NumberFormatApproxTests	90	1904	n	1.23456789E-5	|0,000000.0000|e+|0|	|0,000,123.4568|e|-7|
+NumberFormatApproxTests	91	1904	n	1.23456789E-5	|?|e+|?|	|1|e|-5|
+NumberFormatApproxTests	92	1904	n	1.23456789E-5	|?.?|e+|?|	|1.2|e|-5|
+NumberFormatApproxTests	93	1904	n	1.23456789E-5	|????.????|e+|?|	|1234.5679|e|-8|
+NumberFormatApproxTests	94	1904	n	1.23456789E-5	|???????.????|e+|?|	|    123.4568|e|-7|
+NumberFormatApproxTests	95	1904	n	1.23456789E-5	|?,??????.????|e+|?|	|      123.4568|e|-7|
+NumberFormatApproxTests	96	1904	n	1.23456789E-5	|#.#|E-|#|	|1.2|E|-5|
+NumberFormatApproxTests	97	1904	n	1.23456789E-5	|#.#|E+|#|	|1.2|E|-5|
+NumberFormatApproxTests	98	1904	n	0	|#,e-#|	|0e0|
+NumberFormatApproxTests	99	1904	n	0	|#e-#,|	|0e0|
+NumberFormatApproxTests	100	1904	n	0	|#%e-#|	|0%e0|
+NumberFormatApproxTests	101	1904	n	0	|#e-#%|	|0e0%|
+NumberFormatApproxTests	102	1904	n	0	|#|e-|#|	|0|e|0|
+NumberFormatApproxTests	103	1904	n	0	|#.#|e-|#|	|0.|e|0|
+NumberFormatApproxTests	104	1904	n	0	|####.####|e-|#|	|0000.|e|0|
+NumberFormatApproxTests	105	1904	n	0	|#######.####|e-|#|	|0000000.|e|0|
+NumberFormatApproxTests	106	1904	n	0	|#,######.####|e-|#|	|0,000,000.|e|0|
+NumberFormatApproxTests	107	1904	n	0	|0|e-|0|	|0|e|0|
+NumberFormatApproxTests	108	1904	n	0	|0.0|e-|0|	|0.0|e|0|
+NumberFormatApproxTests	109	1904	n	0	|0000.0000|e-|0|	|0000.0000|e|0|
+NumberFormatApproxTests	110	1904	n	0	|0000000.0000|e-|0|	|0000000.0000|e|0|
+NumberFormatApproxTests	111	1904	n	0	|0,000000.0000|e-|0|	|0,000,000.0000|e|0|
+NumberFormatApproxTests	112	1904	n	0	|?|e-|?|	|0|e|0|
+NumberFormatApproxTests	113	1904	n	0	|?.?|e-|?|	|0. |e|0|
+NumberFormatApproxTests	114	1904	n	0	|????.????|e-|?|	|0000.    |e|0|
+NumberFormatApproxTests	115	1904	n	0	|???????.????|e-|?|	|0000000.    |e|0|
+NumberFormatApproxTests	116	1904	n	0	|?,??????.????|e-|?|	|0,000,000.    |e|0|
+NumberFormatApproxTests	117	1904	n	0	|#,e+#|	|0e+0|
+NumberFormatApproxTests	118	1904	n	0	|#e+#,|	|0e+0|
+NumberFormatApproxTests	119	1904	n	0	|#%e+#|	|0%e+0|
+NumberFormatApproxTests	120	1904	n	0	|#e+#%|	|0e+0%|
+NumberFormatApproxTests	121	1904	n	0	|#|e+|#|	|0|e|+0|
+NumberFormatApproxTests	122	1904	n	0	|#.#|e+|#|	|0.|e|+0|
+NumberFormatApproxTests	123	1904	n	0	|####.####|e+|#|	|0000.|e|+0|
+NumberFormatApproxTests	124	1904	n	0	|#######.####|e+|#|	|0000000.|e|+0|
+NumberFormatApproxTests	125	1904	n	0	|#,######.####|e+|#|	|0,000,000.|e|+0|
+NumberFormatApproxTests	126	1904	n	0	|0|e+|0|	|0|e|+0|
+NumberFormatApproxTests	127	1904	n	0	|0.0|e+|0|	|0.0|e|+0|
+NumberFormatApproxTests	128	1904	n	0	|0000.0000|e+|0|	|0000.0000|e|+0|
+NumberFormatApproxTests	129	1904	n	0	|0000000.0000|e+|0|	|0000000.0000|e|+0|
+NumberFormatApproxTests	130	1904	n	0	|0,000000.0000|e+|0|	|0,000,000.0000|e|+0|
+NumberFormatApproxTests	131	1904	n	0	|?|e+|?|	|0|e|+0|
+NumberFormatApproxTests	132	1904	n	0	|?.?|e+|?|	|0. |e|+0|
+NumberFormatApproxTests	133	1904	n	0	|????.????|e+|?|	|0000.    |e|+0|
+NumberFormatApproxTests	134	1904	n	0	|???????.????|e+|?|	|0000000.    |e|+0|
+NumberFormatApproxTests	135	1904	n	0	|?,??????.????|e+|?|	|0,000,000.    |e|+0|
+NumberFormatApproxTests	136	1904	n	0	|#.#|E-|#|	|0.|E|0|
+NumberFormatApproxTests	137	1904	n	0	|#.#|E+|#|	|0.|E|+0|
+NumberFormatApproxTests	138	1904	n	-123456.789	|#,e-#|	-|1e5|
+NumberFormatApproxTests	139	1904	n	-123456.789	|#e-#,|	-|1e5|
+NumberFormatApproxTests	140	1904	n	-123456.789	|#%e-#|	-|1%e5|
+NumberFormatApproxTests	141	1904	n	-123456.789	|#e-#%|	-|1e5%|
+NumberFormatApproxTests	142	1904	n	-123456.789	|#|e-|#|	-|1|e|5|
+NumberFormatApproxTests	143	1904	n	-123456.789	|#.#|e-|#|	-|1.2|e|5|
+NumberFormatApproxTests	144	1904	n	-123456.789	|####.####|e-|#|	-|12.3457|e|4|
+NumberFormatApproxTests	145	1904	n	-123456.789	|#######.####|e-|#|	-|123456.789|e|0|
+NumberFormatApproxTests	146	1904	n	-123456.789	|#,######.####|e-|#|	-|123,456.789|e|0|
+NumberFormatApproxTests	147	1904	n	-123456.789	|0|e-|0|	-|1|e|5|
+NumberFormatApproxTests	148	1904	n	-123456.789	|0.0|e-|0|	-|1.2|e|5|
+NumberFormatApproxTests	149	1904	n	-123456.789	|0000.0000|e-|0|	-|0012.3457|e|4|
+NumberFormatApproxTests	150	1904	n	-123456.789	|0000000.0000|e-|0|	-|0123456.7890|e|0|
+NumberFormatApproxTests	151	1904	n	-123456.789	|0,000000.0000|e-|0|	-|0,123,456.7890|e|0|
+NumberFormatApproxTests	152	1904	n	-123456.789	|?|e-|?|	-|1|e|5|
+NumberFormatApproxTests	153	1904	n	-123456.789	|?.?|e-|?|	-|1.2|e|5|
+NumberFormatApproxTests	154	1904	n	-123456.789	|????.????|e-|?|	-|  12.3457|e|4|
+NumberFormatApproxTests	155	1904	n	-123456.789	|???????.????|e-|?|	-| 123456.789 |e|0|
+NumberFormatApproxTests	156	1904	n	-123456.789	|?,??????.????|e-|?|	-|  123,456.789 |e|0|
+NumberFormatApproxTests	157	1904	n	-123456.789	|#,e+#|	-|1e+5|
+NumberFormatApproxTests	158	1904	n	-123456.789	|#e+#,|	-|1e+5|
+NumberFormatApproxTests	159	1904	n	-123456.789	|#%e+#|	-|1%e+5|
+NumberFormatApproxTests	160	1904	n	-123456.789	|#e+#%|	-|1e+5%|
+NumberFormatApproxTests	161	1904	n	-123456.789	|#|e+|#|	-|1|e|+5|
+NumberFormatApproxTests	162	1904	n	-123456.789	|#.#|e+|#|	-|1.2|e|+5|
+NumberFormatApproxTests	163	1904	n	-123456.789	|####.####|e+|#|	-|12.3457|e|+4|
+NumberFormatApproxTests	164	1904	n	-123456.789	|#######.####|e+|#|	-|123456.789|e|+0|
+NumberFormatApproxTests	165	1904	n	-123456.789	|#,######.####|e+|#|	-|123,456.789|e|+0|
+NumberFormatApproxTests	166	1904	n	-123456.789	|0|e+|0|	-|1|e|+5|
+NumberFormatApproxTests	167	1904	n	-123456.789	|0.0|e+|0|	-|1.2|e|+5|
+NumberFormatApproxTests	168	1904	n	-123456.789	|0000.0000|e+|0|	-|0012.3457|e|+4|
+NumberFormatApproxTests	169	1904	n	-123456.789	|0000000.0000|e+|0|	-|0123456.7890|e|+0|
+NumberFormatApproxTests	170	1904	n	-123456.789	|0,000000.0000|e+|0|	-|0,123,456.7890|e|+0|
+NumberFormatApproxTests	171	1904	n	-123456.789	|?|e+|?|	-|1|e|+5|
+NumberFormatApproxTests	172	1904	n	-123456.789	|?.?|e+|?|	-|1.2|e|+5|
+NumberFormatApproxTests	173	1904	n	-123456.789	|????.????|e+|?|	-|  12.3457|e|+4|
+NumberFormatApproxTests	174	1904	n	-123456.789	|???????.????|e+|?|	-| 123456.789 |e|+0|
+NumberFormatApproxTests	175	1904	n	-123456.789	|?,??????.????|e+|?|	-|  123,456.789 |e|+0|
+NumberFormatApproxTests	176	1904	n	-123456.789	|#.#|E-|#|	-|1.2|E|5|
+NumberFormatApproxTests	177	1904	n	-123456.789	|#.#|E+|#|	-|1.2|E|+5|
+NumberFormatApproxTests	178	1904	n	-1.23456789E-5	|#,e-#|	-|1e-5|
+NumberFormatApproxTests	179	1904	n	-1.23456789E-5	|#e-#,|	-|1e-5|
+NumberFormatApproxTests	180	1904	n	-1.23456789E-5	|#%e-#|	-|1%e-5|
+NumberFormatApproxTests	181	1904	n	-1.23456789E-5	|#e-#%|	-|1e-5%|
+NumberFormatApproxTests	182	1904	n	-1.23456789E-5	|#|e-|#|	-|1|e|-5|
+NumberFormatApproxTests	183	1904	n	-1.23456789E-5	|#.#|e-|#|	-|1.2|e|-5|
+NumberFormatApproxTests	184	1904	n	-1.23456789E-5	|####.####|e-|#|	-|1234.5679|e|-8|
+NumberFormatApproxTests	185	1904	n	-1.23456789E-5	|#######.####|e-|#|	-|123.4568|e|-7|
+NumberFormatApproxTests	186	1904	n	-1.23456789E-5	|#,######.####|e-|#|	-|123.4568|e|-7|
+NumberFormatApproxTests	187	1904	n	-1.23456789E-5	|0|e-|0|	-|1|e|-5|
+NumberFormatApproxTests	188	1904	n	-1.23456789E-5	|0.0|e-|0|	-|1.2|e|-5|
+NumberFormatApproxTests	189	1904	n	-1.23456789E-5	|0000.0000|e-|0|	-|1234.5679|e|-8|
+NumberFormatApproxTests	190	1904	n	-1.23456789E-5	|0000000.0000|e-|0|	-|0000123.4568|e|-7|
+NumberFormatApproxTests	191	1904	n	-1.23456789E-5	|0,000000.0000|e-|0|	-|0,000,123.4568|e|-7|
+NumberFormatApproxTests	192	1904	n	-1.23456789E-5	|?|e-|?|	-|1|e|-5|
+NumberFormatApproxTests	193	1904	n	-1.23456789E-5	|?.?|e-|?|	-|1.2|e|-5|
+NumberFormatApproxTests	194	1904	n	-1.23456789E-5	|????.????|e-|?|	-|1234.5679|e|-8|
+NumberFormatApproxTests	195	1904	n	-1.23456789E-5	|???????.????|e-|?|	-|    123.4568|e|-7|
+NumberFormatApproxTests	196	1904	n	-1.23456789E-5	|?,??????.????|e-|?|	-|      123.4568|e|-7|
+NumberFormatApproxTests	197	1904	n	-1.23456789E-5	|#,e+#|	-|1e-5|
+NumberFormatApproxTests	198	1904	n	-1.23456789E-5	|#e+#,|	-|1e-5|
+NumberFormatApproxTests	199	1904	n	-1.23456789E-5	|#%e+#|	-|1%e-5|
+NumberFormatApproxTests	200	1904	n	-1.23456789E-5	|#e+#%|	-|1e-5%|
+NumberFormatApproxTests	201	1904	n	-1.23456789E-5	|#|e+|#|	-|1|e|-5|
+NumberFormatApproxTests	202	1904	n	-1.23456789E-5	|#.#|e+|#|	-|1.2|e|-5|
+NumberFormatApproxTests	203	1904	n	-1.23456789E-5	|####.####|e+|#|	-|1234.5679|e|-8|
+NumberFormatApproxTests	204	1904	n	-1.23456789E-5	|#######.####|e+|#|	-|123.4568|e|-7|
+NumberFormatApproxTests	205	1904	n	-1.23456789E-5	|#,######.####|e+|#|	-|123.4568|e|-7|
+NumberFormatApproxTests	206	1904	n	-1.23456789E-5	|0|e+|0|	-|1|e|-5|
+NumberFormatApproxTests	207	1904	n	-1.23456789E-5	|0.0|e+|0|	-|1.2|e|-5|
+NumberFormatApproxTests	208	1904	n	-1.23456789E-5	|0000.0000|e+|0|	-|1234.5679|e|-8|
+NumberFormatApproxTests	209	1904	n	-1.23456789E-5	|0000000.0000|e+|0|	-|0000123.4568|e|-7|
+NumberFormatApproxTests	210	1904	n	-1.23456789E-5	|0,000000.0000|e+|0|	-|0,000,123.4568|e|-7|
+NumberFormatApproxTests	211	1904	n	-1.23456789E-5	|?|e+|?|	-|1|e|-5|
+NumberFormatApproxTests	212	1904	n	-1.23456789E-5	|?.?|e+|?|	-|1.2|e|-5|
+NumberFormatApproxTests	213	1904	n	-1.23456789E-5	|????.????|e+|?|	-|1234.5679|e|-8|
+NumberFormatApproxTests	214	1904	n	-1.23456789E-5	|???????.????|e+|?|	-|    123.4568|e|-7|
+NumberFormatApproxTests	215	1904	n	-1.23456789E-5	|?,??????.????|e+|?|	-|      123.4568|e|-7|
+NumberFormatApproxTests	216	1904	n	-1.23456789E-5	|#.#|E-|#|	-|1.2|E|-5|
+NumberFormatApproxTests	217	1904	n	-1.23456789E-5	|#.#|E+|#|	-|1.2|E|-5|
+NumberFormatApproxTests	218	1904	n	1.2345678000000001E+142	|#.#|e+|#|	|1.2|e|+142|
+NumberFormatApproxTests	219	1904	n	1.2345678000000001E+142	|#.#|e+|#####|	|1.2|e|+142|
+NumberFormatApproxTests	220	1904	n	1.2345678000000001E+142	|#.#|e+|0|	|1.2|e|+142|
+NumberFormatApproxTests	221	1904	n	1.2345678000000001E+142	|#.#|e+|000|	|1.2|e|+142|
+NumberFormatApproxTests	222	1904	n	1.2345678000000001E+142	|#.#|e+|0000|	|1.2|e|+0142|
+NumberFormatApproxTests	223	1904	n	1.2345678000000001E+142	|#.#|e+|00000|	|1.2|e|+00142|
+NumberFormatApproxTests	224	1904	n	1.2345678000000001E+142	|#.#|e+|?|	|1.2|e|+142|
+NumberFormatApproxTests	225	1904	n	1.2345678000000001E+142	|#.#|e+|???|	|1.2|e|+142|
+NumberFormatApproxTests	226	1904	n	1.2345678000000001E+142	|#.#|e+|????|	|1.2|e|+ 142|
+NumberFormatApproxTests	227	1904	n	1.2345678000000001E+142	|#.#|e+|?????|	|1.2|e|+  142|
+NumberFormatApproxTests	228	1904	n	0	|#.#|e+|#|	|0.|e|+0|
+NumberFormatApproxTests	229	1904	n	0	|#.#|e+|#####|	|0.|e|+0|
+NumberFormatApproxTests	230	1904	n	0	|#.#|e+|0|	|0.|e|+0|
+NumberFormatApproxTests	231	1904	n	0	|#.#|e+|000|	|0.|e|+000|
+NumberFormatApproxTests	232	1904	n	0	|#.#|e+|0000|	|0.|e|+0000|
+NumberFormatApproxTests	233	1904	n	0	|#.#|e+|00000|	|0.|e|+00000|
+NumberFormatApproxTests	234	1904	n	0	|#.#|e+|?|	|0.|e|+0|
+NumberFormatApproxTests	235	1904	n	0	|#.#|e+|???|	|0.|e|+  0|
+NumberFormatApproxTests	236	1904	n	0	|#.#|e+|????|	|0.|e|+   0|
+NumberFormatApproxTests	237	1904	n	0	|#.#|e+|?????|	|0.|e|+    0|
+NumberFormatApproxTests	238	1904	n	1.2345678000000001E-142	|#.#|e+|#|	|1.2|e|-142|
+NumberFormatApproxTests	239	1904	n	1.2345678000000001E-142	|#.#|e+|#####|	|1.2|e|-142|
+NumberFormatApproxTests	240	1904	n	1.2345678000000001E-142	|#.#|e+|0|	|1.2|e|-142|
+NumberFormatApproxTests	241	1904	n	1.2345678000000001E-142	|#.#|e+|000|	|1.2|e|-142|
+NumberFormatApproxTests	242	1904	n	1.2345678000000001E-142	|#.#|e+|0000|	|1.2|e|-0142|
+NumberFormatApproxTests	243	1904	n	1.2345678000000001E-142	|#.#|e+|00000|	|1.2|e|-00142|
+NumberFormatApproxTests	244	1904	n	1.2345678000000001E-142	|#.#|e+|000,00|	|1.2|e|-00142|
+NumberFormatApproxTests	245	1904	n	1.2345678000000001E-142	|#.#|e+|?|	|1.2|e|-142|
+NumberFormatApproxTests	246	1904	n	1.2345678000000001E-142	|#.#|e+|???|	|1.2|e|-142|
+NumberFormatApproxTests	247	1904	n	1.2345678000000001E-142	|#.#|e+|????|	|1.2|e|- 142|
+NumberFormatApproxTests	248	1904	n	1.2345678000000001E-142	|#.#|e+|?????|	|1.2|e|-  142|
+NumberFormatApproxTests	250	1904	n	3.1415899999999999	#,##0.00e+00	3.14e+00
+ElapsedFormatTests	2	1904	n	3.1415899999999999	[h]:m:s.000	75:23:53.376
+ElapsedFormatTests	3	1904	n	3.1415899999999999	[m]:s.000	4523:53.376
+ElapsedFormatTests	4	1904	n	3.1415899999999999	[s].000	271433.376
+ElapsedFormatTests	5	1904	n	3.1415899999999999	[hh]:mm:ss.0	75:23:53.4
+ElapsedFormatTests	6	1904	n	3.1415899999999999	[mm]:ss.0	4523:53.4
+ElapsedFormatTests	7	1904	n	3.1415899999999999	[ss].000	271433.376
+ElapsedFormatTests	8	1904	n	3.1415899999999999	s:m" @ hour "[hh]	53:23 @ hour 75
+ElapsedFormatTests	9	1904	n	3.1415899999999999	s" secs and "[m]" mins"	53 secs and 4523 mins
+ElapsedFormatTests	10	1904	n	3.1415899999999999	"It was "[h]" [yes, "h"] hours and "mm:ss	It was 75 [yes, 75] hours and 23:53
+ElapsedFormatTests	11	1904	n	3.1415899999999999	[s]" [yes, "ss"] seconds"	271433 [yes, 271433] seconds
+ElapsedFormatTests	12	1904	n	8.5462962962962963E-2	[h]:m:s.000	2:3:4.000
+ElapsedFormatTests	13	1904	n	8.5462962962962963E-2	[m]:s.000	123:4.000
+ElapsedFormatTests	14	1904	n	8.5462962962962963E-2	[s].000	7384.000
+ElapsedFormatTests	15	1904	n	8.5462962962962963E-2	[hh]:mm:ss.0	02:03:04.0
+ElapsedFormatTests	16	1904	n	8.5462962962962963E-2	[mm]:ss.0	123:04.0
+ElapsedFormatTests	17	1904	n	8.5462962962962963E-2	[ss].000	7384.000
+ElapsedFormatTests	18	1904	n	8.5462962962962963E-2	s:m" @ hour "[hh]	4:3 @ hour 02
+ElapsedFormatTests	19	1904	n	8.5462962962962963E-2	s" secs and "[m]" mins"	4 secs and 123 mins
+ElapsedFormatTests	20	1904	n	8.5462962962962963E-2	"It was "[h]" [yes, "h"] hours and "mm:ss	It was 2 [yes, 2] hours and 03:04
+ElapsedFormatTests	21	1904	n	8.5462962962962963E-2	[s]" [yes, "ss"] seconds"	7384 [yes, 7384] seconds
+ElapsedFormatTests	22	1904	n	0	[h]:m:s.000	0:0:0.000
+ElapsedFormatTests	23	1904	n	0	[m]:s.000	0:0.000
+ElapsedFormatTests	24	1904	n	0	[s].000	0.000
+ElapsedFormatTests	25	1904	n	0	[hh]:mm:ss.0	00:00:00.0
+ElapsedFormatTests	26	1904	n	0	[mm]:ss.0	00:00.0
+ElapsedFormatTests	27	1904	n	0	[ss].000	00.000
+ElapsedFormatTests	28	1904	n	0	s:m" @ hour "[hh]	0:0 @ hour 00
+ElapsedFormatTests	29	1904	n	0	s" secs and "[m]" mins"	0 secs and 0 mins
+ElapsedFormatTests	30	1904	n	0	"It was "[h]" [yes, "h"] hours and "mm:ss	It was 0 [yes, 0] hours and 00:00
+ElapsedFormatTests	31	1904	n	0	[s]" [yes, "ss"] seconds"	0 [yes, 00] seconds
+ElapsedFormatTests	32	1904	n	-8.5462962962962963E-2	[h]:m:s.000	-2:3:4.000
+ElapsedFormatTests	33	1904	n	-8.5462962962962963E-2	[m]:s.000	-123:4.000
+ElapsedFormatTests	34	1904	n	-8.5462962962962963E-2	[s].000	-7384.000
+ElapsedFormatTests	35	1904	n	-8.5462962962962963E-2	[hh]:mm:ss.0	-02:03:04.0
+ElapsedFormatTests	36	1904	n	-8.5462962962962963E-2	[mm]:ss.0	-123:04.0
+ElapsedFormatTests	37	1904	n	-8.5462962962962963E-2	[ss].000	-7384.000
+ElapsedFormatTests	38	1904	n	-8.5462962962962963E-2	s:m" @ hour "[hh]	-4:3 @ hour 02
+ElapsedFormatTests	39	1904	n	-8.5462962962962963E-2	s" secs and "[m]" mins"	-4 secs and 123 mins
+ElapsedFormatTests	40	1904	n	-8.5462962962962963E-2	"It was "[h]" [yes, "h"] hours and "mm:ss	-It was 2 [yes, 2] hours and 03:04
+ElapsedFormatTests	41	1904	n	-8.5462962962962963E-2	[s]" [yes, "ss"] seconds"	-7384 [yes, 7384] seconds
+ElapsedFormatTests	42	1904	n	-3.1415899999999999	[h]:m:s.000	-75:23:53.376
+ElapsedFormatTests	43	1904	n	-3.1415899999999999	[m]:s.000	-4523:53.376
+ElapsedFormatTests	44	1904	n	-3.1415899999999999	[s].000	-271433.376
+ElapsedFormatTests	45	1904	n	-3.1415899999999999	[hh]:mm:ss.0	-75:23:53.4
+ElapsedFormatTests	46	1904	n	-3.1415899999999999	[mm]:ss.0	-4523:53.4
+ElapsedFormatTests	47	1904	n	-3.1415899999999999	[ss].000	-271433.376
+ElapsedFormatTests	48	1904	n	-3.1415899999999999	s:m" @ hour "[hh]	-53:23 @ hour 75
+ElapsedFormatTests	49	1904	n	-3.1415899999999999	s" secs and "[m]" mins"	-53 secs and 4523 mins
+ElapsedFormatTests	50	1904	n	-3.1415899999999999	"It was "[h]" [yes, "h"] hours and "mm:ss	-It was 75 [yes, 75] hours and 23:53
+ElapsedFormatTests	51	1904	n	-3.1415899999999999	[s]" [yes, "ss"] seconds"	-271433 [yes, 271433] seconds
+FormatChoiceTests	2	1904	n	1.5	[<10]#" Wow"	2 Wow
+FormatChoiceTests	3	1904	n	10	[<10]#" Wow"	10
+FormatChoiceTests	4	1904	n	11	[<10]#" Wow"	11
+FormatChoiceTests	5	1904	n	10	[>10]#" Big"	10
+FormatChoiceTests	6	1904	n	11	[>10]#" Big"	11 Big
+FormatChoiceTests	7	1904	n	12	[>10]#" Big"	12 Big
+FormatChoiceTests	8	1904	n	1	[<=10]#" Wow"	1 Wow
+FormatChoiceTests	9	1904	n	10	[<=10]#" Wow"	10 Wow
+FormatChoiceTests	10	1904	n	11	[<=10]#" Wow"	11
+FormatChoiceTests	11	1904	n	10	[>=10]#" Big"	10 Big
+FormatChoiceTests	12	1904	n	11	[>=10]#" Big"	11 Big
+FormatChoiceTests	13	1904	n	12	[>=10]#" Big"	12 Big
+FormatChoiceTests	14	1904	n	1	[=10]#" Wow"	1
+FormatChoiceTests	15	1904	n	10	[=10]#" Wow"	10 Wow
+FormatChoiceTests	16	1904	n	11	[=10]#" Wow"	11
+FormatChoiceTests	17	1904	n	1	[<>10]#" Wow"	1 Wow
+FormatChoiceTests	18	1904	n	10	[<>10]#" Wow"	10
+FormatChoiceTests	19	1904	n	11	[<>10]#" Wow"	11 Wow
+FormatChoiceTests	21	1904	n	1	[<10]#" Wow"	1 Wow
+FormatChoiceTests	22	1904	n	10	[<10]#" Wow"	10
+FormatChoiceTests	23	1904	n	1	[< 10]#" Wow"	1 Wow
+FormatChoiceTests	24	1904	n	10	[< 10]#" Wow"	10
+FormatChoiceTests	25	1904	n	1	[<      10]#" Wow"	1 Wow
+FormatChoiceTests	26	1904	n	10	[<      10]#" Wow"	10
+FormatConditionTests	2	1904	n	1	[<10]#" Wow"	1 Wow
+FormatConditionTests	3	1904	n	10	[<10]#" Wow"	10
+FormatConditionTests	4	1904	n	11	[<10]#" Wow"	11
+FormatConditionTests	5	1904	n	10	[>10]#" Big"	10
+FormatConditionTests	6	1904	n	11	[>10]#" Big"	11 Big
+FormatConditionTests	7	1904	n	12	[>10]#" Big"	12 Big
+FormatConditionTests	8	1904	n	1	[<=10]#" Wow"	1 Wow
+FormatConditionTests	9	1904	n	10	[<=10]#" Wow"	10 Wow
+FormatConditionTests	10	1904	n	11	[<=10]#" Wow"	11
+FormatConditionTests	11	1904	n	10	[>=10]#" Big"	10 Big
+FormatConditionTests	12	1904	n	11	[>=10]#" Big"	11 Big
+FormatConditionTests	13	1904	n	12	[>=10]#" Big"	12 Big
+FormatConditionTests	14	1904	n	1	[=10]#" Wow"	1
+FormatConditionTests	15	1904	n	10	[=10]#" Wow"	10 Wow
+FormatConditionTests	16	1904	n	11	[=10]#" Wow"	11
+FormatConditionTests	17	1904	n	1	[<>10]#" Wow"	1 Wow
+FormatConditionTests	18	1904	n	10	[<>10]#" Wow"	10
+FormatConditionTests	19	1904	n	11	[<>10]#" Wow"	11 Wow
+FormatConditionTests	24	1904	n	-9	[>-10]#" Big"	-9 Big
+FormatConditionTests	25	1904	n	-8	[>-10]#" Big"	-8 Big
+FormatConditionTests	29	1904	n	-10	[>=-10]#" Big"	-10 Big
+FormatConditionTests	30	1904	n	-9	[>=-10]#" Big"	-9 Big
+FormatConditionTests	31	1904	n	-8	[>=-10]#" Big"	-8 Big
+FormatConditionTests	32	1904	n	-11	[=-10]#" Wow"	-11
+FormatConditionTests	34	1904	n	-9	[=-10]#" Wow"	-9
+FormatConditionTests	35	1904	n	-11	[<>-10]#" Wow"	-11 Wow
+FormatConditionTests	37	1904	n	-9	[<>-10]#" Wow"	-9 Wow
+FormatConditionTests	39	1904	n	1	[<10]#" Wow"	1 Wow
+FormatConditionTests	40	1904	n	10	[<10]#" Wow"	10
+FormatConditionTests	41	1904	n	1	[< 10]#" Wow"	1 Wow
+FormatConditionTests	42	1904	n	10	[< 10]#" Wow"	10
+FormatConditionTests	43	1904	n	1	[<      10]#" Wow"	1 Wow
+FormatConditionTests	44	1904	n	10	[<      10]#" Wow"	10
+DateFormatTests	2	1904	n	17816.607951388887	d-m-y	11-10-52
+DateFormatTests	3	1904	n	17816.607951388887	dd-mm-yy	11-10-52
+DateFormatTests	4	1904	n	17816.607951388887	ddd-mmm-yyy	Sat-Oct-1952
+DateFormatTests	5	1904	n	17816.607951388887	dddd-mmmm-yyyy	Saturday-October-1952
+DateFormatTests	6	1904	n	17816.607951388887	D-M-Y	11-10-52
+DateFormatTests	7	1904	n	17816.607951388887	DD-MM-YY	11-10-52
+DateFormatTests	8	1904	n	17816.607951388887	DDD-MMM-YYY	Sat-Oct-1952
+DateFormatTests	9	1904	n	17816.607951388887	DDDD-MMMM-YYYY	Saturday-October-1952
+DateFormatTests	10	1904	n	17816.607951388887	h:m:s	14:35:27
+DateFormatTests	11	1904	n	17816.607951388887	hh:mm:ss a/p	02:35:27 p
+DateFormatTests	12	1904	n	17816.607951388887	h:m:s.000 A/P	2:35:27.000 P
+DateFormatTests	13	1904	n	17816.607951388887	hh:mm:ss.000 am/pm	02:35:27.000 PM
+DateFormatTests	14	1904	n	17816.607951388887	d-m-y h:m:s	11-10-52 14:35:27
+DateFormatTests	15	1904	n	17816.607951388887	H:M:S	14:35:27
+DateFormatTests	16	1904	n	17816.607951388887	HH:MM:SS A/P	02:35:27 P
+DateFormatTests	17	1904	n	17816.607951388887	H:M:S.00 a/p	2:35:27.00 p
+DateFormatTests	18	1904	n	17816.607951388887	HH:MM:SS.000 AM/PM	02:35:27.000 PM
+DateFormatTests	19	1904	n	17816.607951388887	d-m-y h:m:s	11-10-52 14:35:27
+DateFormatTests	20	1904	n	17816.607951388887	dddd-mmmm-yyyy H:M:S am/pm	Saturday-October-1952 2:35:27 PM
+DateFormatTests	21	1904	n	36191.170208437499	d-m-y	1-2-03
+DateFormatTests	22	1904	n	36191.170208437499	dd-mm-yy	01-02-03
+DateFormatTests	23	1904	n	36191.170208437499	ddd-mmm-yyy	Sat-Feb-2003
+DateFormatTests	24	1904	n	36191.170208437499	dddd-mmmm-yyyy	Saturday-February-2003
+DateFormatTests	25	1904	n	36191.170208437499	D-M-Y	1-2-03
+DateFormatTests	26	1904	n	36191.170208437499	DD-MM-YY	01-02-03
+DateFormatTests	27	1904	n	36191.170208437499	DDD-MMM-YYY	Sat-Feb-2003
+DateFormatTests	28	1904	n	36191.170208437499	DDDD-MMMM-YYYY	Saturday-February-2003
+DateFormatTests	29	1904	n	36191.170208437499	h:m:s	4:5:6
+DateFormatTests	30	1904	n	36191.170208437499	hh:mm:ss a/p	04:05:06 a
+DateFormatTests	31	1904	n	36191.170208437499	h:m:s.00 A/P	4:5:6.01 A
+DateFormatTests	32	1904	n	36191.170208437499	hh:mm:ss.000 am/pm	04:05:06.009 AM
+DateFormatTests	33	1904	n	36191.170208437499	d-m-y h:m:s	1-2-03 4:5:6
+DateFormatTests	34	1904	n	36191.170208437499	H:M:S	4:5:6
+DateFormatTests	35	1904	n	36191.170208437499	HH:MM:SS A/P	04:05:06 A
+DateFormatTests	36	1904	n	36191.170208437499	H:M:S.00 a/p	4:5:6.01 a
+DateFormatTests	37	1904	n	36191.170208437499	HH:MM:SS.000 AM/PM	04:05:06.009 AM
+DateFormatTests	38	1904	n	36191.170208437499	d-m-y h:m:s	1-2-03 4:5:6
+DateFormatTests	39	1904	n	36191.170208437499	dddd-mmmm-yyyy H:M:S am/pm	Saturday-February-2003 4:5:6 AM
+DateFormatTests	40	1904	n	36191.170208437499	h:m:s.00	4:5:6.01
+DateFormatTests	41	1904	n	44196	dd-mm-yyyy	01-01-2025
+DateFormatTests	42	1904	n	17816.607951388887	h:m	14:35
+DateFormatTests	43	1904	n	17816.607951388887	d \\d\\a\\y\\s h	11 days 14
+DateFormatTests	44	1904	n	17816.607951388887	d "days" h	11 days 14
+DateFormatTests	45	1904	n	17816.607951388887	d \\d\\a\\y\\s h a/p	11 days 2 p
+DateFormatTests	46	1904	n	17816.607951388887	d "days" h am/pm	11 days 2 PM
+DateFormatNumberTests	2	1904	n	1	yyyy-mm-dd hh:mm:ss.000	1904-01-02 00:00:00.000
+DateFormatNumberTests	3	1904	n	1.5	yyyy-mm-dd hh:mm:ss.000	1904-01-02 12:00:00.000
+DateFormatNumberTests	4	1904	n	1.0032134017094001	yyyy-mm-dd hh:mm:ss.000	1904-01-02 00:04:37.638
+DateFormatNumberTests	5	1904	n	1.0032134017094001	yyyy-mm-dd hh:mm:ss.00	1904-01-02 00:04:37.64
+DateFormatNumberTests	6	1904	n	1.0032134017094001	yyyy-mm-dd hh:mm:ss.0	1904-01-02 00:04:37.6
+DateFormatNumberTests	7	1904	n	1.0032134017094001	yyyy-mm-dd hh:mm:ss	1904-01-02 00:04:38
+DateFormatNumberTests	8	1904	n	1.0000047870370301	yyyy-mm-dd hh:mm:ss.000	1904-01-02 00:00:00.414
+DateFormatNumberTests	9	1904	n	1.0000047870370301	yyyy-mm-dd hh:mm:ss.00	1904-01-02 00:00:00.41
+DateFormatNumberTests	10	1904	n	1.0000047870370301	yyyy-mm-dd hh:mm:ss.0	1904-01-02 00:00:00.4
+DateFormatNumberTests	11	1904	n	1.0000047870370301	yyyy-mm-dd hh:mm:ss	1904-01-02 00:00:00
+GeneralFormatTests	2	1904	n	1	General	1
+GeneralFormatTests	3	1904	n	12	General	12
+GeneralFormatTests	4	1904	n	123	General	123
+GeneralFormatTests	5	1904	n	1234	General	1234
+GeneralFormatTests	6	1904	n	12345	General	12345
+GeneralFormatTests	7	1904	n	1	General	1
+GeneralFormatTests	8	1904	n	1.2	General	1.2
+GeneralFormatTests	9	1904	n	1.23	General	1.23
+GeneralFormatTests	10	1904	n	1.234	General	1.234
+GeneralFormatTests	11	1904	n	1.2345678899999999	General	1.23456789
+GeneralFormatTests	12	1904	n	1.234567891	General	1.234567891
+GeneralFormatTests	13	1904	n	1.2345678912	General	1.234567891
+GeneralFormatTests	14	1904	n	1.2345678919	General	1.234567892
+GeneralFormatTests	15	1904	n	1	General	1
+GeneralFormatTests	16	1904	n	10	General	10
+GeneralFormatTests	17	1904	n	10000000000	General	10000000000
+GeneralFormatTests	18	1904	n	100000000000	General	1E+11
+GeneralFormatTests	19	1904	n	110000000000	General	1.1E+11
+GeneralFormatTests	20	1904	n	112000000000	General	1.12E+11
+GeneralFormatTests	21	1904	n	112300000000	General	1.123E+11
+GeneralFormatTests	22	1904	n	112345000000	General	1.12345E+11
+GeneralFormatTests	23	1904	n	112345100000	General	1.12345E+11
+GeneralFormatTests	24	1904	n	112345900000	General	1.12346E+11
+GeneralFormatTests	25	1904	n	0.1	General	0.1
+GeneralFormatTests	26	1904	n	0.01	General	0.01
+GeneralFormatTests	27	1904	n	1.0000000000000001E-9	General	0.000000001
+GeneralFormatTests	28	1904	n	1E-10	General	1E-10
+GeneralFormatTests	29	1904	n	1.0999999999999999E-10	General	1.1E-10
+GeneralFormatTests	30	1904	n	1.12E-10	General	1.12E-10
+GeneralFormatTests	31	1904	n	1.123E-10	General	1.123E-10
+GeneralFormatTests	32	1904	n	1.12345E-10	General	1.12345E-10
+GeneralFormatTests	33	1904	n	1.1234509999999999E-10	General	1.12345E-10
+GeneralFormatTests	34	1904	n	1.123459E-10	General	1.12346E-10
+GeneralFormatTests	35	1904	n	0	General	0
+GeneralFormatTests	36	1904	n	-1	General	-1
+GeneralFormatTests	37	1904	n	-12	General	-12
+GeneralFormatTests	38	1904	n	-123	General	-123
+GeneralFormatTests	39	1904	n	-1234	General	-1234
+GeneralFormatTests	40	1904	n	-12345	General	-12345
+GeneralFormatTests	41	1904	n	-1	General	-1
+GeneralFormatTests	42	1904	n	-1.2	General	-1.2
+GeneralFormatTests	43	1904	n	-1.23	General	-1.23
+GeneralFormatTests	44	1904	n	-1.234	General	-1.234
+GeneralFormatTests	45	1904	n	-1.2345678899999999	General	-1.23456789
+GeneralFormatTests	46	1904	n	-1.234567891	General	-1.234567891
+GeneralFormatTests	47	1904	n	-1.2345678912	General	-1.234567891
+GeneralFormatTests	48	1904	n	-1.2345678919	General	-1.234567892
+GeneralFormatTests	49	1904	n	-1	General	-1
+GeneralFormatTests	50	1904	n	10	General	10
+GeneralFormatTests	51	1904	n	-10000000000	General	-10000000000
+GeneralFormatTests	52	1904	n	-100000000000	General	-1E+11
+GeneralFormatTests	53	1904	n	-110000000000	General	-1.1E+11
+GeneralFormatTests	54	1904	n	-112000000000	General	-1.12E+11
+GeneralFormatTests	55	1904	n	-112300000000	General	-1.123E+11
+GeneralFormatTests	56	1904	n	-112345000000	General	-1.12345E+11
+GeneralFormatTests	57	1904	n	-112345100000	General	-1.12345E+11
+GeneralFormatTests	58	1904	n	-112345900000	General	-1.12346E+11
+GeneralFormatTests	59	1904	n	-0.1	General	-0.1
+GeneralFormatTests	60	1904	n	-0.01	General	-0.01
+GeneralFormatTests	61	1904	n	-1.0000000000000001E-9	General	-0.000000001
+GeneralFormatTests	62	1904	n	-1E-10	General	-1E-10
+GeneralFormatTests	63	1904	n	-1.0999999999999999E-10	General	-1.1E-10
+GeneralFormatTests	64	1904	n	-1.12E-10	General	-1.12E-10
+GeneralFormatTests	65	1904	n	-1.123E-10	General	-1.123E-10
+GeneralFormatTests	66	1904	n	-1.12345E-10	General	-1.12345E-10
+GeneralFormatTests	67	1904	n	-1.1234509999999999E-10	General	-1.12345E-10
+GeneralFormatTests	68	1904	n	-1.123459E-10	General	-1.12346E-10
+GeneralFormatTests	70	1904	s	hello	General	hello
+GeneralFormatTests	72	1904	b	1	General	TRUE
+GeneralFormatTests	73	1904	b	0	General	FALSE

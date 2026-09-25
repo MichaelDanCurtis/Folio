@@ -41,3 +41,7 @@ path = "src/lib.rs"
 version = "1"
 
 [dev-dependencies]
+
+[[test]]
+name = "text_format_cases"
+path = "tests/text_format_cases.rs"
