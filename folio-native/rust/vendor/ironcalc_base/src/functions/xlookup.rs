@@ -144,6 +144,48 @@ impl<'a> Model<'a> {
     ///      in ascending order. If not sorted, invalid results will be returned.
     ///   * -2 - Perform a binary search that relies on lookup_array being sorted
     ///     in descending order. If not sorted, invalid results will be returned.
+    /// FOLIO PATCH: the match at `index` of the return array: one cell, or
+    /// the matching row (lookup down rows) or column (lookup across columns)
+    /// of a wider return array, as a range.
+    fn xlookup_result(
+        &mut self,
+        result_left: CellReferenceIndex,
+        result_right: CellReferenceIndex,
+        is_row_vector: bool,
+        index: i32,
+    ) -> CalcResult {
+        // `is_row_vector` means the lookup runs down rows: return a row.
+        let (left, right) = if !is_row_vector {
+            let column = result_left.column + index;
+            (
+                CellReferenceIndex {
+                    column,
+                    ..result_left
+                },
+                CellReferenceIndex {
+                    sheet: result_left.sheet,
+                    row: result_right.row,
+                    column,
+                },
+            )
+        } else {
+            let row = result_left.row + index;
+            (
+                CellReferenceIndex { row, ..result_left },
+                CellReferenceIndex {
+                    sheet: result_left.sheet,
+                    row,
+                    column: result_right.column,
+                },
+            )
+        };
+        if left == right {
+            self.evaluate_cell(left)
+        } else {
+            CalcResult::Range { left, right }
+        }
+    }
+
     pub(crate) fn fn_xlookup(&mut self, args: &[Node], cell: CellReferenceIndex) -> CalcResult {
         if args.len() < 3 || args.len() > 6 {
             return CalcResult::new_args_number_error(cell);
@@ -235,10 +277,18 @@ impl<'a> Model<'a> {
                         left: result_left,
                         right: result_right,
                     } => {
-                        if result_right.row - result_left.row != right.row - left.row
-                            || result_right.column - result_left.column
+                        // FOLIO PATCH: the return array may be wider (for a
+                        // column lookup) or taller (for a row lookup) than
+                        // the lookup vector; the whole matching row or column
+                        // is returned, as in Excel.
+                        // (`is_row_vector` means the lookup runs down rows.)
+                        let mismatched = if is_row_vector {
+                            result_right.row - result_left.row != right.row - left.row
+                        } else {
+                            result_right.column - result_left.column
                                 != right.column - left.column
-                        {
+                        };
+                        if mismatched {
                             return CalcResult::Error {
                                 error: Error::VALUE,
                                 origin: cell,
@@ -288,17 +338,12 @@ impl<'a> Model<'a> {
                             SearchMode::StartAtFirstItem | SearchMode::StartAtLastItem => {
                                 let array = &self.prepare_array(&left, &right, is_row_vector);
                                 match linear_search(&lookup_value, array, search_mode, match_mode) {
-                                    Some(index) => {
-                                        let row_index =
-                                            if is_row_vector { index as i32 } else { 0 };
-                                        let column_index =
-                                            if is_row_vector { 0 } else { index as i32 };
-                                        self.evaluate_cell(CellReferenceIndex {
-                                            sheet: result_left.sheet,
-                                            row: result_left.row + row_index,
-                                            column: result_left.column + column_index,
-                                        })
-                                    }
+                                    Some(index) => self.xlookup_result(
+                                        result_left,
+                                        result_right,
+                                        is_row_vector,
+                                        index as i32,
+                                    ),
                                     None => if_not_found,
                                 }
                             }
@@ -330,10 +375,6 @@ impl<'a> Model<'a> {
                                 match index {
                                     None => if_not_found,
                                     Some(l) => {
-                                        let row =
-                                            result_left.row + if is_row_vector { l } else { 0 };
-                                        let column =
-                                            result_left.column + if is_row_vector { 0 } else { l };
                                         if match_mode == MatchMode::ExactMatch {
                                             let value = self.evaluate_cell(CellReferenceIndex {
                                                 sheet: left.sheet,
@@ -342,22 +383,24 @@ impl<'a> Model<'a> {
                                                     + if is_row_vector { 0 } else { l },
                                             });
                                             if compare_values(&value, &lookup_value) == 0 {
-                                                self.evaluate_cell(CellReferenceIndex {
-                                                    sheet: result_left.sheet,
-                                                    row,
-                                                    column,
-                                                })
+                                                self.xlookup_result(
+                                                    result_left,
+                                                    result_right,
+                                                    is_row_vector,
+                                                    l,
+                                                )
                                             } else {
                                                 if_not_found
                                             }
                                         } else if match_mode == MatchMode::ExactMatchSmaller
                                             || match_mode == MatchMode::ExactMatchLarger
                                         {
-                                            self.evaluate_cell(CellReferenceIndex {
-                                                sheet: result_left.sheet,
-                                                row,
-                                                column,
-                                            })
+                                            self.xlookup_result(
+                                                result_left,
+                                                result_right,
+                                                is_row_vector,
+                                                l,
+                                            )
                                         } else {
                                             CalcResult::Error {
                                                 error: Error::VALUE,

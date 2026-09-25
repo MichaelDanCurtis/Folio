@@ -258,3 +258,26 @@ fn array_formulas_fill_their_declared_range() {
     let _ = std::fs::remove_file(path);
     let _ = std::fs::remove_file(out);
 }
+
+#[test]
+fn xlookup_returns_the_whole_matching_row() {
+    let mut c = Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    let id = c.workspace["sheets"][0]["id"].as_str().unwrap().to_string();
+    c.dispatch(json!({"op":"cells","cells":[
+        {"sheetId":id,"address":"B5","value":"a"},
+        {"sheetId":id,"address":"B6","value":"b"},
+        {"sheetId":id,"address":"C5","value":"Ann"},
+        {"sheetId":id,"address":"D5","value":"1"},
+        {"sheetId":id,"address":"C6","value":"Dianne Pugh"},
+        {"sheetId":id,"address":"D6","value":"2"},
+        {"sheetId":id,"address":"F1","value":"=XLOOKUP(\"b\",B5:B6,C5:D6)"},
+        {"sheetId":id,"address":"D8","value":"=@XLOOKUP(\"a\",B5:B6,C5:D6)"}
+    ]}))
+    .unwrap();
+    let snapshot = c.snapshot();
+    let value = |a: &str| snapshot["calculated"][&id][a].clone();
+    // Dynamic: the row spills; with @, intersected by column, as in Excel.
+    assert_eq!(value("F1"), json!("Dianne Pugh"));
+    assert_eq!(value("D8"), json!(1.0));
+}

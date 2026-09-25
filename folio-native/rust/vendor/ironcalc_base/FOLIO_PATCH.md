@@ -261,3 +261,14 @@ Modified: src/functions/mod.rs, src/functions/text/common.rs,
 src/functions/math_and_trigonometry/sum.rs,
 src/functions/statistical/devsq.rs,
 src/functions/statistical/count_and_average.rs.
+
+## XLOOKUP returns whole rows or columns
+
+`XLOOKUP(B2,B5:B14,C5:D14)` returned `#VALUE!` because the return array
+had to be exactly the lookup vector's shape. Excel accepts a return array
+as tall as a column lookup vector (or as wide as a row one) and returns the
+whole matching row or column. That result spills in a dynamic formula and
+is intersected in a legacy one. `xlookup_result` builds that range. XLOOKUP's static result is `Unknown`
+(may spill) when its return array has more than one row and column.
+Found by the Office corpus (xlookup.xlsx). Modified: src/functions/xlookup.rs,
+src/expressions/parser/static_analysis.rs.
