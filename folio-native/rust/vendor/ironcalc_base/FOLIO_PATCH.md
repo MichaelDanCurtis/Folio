@@ -143,3 +143,25 @@ src/functions/subtotal.rs and src/functions/text/common.rs. Folio's
 `formula_limits_tests.rs` covers exact whole-sheet results, the budget, and
 whole-column array math. The vendored suite passes except
 `test_to_from_bytes::errors`, which fails identically without these changes.
+
+## Whole-column lookups
+
+VLOOKUP, HLOOKUP, LOOKUP and MATCH used to read every cell of their search
+vector. For a whole column, that is a million `evaluate_cell` calls per
+lookup. A real Excel workbook in the Office-created corpus has about 1,600
+such formulas and took around 20 minutes to open. Upstream already clipped
+whole-column references for XLOOKUP and XMATCH.
+
+The search vector is now read only up to the searched column's (or row's)
+last populated cell, once the vector is longer than 65,536 cells:
+`Model::populated_end`, `LookupTable::search_vector` and `as_search_vector`.
+- Exact searches keep their results. If nothing matches among the populated
+  cells and a blank would match, the first trailing blank is returned
+  (`lookup_index_populated`, and MATCH's own check).
+- Sorted searches end at the last value not greater than the target, as in
+  Excel. Before, a blank compared as 0, so the binary search walked into the
+  trailing blanks and returned an empty row.
+
+Folio's `formula_limits_tests.rs` covers both kinds of search, MATCH,
+LOOKUP, HLOOKUP across a whole row, and 2,000 whole-column lookups.
+Modified: src/functions/lookup_and_reference/mod.rs.

@@ -181,3 +181,53 @@ fn a_conditional_format_rule_that_reads_too_many_cells_is_false() {
         json!(["Rule 2 reads too many cells and is not displayed."])
     );
 }
+
+/// Whole-column lookups read only the populated rows: fast, and a sorted
+/// search ends at the last value that is not greater (Excel), not in the
+/// million blank rows below the data.
+#[test]
+fn whole_column_lookups_are_fast_and_match_excel() {
+    let mut cells = vec![];
+    for row in 1..=10 {
+        cells.push((format!("A{row}"), format!("{}", row * 10)));
+        cells.push((format!("B{row}"), format!("item {row}")));
+    }
+    let formulas = [
+        ("D1", "=VLOOKUP(55,A:B,2)", "item 5"),
+        ("D2", "=VLOOKUP(70,A:B,2,FALSE)", "item 7"),
+        (
+            "D3",
+            "=IF(ISNA(VLOOKUP(71,A:B,2,FALSE)),\"none\",1)",
+            "none",
+        ),
+        ("D4", "=MATCH(35,A:A)", "3"),
+        ("D5", "=MATCH(90,A:A,0)", "9"),
+        ("D6", "=LOOKUP(1000,A:A,B:B)", "item 10"),
+        ("D7", "=HLOOKUP(\"x\",F1:XFD2,2,FALSE)", "found"),
+        ("D8", "=VLOOKUP(5,A:B,2)", "#N/A"),
+    ];
+    cells.push(("F1".into(), "x".into()));
+    cells.push(("F2".into(), "found".into()));
+    let mut all: Vec<(&str, &str)> = cells
+        .iter()
+        .map(|(a, v)| (a.as_str(), v.as_str()))
+        .collect();
+    for (address, formula, _) in &formulas {
+        all.push((address, formula));
+    }
+    // Many whole-column lookups, as in real workbooks.
+    let many: Vec<(String, String)> = (1..=2000)
+        .map(|r| {
+            (
+                format!("H{r}"),
+                format!("=IF(ISNA(VLOOKUP({r},A:B,2,FALSE)),\" \",VLOOKUP({r},A:B,2,FALSE))"),
+            )
+        })
+        .collect();
+    all.extend(many.iter().map(|(a, v)| (a.as_str(), v.as_str())));
+    let (_, formatted) = with(&all);
+    for (address, formula, expected) in formulas {
+        assert_eq!(text(&formatted, address), expected, "{formula}");
+    }
+    assert_eq!(text(&formatted, "H10"), "item 1");
+}

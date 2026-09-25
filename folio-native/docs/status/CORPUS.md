@@ -43,3 +43,61 @@ These are needed for the "Office compared" state and for the M1 daily-workflow s
 | `office/formats-matrix/*` | Word/Excel | W16, X17 | One file per format (DOCM, DOTM, RTF, ODT, XLSM, XLSB, XLS, ODS, CSV variants) for the compatibility matrix |
 | `office/large-analytical.xlsx` | Excel | X19.04, D09.05 | The 20-sheet, 100k-cell analytical model, with charts, pivots and names (ROADMAP §6) |
 | `office/roundtrip/*` | Folio → Office → Folio | W16.01, X17.01 | Folio exports, then edited and saved in Office, to check round trips in both directions |
+
+## Office-created corpus (real files)
+
+387 files saved by Microsoft Word and Excel themselves: Excel 2007–2016 on Windows and Mac, Excel Online, and Word 2007–2016. They come from Apache POI's test data (Apache License 2.0) at a pinned commit. They aren't committed. [office-corpus.tsv](office-corpus.tsv) lists each file's hash and the application that saved it (from its `docProps/app.xml`).
+
+To fetch the files and run the checks:
+
+    python3 scripts/verification/fetch_office_corpus.py
+    cd rust && cargo test --release office_corpus -- --ignored --nocapture
+
+What `office_corpus_tests.rs` checks for each file:
+- import succeeds, with no panic;
+- exporting and reimporting leaves the projection unchanged;
+- for workbooks, every non-volatile formula's recomputed value matches Excel's cached result;
+- for documents, the words match the words in Word's own XML.
+
+The cached-value comparison is real Excel output. It counts as differential evidence for the calculation children, per file and Excel build.
+
+### Results (2026-09-25, `main` + lookup fix)
+
+| | DOCX | XLSX |
+|---|---:|---:|
+| Files | 96 | 291 |
+| Imported | 92 | 272 |
+| Round trip unchanged | 92 of 92 | 271 of 272 |
+
+- **Formulas:** 23,116 compared with Excel's cached results, and 947 differ (4.1%), in 30 files.
+- **Documents:** 14 of the 92 have below 99% word overlap with Word's text.
+- **Time:** the whole run takes 55 s in release. The slowest import is 5.2 s (a sheet with many merges).
+
+**Rejections.** Four are correct: two XXE/DTD attack files, and two clusterfuzz files with corrupt checksums. The rest are gaps:
+- **Strict Open XML** workbooks (3 files): "no supported worksheets". See X17.11.
+- **Cells without an `r` address**, which OOXML allows: 1 file. See X17.12.
+- **Too-strict readers** (X17.12):
+  - shared strings: 3 files;
+  - worksheet dimensions: 2 files;
+  - a sheet relationship target: 1 file;
+  - beta or unusual workbook structures: 2 files.
+- **The 32 MB workspace limit** (X19.03): 3 files.
+- **DOCX:** a paragraph spacing value, and a bookmark range (W16.10).
+- **Export:** one workbook's content type doesn't reimport (X17.12).
+
+**Formula differences, by cause:**
+
+| Cause | Cells | Child |
+|---|---:|---|
+| `TEXT` date/time formats: `a/p` casing and other format-code cases (mostly POI's format-test workbooks) | 624 | X04.04, X08.01 |
+| Legacy formulas passing ranges to scalar functions (`=ABS(G7:G12)`): Excel intersects implicitly; Folio spills (`#SPILL!`) or returns `#N/IMPL` | ~150 | X08.14 |
+| Defined names in formulas give `#NAME?` | ~100 | X09.08 |
+| 3-D references (`SUM(Sheet1:Sheet4!C1)`) give `#VALUE!` | 13 | X08.15 |
+| Coercion and error-precedence cases (`LEFT("a","6")`, SUMX2MY2 size mismatch, MODE with text) | ~60 | X08.08 |
+
+**Documents below 99% text overlap:**
+- text in shapes and text boxes that isn't shown (W08.05);
+- tracked deletions and insertions counted differently (W13.03);
+- form fields and footnote references (W09.05, W11.01).
+
+The per-file report is written to `build/office-corpus-report.json`.

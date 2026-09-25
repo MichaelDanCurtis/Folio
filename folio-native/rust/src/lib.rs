@@ -19,6 +19,8 @@ mod fuzz_tests;
 mod goal_seek;
 #[cfg(test)]
 mod goal_seek_tests;
+#[cfg(test)]
+mod office_corpus_tests;
 mod office_templates;
 #[cfg(test)]
 mod office_templates_tests;
