@@ -1,6 +1,6 @@
 # Folio status register
 
-Current state of Word and Excel parity, as of 2026-09-25 (after Phase 3, `main` at `3717237`). The detailed register is in [status/](status/README.md): 46 families, each split into bounded child requirements with a state and evidence. [PARITY.md](../PARITY.md) keeps the family map and release history; [VALIDATION.md](../VALIDATION.md) keeps the evidence.
+Current state of Word and Excel parity, as of 2026-09-25 (after the Office corpus and the M1 workbook essentials plan). The detailed register is in [status/](status/README.md): 46 families, each split into bounded child requirements with a state and evidence. [PARITY.md](../PARITY.md) keeps the family map and release history; [VALIDATION.md](../VALIDATION.md) keeps the evidence.
 
 **Outcome so far: 0 of 46 families accepted, and 0 of 20 additional AI features accepted.** No child requirement is "Office compared" yet, because the Office reference baseline has not been recorded ([OFFICE_BASELINE](status/OFFICE_BASELINE.md)).
 
@@ -75,9 +75,9 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 | Rank | Gap | Children | Effort | Confidence | Needs |
 |---:|---|---|---|---|---|
 | 1 | Record the Office baseline and create the daily-workflow comparison files in Word/Excel. The real-world corpus (387 Office-saved files) now covers much of the file-compatibility evidence; the baseline is still needed for interaction and layout comparisons. | [OFFICE_BASELINE](status/OFFICE_BASELINE.md), [CORPUS](status/CORPUS.md) | S | High | Owner, with Office installs |
-| 2 | **Wrong results on real Excel files** (from the corpus): defined names in formulas, implicit intersection in legacy formulas, 3-D references, coercion cases; tolerant reading of the 7 rejected workbooks and Strict Open XML | X09.08, X08.14, X08.15, X08.08, X17.11, X17.12 | M | High | — |
+| 2 | **Wrong results on real Excel files** (from the corpus): 3-D references, coercion cases, `TEXT` format codes the formatter rejects, unary-plus ranges; tolerant reading of the 7 rejected workbooks and Strict Open XML. Defined names and legacy implicit intersection are fixed (744 of 23,116 corpus formulas still differ, from 947) | X08.15, X08.08, X04.04, X08.14, X17.11, X17.12 | M | High | — |
 | 3 | Native qualification sweep: raise the 42 M1 children that are only automated-verified; resolve the 7 Flutter tests that fail on Linux (Save/Save As, external writes, leave-file prompts, native menus) | D02.03–D02.09, D03.04, X01.12, X04.01–X04.04, W13.01, X15.01 and others | M | High | The Mac (packaged build) |
-| 4 | Workbook editing essentials: name box and Go To, whole row/column/sheet selection and Ctrl+arrow, fill handle, borders and fill colour, Clear menu, status-bar aggregates, zoom, duplicate sheet, F2 point mode | X02.04–X02.05, X01.03, X01.06, X01.13, X01.17, X04.07–X04.08, D01.06, X05.03, X03.06 | L | High | — |
+| 4 | Workbook editing essentials: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)). Left: copying charts, pictures and sheet-scoped names with a duplicated sheet, pointing from another sheet's tab, borders on whole rows/columns, native checks | X03.06, X01.06, X04.07 | S | High | The Mac for native checks |
 | 5 | Clipboard exchange with Office and other apps, and cut/move | D03.05, X01.10, X01.11 | L | Medium | Mac clipboard testing |
 | 6 | Document editing essentials: Home-tab text commands, hyperlink UI, word-count dialog, editor zoom, formatting marks, table drag-resize, Format Painter | W01.13, W01.14, W12.09, W17.02, W17.07, W07.06, D03.10, X04.12 | L | High | — |
 | 7 | Pictures in documents: render inline images, insert from file | W08.01–W08.02 | L | Medium | Depends on risk R1 |
@@ -100,7 +100,7 @@ The M4/M5 breadth (formats beyond DOCX/XLSX, macros, data connectors, co-authori
 
 ### First delivery package
 
-**Rank 4, workbook editing essentials, is the first M1 package that can be built and verified with automated evidence in any environment.** It closes 10 named M1 children. Its [plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md) is in progress: Tasks 1–2 are done (X01.03, D01.06). Its native qualification joins the rank 3 sweep on the Mac.
+**Rank 4, workbook editing essentials, is built.** Its [plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md) moved X01.03, X01.06, X01.13, X01.17, X01.18, X02.04, X02.05, X04.07, X04.08, X05.03 and D01.06 to Automated verified, and X03.06 to Implemented. Its native qualification joins the rank 3 sweep on the Mac.
 
 **Rank 2 comes before the rest of it.** The corpus showed wrong calculated values on real Excel files, which is worse than a missing command. Ranks 1, 3, 8 and 9 need the owner's Office installs or the Mac, and can run alongside.
 
@@ -111,7 +111,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 | ID | Risk | What is known | Measured here | Decision or proof still needed |
 |---|---|---|---|---|
 | R1 | Rich-text layout ceiling | The Word editor is a continuous flutter_quill editor, and pages exist only in preview (0.68). Floating objects, footnotes on pages, print-layout editing and complex scripts all need a page-aware layout engine. | — | A prototype: page-canvas editing with one floating picture and one footnote, compared with Word's page breaks. Its outcome decides whether to extend Quill or build a layout engine (XL). |
-| R2 | Formula-engine coverage | IronCalc is vendored and patched. It has incremental recalculation (Phase 2) and bounded ranges (Phase 3), and it evaluates 483 of Excel's 514 catalog functions. | Catalog coverage ([excel-functions.tsv](status/excel-functions.tsv)); IronCalc suite 2,228 pass | Correctness against Excel is unmeasured. The differential corpus (X08.02) needs the baseline. Decision made: keep IronCalc (Phase 2). |
+| R2 | Formula-engine coverage | IronCalc is vendored and patched. It has incremental recalculation (Phase 2) and bounded ranges (Phase 3), and it evaluates 483 of Excel's 514 catalog functions. | Catalog coverage ([excel-functions.tsv](status/excel-functions.tsv)); IronCalc suite 2,229 pass | Correctness against Excel is unmeasured. The differential corpus (X08.02) needs the baseline. Decision made: keep IronCalc (Phase 2). |
 | R3 | Editable OOXML objects | Charts, pictures, shapes, SmartArt and equations are preserved as XML and parts, but not rendered or editable. | — | A DrawingML rendering proof: one imported chart and one picture rendered in both editors. Chart editing is XL. |
 | R4 | VBA, add-ins and Office Scripts | No runtime. Macro-bearing files are rejected (0.56). | — | Decide the M4 stance: at minimum, open with macros preserved and disabled (D06.03, X16.01). Running VBA needs an interpreter; no mature embeddable one is known. Office.js needs a web host. Both may carry licence costs (program plan dependency 3). |
 | R5 | Data connectors and Power Query | None built. The M language, credentials and refresh are each large. | — | A scope decision for M4: which sources, and whether queries are refreshable or preserved only. |
@@ -124,5 +124,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-25 | Workbook essentials Tasks 6–10: zoom (X05.03), duplicate sheet (X03.06, Implemented), formula point mode (X01.06) and the fill handle (X01.13). Rank 4 is built; the plan is closed. |
+| 2026-09-25 | Corpus-driven fixes: defined names reach the calculation (X09.08), legacy formulas get Excel's implicit intersection (X08.14), range-taking arguments keep their ranges, two TEXT format fixes; 744 of 23,116 corpus formulas differ (from 947). Workbook essentials Tasks 3–5: name box and Go To (X02.04, X02.05), Clear menu (X01.17), borders and fill colour with theme colours (X04.07, X04.08). |
 | 2026-09-25 | Real-world corpus: 387 Word/Excel-saved files (Apache POI test data) with `office_corpus_tests.rs`. Added X08.14–X08.16, X09.08, X17.10–X17.12 and W16.10 from its findings. Fixed whole-column lookups (X08.16). New rank 2 for the calculation gaps it found. Workbook essentials Tasks 1–2 moved X01.03, X01.18 and D01.06 to Automated verified. |
 | 2026-09-25 | Register created: 46 families, 391 child requirements, states set from PARITY/VALIDATION evidence as recorded up to 0.82 and Phases 1–3. The function catalog was measured (514 functions). |
