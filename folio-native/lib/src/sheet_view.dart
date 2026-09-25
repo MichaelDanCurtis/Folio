@@ -1487,6 +1487,11 @@ class SheetViewState extends State<SheetView> {
 
   // Four buttons fit the 120 px font group.
   static const _compact = BoxConstraints.tightFor(width: 30, height: 32);
+  static final _compactStyle = IconButton.styleFrom(
+    minimumSize: const Size(30, 32),
+    fixedSize: const Size(30, 32),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
 
   /// The line style and colour the Borders menu draws with.
   String borderLine = 'thin', borderColor = '#000000';
@@ -3132,6 +3137,7 @@ class SheetViewState extends State<SheetView> {
                                 tooltip: 'Bold',
                                 constraints: _compact,
                                 padding: EdgeInsets.zero,
+                                style: _compactStyle,
                                 onPressed: () => format({
                                   'bold': activeFont['bold'] != true,
                                 }),
@@ -3141,6 +3147,7 @@ class SheetViewState extends State<SheetView> {
                                 tooltip: 'Italic',
                                 constraints: _compact,
                                 padding: EdgeInsets.zero,
+                                style: _compactStyle,
                                 onPressed: () => format({
                                   'italic': activeFont['italic'] != true,
                                 }),
@@ -3150,10 +3157,7 @@ class SheetViewState extends State<SheetView> {
                                 key: const Key('fill-color-menu'),
                                 tooltip: 'Fill color',
                                 padding: EdgeInsets.zero,
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(30, 32),
-                                  fixedSize: const Size(30, 32),
-                                ),
+                                style: _compactStyle,
                                 icon: const Icon(
                                   Icons.format_color_fill,
                                   size: 19,
@@ -3179,10 +3183,7 @@ class SheetViewState extends State<SheetView> {
                                   key: const Key('borders-menu'),
                                   tooltip: 'Borders',
                                   padding: EdgeInsets.zero,
-                                  style: IconButton.styleFrom(
-                                    minimumSize: const Size(30, 32),
-                                    fixedSize: const Size(30, 32),
-                                  ),
+                                  style: _compactStyle,
                                   icon: const Icon(
                                     Icons.border_all_outlined,
                                     size: 19,
