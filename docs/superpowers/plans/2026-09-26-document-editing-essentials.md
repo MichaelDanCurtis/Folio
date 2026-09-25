@@ -41,12 +41,12 @@
 
 ### Task 5: Formatting marks (W17.07)
 
-- [ ] **Show/Hide ¶** (Ctrl/Cmd+Shift+8) shows:
+- [x] **Show/Hide ¶** (Ctrl/Cmd+Shift+8) shows:
   - paragraph marks;
   - spaces as middle dots;
   - tabs as arrows;
   - line breaks.
-- [ ] The marks are display-only: they are never copied, saved or counted.
+- [x] The marks are display-only: they are never copied, saved or counted.
 
 ### Task 6: Table drag-resize (W07.06)
 

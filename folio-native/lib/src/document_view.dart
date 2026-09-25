@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'document_fields.dart';
+import 'document_formatting_marks.dart';
 import 'document_links.dart';
 import 'sheet_zoom.dart';
 import 'document_page_setup.dart';
@@ -152,6 +153,10 @@ class DocumentViewState extends State<DocumentView> {
           .floor(),
     );
   }
+
+  /// Show/Hide ¶, for the session.
+  bool showMarks = false;
+  void toggleMarks() => setState(() => showMarks = !showMarks);
 
   Map<int, String> _listLabels = {};
   q.Document? _configuredDocument;
@@ -846,6 +851,16 @@ class DocumentViewState extends State<DocumentView> {
                     child: const Text('Styles…'),
                   ),
                   IconButton(
+                    key: const Key('document-formatting-marks'),
+                    tooltip: 'Show/Hide ¶ (Ctrl+Shift+8)',
+                    isSelected: showMarks,
+                    onPressed: toggleMarks,
+                    icon: const Icon(
+                      Icons.format_textdirection_l_to_r,
+                      size: 19,
+                    ),
+                  ),
+                  IconButton(
                     key: const Key('document-link'),
                     tooltip: 'Link (Ctrl+K)',
                     onPressed: editLink,
@@ -926,7 +941,21 @@ class DocumentViewState extends State<DocumentView> {
               geometry: page,
               zoom: percent / 100,
               onViewport: (size) => _viewport = size,
-              child: editor!,
+              child: Stack(
+                children: [
+                  editor!,
+                  if (showMarks)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: FormattingMarksOverlay(
+                          key: const Key('formatting-marks'),
+                          controller: controller,
+                          editorKey: _editorKey,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             child: q.QuillEditor.basic(
               key: const Key('document-editor'),
@@ -980,6 +1009,7 @@ class DocumentViewState extends State<DocumentView> {
                   ...documentMarkShortcuts,
                   ...linkShortcuts,
                   ...documentZoomShortcuts,
+                  ...formattingMarkShortcuts,
                   const SingleActivator(LogicalKeyboardKey.keyZ, meta: true):
                       const UndoWorkspace(),
                   const SingleActivator(
@@ -992,6 +1022,12 @@ class DocumentViewState extends State<DocumentView> {
                 },
                 customActions: {
                   ...documentMarkActions(controller, _focus),
+                  ToggleFormattingMarks: CallbackAction<ToggleFormattingMarks>(
+                    onInvoke: (_) {
+                      toggleMarks();
+                      return null;
+                    },
+                  ),
                   ZoomDocumentIntent: CallbackAction<ZoomDocumentIntent>(
                     onInvoke: (intent) {
                       setZoom(
