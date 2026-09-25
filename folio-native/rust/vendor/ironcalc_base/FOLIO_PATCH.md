@@ -223,3 +223,13 @@ keeps the ranges inside `SUM(IF(...))`. Covered by
 `range_arguments_keep_their_ranges` in Folio's `legacy_formula_tests.rs`.
 Modified: src/expressions/parser/static_analysis.rs,
 src/expressions/parser/tests/test_add_implicit_intersection.rs.
+
+## Backslashes in names
+
+Excel names may contain backslashes (`HSI\10_1\1460_1___val`, from the
+Office corpus). The lexer ended identifiers at `\`, so such formulas failed
+to parse (`#ERROR!`) instead of naming an undefined name (`#NAME?`, as in
+Excel). `consume_identifier` now continues through `\` after the first
+character, except where `\` separates array columns (comma-decimal
+locales), and `is_valid_a1_identifier` accepts `\` there too.
+Modified: src/expressions/lexer/mod.rs, src/expressions/utils/mod.rs.

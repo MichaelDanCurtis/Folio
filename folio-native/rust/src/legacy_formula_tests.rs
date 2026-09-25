@@ -23,6 +23,9 @@ fn legacy_formulas_gain_at_only_where_excel_intersects() {
     assert_eq!(legacy("=ABS(A1:A3)", "B2"), "=ABS(@A1:A3)");
     assert_eq!(legacy("=A:A*2", "C3"), "=@A:A*2");
     assert_eq!(legacy("=Block*2", "C3"), "=@Block*2");
+    // A leading unary plus is kept (found by the Office corpus).
+    assert_eq!(legacy("=+F9:H9", "G87"), "=+@F9:H9");
+    assert_eq!(legacy("=-F9:H9", "G87"), "=-@F9:H9");
     // Ranges where ranges are expected, single cells, and single-cell names
     // keep their exact text.
     for unchanged in [
@@ -186,4 +189,20 @@ fn range_arguments_keep_their_ranges() {
     ] {
         assert_eq!(legacy_formula(formula, &names, 0, "H20", &[]), legacy);
     }
+}
+
+#[test]
+fn a_unary_plus_range_intersects_by_column() {
+    let mut c = Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    let id = c.workspace["sheets"][0]["id"].as_str().unwrap().to_string();
+    c.dispatch(json!({"op":"cells","cells":[
+        {"sheetId":id,"address":"F9","value":"1"},
+        {"sheetId":id,"address":"G9","value":"2.3456"},
+        {"sheetId":id,"address":"H9","value":"3"},
+        {"sheetId":id,"address":"G87","value":"=+@F9:H9"}
+    ]}))
+    .unwrap();
+    // Excel's cached value for this corpus cell (FormulaEvalTestData).
+    assert_eq!(c.snapshot()["calculated"][&id]["G87"], json!(2.3456));
 }

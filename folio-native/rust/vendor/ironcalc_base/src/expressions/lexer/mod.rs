@@ -624,9 +624,17 @@ impl<'a> Lexer<'a> {
     // Consumes an identifier from the input stream
     fn consume_identifier(&mut self) -> String {
         let mut position = self.position;
+        // FOLIO PATCH: Excel names may contain backslashes ("HSI\10_1").
+        // Where '\' separates array columns (comma-decimal locales), it
+        // ends the identifier as before.
+        let backslash = self.locale.numbers.symbols.decimal == ".";
         while position < self.len {
             let next_char = self.chars[position];
-            if next_char.is_alphanumeric() || next_char == '_' || next_char == '.' {
+            if next_char.is_alphanumeric()
+                || next_char == '_'
+                || next_char == '.'
+                || (backslash && next_char == '\\' && position > self.position)
+            {
                 position += 1;
             } else {
                 break;

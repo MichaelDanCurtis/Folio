@@ -346,6 +346,7 @@ impl WorkbookCalculator {
         let started = Instant::now();
         let model = self.model.as_mut().unwrap();
         let table_names: Vec<String> = model.workbook.tables.keys().cloned().collect();
+        let sheet_names: Vec<String> = identity.iter().map(|(_, name)| name.clone()).collect();
         let mut positions = Vec::with_capacity(changed.len());
         for (i, address) in &changed {
             let (r, c) = parse_address(address)?;
@@ -359,6 +360,9 @@ impl WorkbookCalculator {
                 self.formulas[*i].insert(address.clone(), (r, c));
                 let context = crate::tables::at(&sheets[*i], r, c).and_then(|t| t["name"].as_str());
                 value = crate::table_refs::qualify(&value, context, &table_names).unwrap_or(value);
+                if let Some(expanded) = crate::sheet_spans::expand(&value, &sheet_names) {
+                    value = expanded;
+                }
             } else {
                 self.formulas[*i].remove(address);
             }

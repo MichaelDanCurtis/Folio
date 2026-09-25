@@ -180,6 +180,7 @@ mod sheet_reviews_tests;
 mod sheet_sort;
 #[cfg(test)]
 mod sheet_sort_tests;
+mod sheet_spans;
 mod sheet_text;
 mod sheet_view;
 #[cfg(test)]

@@ -113,7 +113,15 @@ pub fn legacy_formula(
     at: &str,
     defined: &[(String, Option<u32>, String)],
 ) -> String {
-    let Some((mut node, context, refs)) = parse_at(formula, names, sheet, at, defined) else {
+    // A leading unary plus (`=+A1:A3`, common in Lotus-era sheets) is a
+    // no-op the printer drops; set it aside and put it back.
+    let (lead, body) = match formula.strip_prefix("=+") {
+        Some(rest) => ("+", format!("={rest}")),
+        None => ("", formula.to_string()),
+    };
+    let (spanless, spans) = crate::sheet_spans::protect(&body);
+    let spans = crate::sheet_spans::as_written(spans);
+    let Some((mut node, context, refs)) = parse_at(&spanless, names, sheet, at, defined) else {
         return formula.to_string();
     };
     let plain = to_english_string(&node, &context);
@@ -126,7 +134,7 @@ pub fn legacy_formula(
             .collect::<String>()
             .to_uppercase()
     };
-    let original = formula.strip_prefix('=').unwrap_or(formula);
+    let original = spanless.strip_prefix('=').unwrap_or(&spanless);
     if squash(&crate::table_refs::restore(plain.clone(), refs.clone())) != squash(original) {
         return formula.to_string();
     }
@@ -135,7 +143,10 @@ pub fn legacy_formula(
     if intersected == plain {
         return formula.to_string();
     }
-    format!("={}", crate::table_refs::restore(intersected, refs))
+    format!(
+        "={lead}{}",
+        crate::table_refs::restore(crate::table_refs::restore(intersected, refs), spans)
+    )
 }
 
 /// A formula in the form a worksheet part stores it. Newer functions get
@@ -151,11 +162,16 @@ pub fn excel_formula(
     defined: &[(String, Option<u32>, String)],
 ) -> String {
     let body = formula.strip_prefix('=').unwrap_or(formula);
-    let Some((mut node, context, refs)) = parse_at(body, names, sheet, at, defined) else {
+    let (spanless, spans) = crate::sheet_spans::protect(body);
+    let spans = crate::sheet_spans::as_written(spans);
+    let Some((mut node, context, refs)) = parse_at(&spanless, names, sheet, at, defined) else {
         return body.to_string();
     };
     remove_redundant_implicit_intersection(&mut node, true);
-    let stored = crate::table_refs::restore(to_excel_string(&node, &context), refs);
+    let stored = crate::table_refs::restore(
+        crate::table_refs::restore(to_excel_string(&node, &context), refs),
+        spans,
+    );
     // Keep the author's spacing and line breaks, which Excel preserves,
     // when the stored form differs only in whitespace.
     let spaceless = |text: &str| {
@@ -391,13 +407,41 @@ impl Change {
             column: column as i32 + 1,
         };
         let mut parser = new_parser_english(self.names.clone(), vec![], HashMap::new());
-        let (masked, refs) = crate::table_refs::protect(f.strip_prefix('=').unwrap_or(f))?;
+        // 3-D references are outside the parser: rename or narrow them here.
+        let (spanless, spans) = crate::sheet_spans::protect(f.strip_prefix('=').unwrap_or(f));
+        let spans: Vec<(String, String)> = spans
+            .into_iter()
+            .map(|(name, span, written)| {
+                let next = match &self.edit {
+                    Edit::Rename(new) => Some(crate::sheet_spans::renamed(
+                        &span,
+                        &self.names,
+                        self.sheet,
+                        new,
+                    )),
+                    Edit::Delete => {
+                        crate::sheet_spans::after_delete(&span, &self.names, self.sheet)
+                    }
+                    _ => Some(span.clone()),
+                };
+                let text = match next {
+                    Some(next) if next == span => written,
+                    Some(next) => next.text(),
+                    None => "#REF!".into(),
+                };
+                (name, text)
+            })
+            .collect();
+        let (masked, refs) = crate::table_refs::protect(&spanless)?;
         let mut node = parser.parse(&masked, &context);
         self.walk(&mut node, &context)?;
         Ok(format!(
             "{}{}",
             if f.starts_with('=') { "=" } else { "" },
-            crate::table_refs::restore(to_english_string(&node, &context), refs)
+            crate::table_refs::restore(
+                crate::table_refs::restore(to_english_string(&node, &context), refs),
+                spans
+            )
         ))
     }
 

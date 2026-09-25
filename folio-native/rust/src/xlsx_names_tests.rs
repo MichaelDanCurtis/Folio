@@ -123,3 +123,19 @@ fn external_references_are_told_apart_from_table_references() {
     assert!(!elsewhere("Table1[[#This Row],[Qty]]*2"));
     assert!(!elsewhere("Sheet1!$A$1:$B$2"));
 }
+
+#[test]
+fn names_with_backslashes_parse_like_excel() {
+    let mut c = Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    let id = c.workspace["sheets"][0]["id"].as_str().unwrap().to_string();
+    c.dispatch(json!({"op":"cells","cells":[
+        {"sheetId":id,"address":"A1","value":"=IF(HSI\\10_1\\1460_1___val<>\"\",1,\"\")"}
+    ]}))
+    .unwrap();
+    c.dispatch(json!({"op":"cells","cells":[{"sheetId":id,"address":"B1","value":"=Foo\\bar*2"}]}))
+        .unwrap();
+    assert_eq!(c.snapshot()["formatted"][&id]["B1"]["text"], "#NAME?");
+    // An undefined name, as in Excel (the corpus had #ERROR! here).
+    assert_eq!(c.snapshot()["formatted"][&id]["A1"]["text"], "#NAME?");
+}
