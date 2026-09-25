@@ -56,6 +56,12 @@ fn formulas_are_written_in_worksheet_form() {
         "_xlfn.XLOOKUP(1,A1:A3,B1:B3)"
     );
     assert_eq!(stored("=SUM(A1:A3)", "B2"), "SUM(A1:A3)");
+    // Spacing and line breaks are the author's, and Excel keeps them.
+    assert_eq!(stored("=SUM(A10,\nA10)", "B2"), "SUM(A10,\nA10)");
+    assert_eq!(
+        stored("=XLOOKUP(1, A1:A3, B1:B3)", "D1"),
+        "_xlfn.XLOOKUP(1,A1:A3,B1:B3)"
+    );
     assert_eq!(stored("=Sales[@Qty]*2", "D2"), "Sales[@Qty]*2");
 }
 

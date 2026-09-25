@@ -155,7 +155,19 @@ pub fn excel_formula(
         return body.to_string();
     };
     remove_redundant_implicit_intersection(&mut node, true);
-    crate::table_refs::restore(to_excel_string(&node, &context), refs)
+    let stored = crate::table_refs::restore(to_excel_string(&node, &context), refs);
+    // Keep the author's spacing and line breaks, which Excel preserves,
+    // when the stored form differs only in whitespace.
+    let spaceless = |text: &str| {
+        text.chars()
+            .filter(|c| !c.is_whitespace())
+            .collect::<String>()
+    };
+    if spaceless(&stored) == spaceless(body) {
+        body.to_string()
+    } else {
+        stored
+    }
 }
 
 /// Check reference nodes, rather than guessing sheet qualifiers from text.
