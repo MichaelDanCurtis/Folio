@@ -1788,12 +1788,14 @@ class SheetViewState extends State<SheetView> {
   /// on another sheet, or a defined name.
   Future<void> goTo(String text) async {
     try {
-      final names = await widget.onDefinedNames?.call() ?? const [];
-      final target = parseTarget(
-        text,
-        names: names,
-        currentSheetId: widget.sheet['id'] as String?,
-      );
+      // A plain reference needs no names, so it is selected at once.
+      final target =
+          parseTarget(text) ??
+          parseTarget(
+            text,
+            names: await widget.onDefinedNames?.call() ?? const [],
+            currentSheetId: widget.sheet['id'] as String?,
+          );
       if (target == null) {
         throw FormatException('"$text" is not a cell, range or name.');
       }
