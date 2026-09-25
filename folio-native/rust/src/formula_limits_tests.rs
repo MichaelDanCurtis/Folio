@@ -1,0 +1,141 @@
+//! Formulas over huge ranges: aggregates skip the empty part of a range, and
+//! any single formula that would read too many cells becomes `#NUM!` rather
+//! than hanging the engine or exhausting memory.
+use crate::workspace::Core;
+use serde_json::{json, Value};
+use std::time::{Duration, Instant};
+
+fn blank() -> Core {
+    let mut c = Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    c
+}
+
+fn with(cells: &[(&str, &str)]) -> (Core, Value) {
+    let mut c = blank();
+    let sheet = c.workspace["sheets"][0]["id"].clone();
+    let cells: Vec<Value> = cells
+        .iter()
+        .map(|(a, v)| json!({"sheetId":sheet,"address":a,"value":v}))
+        .collect();
+    let started = Instant::now();
+    c.dispatch(json!({"op":"cells","cells":cells})).unwrap();
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "took {:?}",
+        started.elapsed()
+    );
+    let formatted = c.snapshot()["formatted"][sheet.as_str().unwrap()].clone();
+    (c, formatted)
+}
+
+fn text(formatted: &Value, address: &str) -> String {
+    formatted[address]["text"]
+        .as_str()
+        .unwrap_or("")
+        .to_string()
+}
+
+#[test]
+fn whole_sheet_aggregates_are_exact_and_fast() {
+    let all = "A1:XFD1048576";
+    let formulas = [
+        ("B20", format!("=COUNTBLANK({all})"), "17179869181"),
+        ("B21", format!("=COUNT({all})"), "2"),
+        ("B22", format!("=COUNTA({all})"), "3"),
+        ("B23", format!("=AVERAGE({all})"), "6"),
+        ("B24", format!("=MAX({all})"), "7"),
+        ("B25", format!("=MIN(A:XFD)"), "5"),
+        ("B26", format!("=LARGE({all},2)"), "5"),
+        ("B27", format!("=SMALL({all},1)"), "5"),
+        ("B28", format!("=MEDIAN({all})"), "6"),
+        ("B29", format!("=SUBTOTAL(9,{all})"), "12"),
+        ("B30", format!("=SUBTOTAL(103,{all})"), "3"),
+        ("B31", format!("=CONCAT({all})"), "57x"),
+        ("B32", format!("=PERCENTILE({all},0.5)"), "6"),
+        ("B33", format!("=MODE.SNGL(A1:XFD1048576,5,5)"), "5"),
+        ("B34", format!("=AVERAGEA({all})"), "4"),
+        ("B35", format!("=SUMSQ({all})"), "74"),
+        ("B36", format!("=PRODUCT({all})"), "35"),
+    ];
+    // The formulas read a whole sheet, so they live on another one.
+    let mut c = blank();
+    c.dispatch(json!({"op":"addSheet"})).unwrap();
+    let sheets = c.workspace["sheets"].clone();
+    assert!(sheets.as_array().unwrap().len() >= 2, "{sheets}");
+    let data = sheets[0]["id"].clone();
+    let report = sheets[1]["id"].clone();
+    let data_name = sheets[0]["name"].as_str().unwrap().to_string();
+    let mut cells = vec![
+        json!({"sheetId":data,"address":"A1","value":"5"}),
+        json!({"sheetId":data,"address":"C3","value":"7"}),
+        json!({"sheetId":data,"address":"C4","value":"x"}),
+    ];
+    for (address, formula, _) in &formulas {
+        let formula = formula
+            .replace("A1:XFD1048576", &format!("'{data_name}'!A1:XFD1048576"))
+            .replace("A:XFD", &format!("'{data_name}'!A:XFD"));
+        cells.push(json!({"sheetId":report,"address":address,"value":formula}));
+    }
+    let started = Instant::now();
+    c.dispatch(json!({"op":"cells","cells":cells})).unwrap();
+    let elapsed = started.elapsed();
+    let formatted = c.snapshot()["formatted"][report.as_str().unwrap()].clone();
+    for (address, formula, expected) in &formulas {
+        assert_eq!(text(&formatted, address), *expected, "{formula}");
+    }
+    assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
+}
+
+/// Data at opposite corners makes the populated extent the whole sheet, so
+/// the skip-empty clip can't help; the read budget stops the formula in well
+/// under a second instead of letting it visit 17 billion cells.
+#[test]
+fn data_spread_across_the_whole_sheet_hits_the_read_budget() {
+    let (_, formatted) = with(&[
+        ("A1", "5"),
+        ("XFD1048576", "7"),
+        ("B2", "=COUNTBLANK(C1:XFD1048576)"),
+        ("B3", "=SUM(A1:XFD1048576)"),
+    ]);
+    assert_eq!(text(&formatted, "B2"), "#NUM!");
+    assert_eq!(text(&formatted, "B3"), "#NUM!");
+}
+
+#[test]
+fn a_formula_that_reads_too_many_cells_is_num_and_the_engine_carries_on() {
+    let (mut c, formatted) = with(&[
+        ("A1", "5"),
+        ("B1", "=SUMPRODUCT(C1:XFD1048576*1)"),
+        ("B2", "=ROWS(FILTER(C1:XFD1048576,C1:XFD1048576<>0))"),
+        ("B3", "=IFERROR(B1,\"guarded\")"),
+        ("B4", "=A1*2"),
+    ]);
+    assert_eq!(text(&formatted, "B1"), "#NUM!");
+    assert_eq!(text(&formatted, "B2"), "#NUM!");
+    assert_eq!(text(&formatted, "B3"), "guarded");
+    assert_eq!(text(&formatted, "B4"), "10");
+    // The engine keeps evaluating normally afterwards.
+    let sheet = c.workspace["sheets"][0]["id"].clone();
+    c.dispatch(json!({"op":"cells","cells":[{"sheetId":sheet,"address":"A1","value":"6"}]}))
+        .unwrap();
+    let formatted = c.snapshot()["formatted"][sheet.as_str().unwrap()].clone();
+    assert_eq!(text(&formatted, "B4"), "12");
+    assert_eq!(text(&formatted, "B1"), "#NUM!");
+}
+
+#[test]
+fn whole_column_array_math_still_works() {
+    let (_, formatted) = with(&[
+        ("A1", "2"),
+        ("A2", "3"),
+        ("B1", "4"),
+        ("B2", "5"),
+        ("D1", "=SUM(A:A*B:B)"),
+        ("D2", "=SUMPRODUCT(A:A,B:B)"),
+        ("D3", "=COUNTBLANK(A:A)"),
+    ]);
+    assert_eq!(text(&formatted, "D1"), "23");
+    assert_eq!(text(&formatted, "D2"), "23");
+    assert_eq!(text(&formatted, "D3"), "1048574");
+}

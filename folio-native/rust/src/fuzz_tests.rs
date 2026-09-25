@@ -958,3 +958,38 @@ fn damaged_office_state_in_a_saved_workspace_is_an_error() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A table whose range covers whole columns (or the whole sheet) must not
+/// expand its calculated column or totals into a million cells.
+#[test]
+fn full_column_tables_stay_fast() {
+    install_hook();
+    let source =
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("../test/fixtures/tables.xlsx"))
+            .unwrap();
+    let dir = std::env::temp_dir().join(format!("folio-table-ranges-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut failures = vec![];
+    for range in ["A1:D1048576", "A1:XFD1048576", "A1048575:D1048576"] {
+        let mut parts = unzip(&source).unwrap();
+        let entry = parts
+            .iter_mut()
+            .find(|(n, _)| n == "xl/tables/table1.xml")
+            .unwrap();
+        let xml = String::from_utf8(entry.1.clone()).unwrap();
+        assert!(xml.contains(r#"ref="A1:D5""#), "fixture changed");
+        entry.1 = xml
+            .replacen(r#"ref="A1:D5""#, &format!(r#"ref="{range}""#), 1)
+            .into_bytes();
+        let path = dir.join(format!("{}.xlsx", range.replace(':', "-")));
+        std::fs::write(&path, rezip(&parts)).unwrap();
+        let (panic, elapsed) = session(&dir, &path, "importOffice");
+        if let Some((op, panic)) = panic {
+            failures.push(format!("{range}: {op}: {panic}"));
+        } else if elapsed > Duration::from_secs(10) {
+            failures.push(format!("{range}: {:.1}s", elapsed.as_secs_f64()));
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(failures.is_empty(), "{failures:#?}");
+}

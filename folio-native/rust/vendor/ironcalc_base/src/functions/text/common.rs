@@ -218,6 +218,7 @@ impl<'a> Model<'a> {
                 }
                 error @ CalcResult::Error { .. } => return error,
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,
