@@ -119,5 +119,5 @@ Native qualification joins the rank 2 Mac sweep. The register rows and counts ar
 
 ### Task 10: Close-out
 
-- [ ] Update the register rows, STATUS.md counts and the change log.
-- [ ] Run the local CI mirror. Compare with the Phase 2 baseline: 7 Flutter tests fail on Linux only.
+- [x] Update the register rows, STATUS.md counts and the change log.
+- [x] Run the local CI mirror. Compare with the Phase 2 baseline: 7 Flutter tests fail on Linux only.
