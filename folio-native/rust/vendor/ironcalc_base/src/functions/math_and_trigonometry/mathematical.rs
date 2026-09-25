@@ -16,6 +16,7 @@ impl<'a> Model<'a> {
             match self.evaluate_node_in_context(arg, cell) {
                 CalcResult::Number(value) => result = value.min(result),
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,
@@ -76,6 +77,7 @@ impl<'a> Model<'a> {
             match self.evaluate_node_in_context(arg, cell) {
                 CalcResult::Number(value) => result = value.max(result),
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,
@@ -387,6 +389,7 @@ impl<'a> Model<'a> {
             match self.evaluate_node_in_context(arg, cell) {
                 CalcResult::Number(value) => result += value * value,
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,
@@ -521,6 +524,7 @@ impl<'a> Model<'a> {
 
             match cell_value {
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,

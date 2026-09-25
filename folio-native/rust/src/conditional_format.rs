@@ -7,7 +7,7 @@ use crate::{
 };
 use crate::{conditional_data_bar as bars, conditional_icons as icons};
 use serde_json::{json, Map, Value};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 const S: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 const TYPES: &[&str] = &[
     "cellIs",
@@ -1407,12 +1407,15 @@ pub fn evaluate(
         });
     }
     let mut styles = Map::new();
+    // Rules whose formula went over the engine's read budget. It would do so
+    // for every cell, so the rule is dropped for the rest of this pass.
+    let mut too_heavy = HashSet::new();
     for cell in cells {
         let (row, col) = parse_address(cell)?;
         let value = calc.values[id][cell].clone();
         let mut style = Map::new();
-        for p in &prepared {
-            if !p.areas.iter().any(|a| a.contains(row, col)) {
+        for (pi, p) in prepared.iter().enumerate() {
+            if !p.areas.iter().any(|a| a.contains(row, col)) || too_heavy.contains(&pi) {
                 continue;
             }
             if p.rule["type"] == "iconSet" {
@@ -1488,7 +1491,20 @@ pub fn evaluate(
             }
             // Excel treats a formula error as false; explicit ISERROR rules can
             // still format error cells. No helper cell or history entry is used.
-            if match_rule(p, calc, id, index, &names, cell, &value).unwrap_or(false) {
+            let matched = match match_rule(p, calc, id, index, &names, cell, &value) {
+                Ok(matched) => matched,
+                Err(e) if e == ironcalc_base::TOO_MANY_READS => {
+                    too_heavy.insert(pi);
+                    let number = ordered.iter().position(|r| std::ptr::eq(*r, p.rule));
+                    warnings.push(format!(
+                        "Rule {} reads too many cells and is not displayed.",
+                        number.map_or(pi, |n| n) + 1
+                    ));
+                    false
+                }
+                Err(_) => false,
+            };
+            if matched {
                 for (k, v) in p.rule["style"].as_object().unwrap() {
                     style.entry(k.clone()).or_insert_with(|| v.clone());
                 }

@@ -11,6 +11,7 @@ impl<'a> Model<'a> {
     ) -> Result<Vec<f64>, CalcResult> {
         let raw = match self.evaluate_node_in_context(arg, cell) {
             CalcResult::Range { left, right } => {
+                let (left, right) = self.clamp_to_data(left, right);
                 let v = self.values_from_range(left, right)?;
                 v.into_iter().flatten().collect::<Vec<_>>()
             }

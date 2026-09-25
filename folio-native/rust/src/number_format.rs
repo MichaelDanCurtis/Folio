@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub fn settings(pkg: Option<&Package>) -> (bool, Vec<String>) {
     let date1904 = pkg
         .and_then(|p| p.text("xl/workbook.xml").ok())
-        .and_then(|xml| roxmltree::Document::parse(xml).ok())
+        .and_then(|xml| crate::office::parse(xml).ok())
         .is_some_and(|d| {
             d.descendants().any(|n| {
                 n.has_tag_name((S, "workbookPr"))
@@ -17,7 +17,7 @@ pub fn settings(pkg: Option<&Package>) -> (bool, Vec<String>) {
         });
     let palette = pkg
         .and_then(|p| p.text("xl/styles.xml").ok())
-        .and_then(|xml| roxmltree::Document::parse(xml).ok())
+        .and_then(|xml| crate::office::parse(xml).ok())
         .and_then(|d| {
             d.descendants()
                 .find(|n| n.has_tag_name((S, "indexedColors")))

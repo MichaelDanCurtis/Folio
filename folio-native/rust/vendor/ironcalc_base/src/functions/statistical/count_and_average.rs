@@ -61,6 +61,7 @@ impl<'a> Model<'a> {
                     }
                 }
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return Err(CalcResult::new_error(
                             Error::VALUE,
@@ -155,6 +156,7 @@ impl<'a> Model<'a> {
                     }
                 }
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return Err(CalcResult::new_error(
                             Error::VALUE,
@@ -233,6 +235,7 @@ impl<'a> Model<'a> {
         for arg in args {
             match self.evaluate_node_in_context(arg, cell) {
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,
@@ -343,6 +346,7 @@ impl<'a> Model<'a> {
                     result += 1.0;
                 }
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,
@@ -379,6 +383,7 @@ impl<'a> Model<'a> {
             match self.evaluate_node_in_context(arg, cell) {
                 CalcResult::EmptyCell | CalcResult::EmptyArg => {}
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,
@@ -436,6 +441,14 @@ impl<'a> Model<'a> {
                             "Ranges are in different sheets".to_string(),
                         );
                     }
+                    // Cells outside the populated extent are blank: count
+                    // them without visiting (Folio).
+                    let area = |l: &CellReferenceIndex, r: &CellReferenceIndex| {
+                        (r.row - l.row + 1).max(0) as f64 * (r.column - l.column + 1).max(0) as f64
+                    };
+                    let (inner_left, inner_right) = self.clamp_to_data(left, right);
+                    result += area(&left, &right) - area(&inner_left, &inner_right);
+                    let (left, right) = (inner_left, inner_right);
                     for row in left.row..(right.row + 1) {
                         for column in left.column..(right.column + 1) {
                             match self.evaluate_cell(CellReferenceIndex {
@@ -478,6 +491,7 @@ impl<'a> Model<'a> {
                     accumulate(&mut values, &mut sum, &mut count, value);
                 }
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     if left.sheet != right.sheet {
                         return CalcResult::new_error(
                             Error::VALUE,
@@ -870,7 +884,10 @@ impl<'a> Model<'a> {
                     }
                 }
             },
-            CalcResult::Range { left, right } => match self.values_from_range(left, right) {
+            CalcResult::Range { left, right } => match {
+                let (left, right) = self.clamp_to_data(left, right);
+                self.values_from_range(left, right)
+            } {
                 Ok(v) => v,
                 Err(e) => return e,
             },
@@ -970,7 +987,10 @@ impl<'a> Model<'a> {
                     }
                 }
             },
-            CalcResult::Range { left, right } => match self.values_from_range(left, right) {
+            CalcResult::Range { left, right } => match {
+                let (left, right) = self.clamp_to_data(left, right);
+                self.values_from_range(left, right)
+            } {
                 Ok(v) => v,
                 Err(e) => return e,
             },

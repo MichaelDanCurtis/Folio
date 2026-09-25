@@ -16,6 +16,7 @@ impl<'a> Model<'a> {
         for arg in args {
             match self.evaluate_node_in_context(arg, cell) {
                 CalcResult::Range { left, right } => {
+                    let (left, right) = self.clamp_to_data(left, right);
                     let v = self.values_from_range(left, right)?;
                     values.extend(v.into_iter().flatten())
                 }

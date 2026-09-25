@@ -156,6 +156,7 @@ impl<'a> Model<'a> {
                             return Err(error);
                         }
                         CalcResult::Range { left, right } => {
+                            let (left, right) = self.clamp_to_data(left, right);
                             if left.sheet != right.sheet {
                                 return Err(CalcResult::new_error(
                                     Error::VALUE,
@@ -404,6 +405,7 @@ impl<'a> Model<'a> {
                             // skip
                         }
                         CalcResult::Range { left, right } => {
+                            let (left, right) = self.clamp_to_data(left, right);
                             if left.sheet != right.sheet {
                                 return CalcResult::new_error(
                                     Error::VALUE,
@@ -487,6 +489,7 @@ impl<'a> Model<'a> {
                 _ => {
                     match self.evaluate_node_with_reference(arg, cell) {
                         CalcResult::Range { left, right } => {
+                            let (left, right) = self.clamp_to_data(left, right);
                             if left.sheet != right.sheet {
                                 return CalcResult::new_error(
                                     Error::VALUE,

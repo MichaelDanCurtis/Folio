@@ -103,3 +103,43 @@ separate conditional-format engine uses this same expression context; the
 standalone IronCalc conditional-format implementation remains outside Folio's
 rendering path. Browser execution and complete timezone/locale behavior have
 not been qualified in native Excel.
+
+## Phase 3 formula read budget and range clipping
+
+Each formula may read at most `MAX_FORMULA_READS` (2^24) cells directly;
+reads made by the formulas it depends on count against their own budgets.
+`evaluate_cell` counts reads on a per-formula stack, and a formula that goes
+over unwinds (with `resume_unwind`, so no panic hook runs) to where its own
+evaluation started, which stores `#NUM!` ("This formula reads too many
+cells"). Host expressions (`evaluate_expression_cells`, used by Folio's
+conditional formats and data validation) and the conditional-format
+`evaluate_formula` get the same budget through `Model::with_read_budget`;
+an expression that goes over returns the exported `TOO_MANY_READS` error, and
+Folio drops such a conditional-format rule for the rest of its pass with a
+warning instead of paying the budget once per cell. Before this, one formula over a whole-sheet range could visit 17
+billion cells: `COUNTBLANK(A1:XFD1048576)` took over three minutes, and array
+arithmetic such as `SUM(A1:XFD1048576*1)` would have tried to allocate
+hundreds of gigabytes, which aborts the process. A real panic inside a
+formula still propagates.
+
+`Model::clamp_to_data` clips a range of more than 2^20 cells to the sheet's
+populated extent (upstream's `SUM` already did this for whole rows and
+columns). COUNT, COUNTA, COUNTBLANK, AVERAGE, AVERAGEA and the other
+`for_each_value` users, MIN, MAX, MINA, MAXA, SUMSQ, PRODUCT, AVEDEV, LARGE,
+SMALL, SUBTOTAL, CONCAT, PERCENTILE/QUARTILE/MEDIAN (`collect_sorted_values`)
+and MODE use it, since they skip empty cells. COUNTBLANK adds the clipped-off
+area arithmetically. Functions that keep empty cells or their positions
+(TEXTJOIN with empties, paired-array statistics, lookups, array builders) are
+unchanged and rely on the read budget. Data spread to opposite corners of a
+sheet makes the extent the whole sheet, so whole-sheet aggregates over it hit
+the budget; iterating only populated cells would lift that and is not done.
+
+Modified upstream files: src/model.rs, src/new_empty.rs, src/lib.rs,
+src/functions/statistical/count_and_average.rs,
+src/functions/statistical/mode_functions.rs,
+src/functions/statistical/percentile.rs,
+src/functions/math_and_trigonometry/mathematical.rs,
+src/functions/subtotal.rs and src/functions/text/common.rs. Folio's
+`formula_limits_tests.rs` covers exact whole-sheet results, the budget, and
+whole-column array math. The vendored suite passes except
+`test_to_from_bytes::errors`, which fails identically without these changes.

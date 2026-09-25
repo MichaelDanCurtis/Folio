@@ -47,7 +47,7 @@ pub struct Core {
     scenario_source_serial: u64,
     /// `workspace.to_string().len()`, kept current by in-place cell edits and
     /// cleared by every other change.
-    serialized_size: Option<usize>,
+    pub(crate) serialized_size: Option<usize>,
     /// The last `document` and `officeDocument` that document normalization
     /// left unchanged, so cell edits can skip re-checking them.
     stable_document: Option<(Value, Value)>,
@@ -169,6 +169,50 @@ pub(crate) fn document_validate(v: &Value, depth: usize, count: &mut usize) -> R
 }
 pub fn validate(w: &Value) -> Result<(), String> {
     validate_sized(w).map(drop)
+}
+/// Checks the shape of a loaded file's Office state before hydration and
+/// export walk it, so a damaged `.folio` is an error rather than a panic.
+/// `validate` covers the rest once hydration is done.
+fn validate_loaded_shape(w: &Value) -> Result<(), String> {
+    let absent_or = |v: &Value, ok: fn(&Value) -> bool| v.is_null() || ok(v);
+    let invalid = |what: &str| format!("Invalid {what} in this Folio workspace");
+    if w["document"]["type"] != "doc" {
+        return Err("Not a valid Folio workspace".into());
+    }
+    document_validate(&w["document"], 0, &mut 0)?;
+    let office_document = &w["officeDocument"];
+    if !absent_or(office_document, Value::is_object) {
+        return Err(invalid("Word state"));
+    }
+    if !office_document["baseline"].is_null() {
+        if office_document["baseline"]["type"] != "doc" {
+            return Err(invalid("Word baseline"));
+        }
+        document_validate(&office_document["baseline"], 0, &mut 0)?;
+    }
+    let workbook = &w["officeWorkbook"];
+    // Sheets, with the per-sheet maps that style hydration fills in.
+    let sheet_list = |v: &Value| {
+        v.as_array().is_some_and(|sheets| {
+            sheets.iter().all(|sheet| {
+                sheet.is_object()
+                    && ["cells", "cached", "cellStyles", "styleDefaults"]
+                        .iter()
+                        .all(|key| sheet[*key].is_null() || sheet[*key].is_object())
+            })
+        })
+    };
+    if !absent_or(workbook, Value::is_object)
+        || !absent_or(&workbook["report"], Value::is_object)
+        || !absent_or(&workbook["report"]["warnings"], Value::is_array)
+        || !absent_or(&workbook["baseline"], sheet_list)
+    {
+        return Err(invalid("Excel state"));
+    }
+    if !sheet_list(&w["sheets"]) {
+        return Err("Invalid sheets".into());
+    }
+    Ok(())
 }
 /// `validate`, returning the serialized size it checked.
 fn validate_sized(w: &Value) -> Result<usize, String> {
@@ -1587,6 +1631,22 @@ impl Core {
         self.want_delta = None;
         result
     }
+    /// After a panic interrupted a request: drop staged work and bring the
+    /// calculator, display and caches back in line with the workspace. Ops
+    /// replace the workspace only once they succeed, so it is the last good one.
+    pub(crate) fn recover_after_panic(&mut self) {
+        self.layout = None;
+        self.layout_bundle = None;
+        self.catch_up = None;
+        self.quiet = false;
+        self.want_delta = None;
+        self.pending_paths = None;
+        self.last_change = None;
+        self.stable_document = None;
+        self.calculator = Default::default();
+        self.conditional_state = Value::Null;
+        self.sync(&ChangeSet::Structural);
+    }
     fn dispatch_op(&mut self, r: Value) -> Result<Value, String> {
         let op = text(&r, "op")?;
         // Loading a file may reuse the same workspace id/revision while changing
@@ -1923,6 +1983,11 @@ impl Core {
                 Ok(self.snapshot())
             }
             "get" => Ok(self.snapshot()),
+            #[cfg(test)]
+            "panicForTest" => {
+                self.workspace["title"] = json!("half-finished");
+                panic!("test panic")
+            }
             // Delta responses omit file-state digests; callers fetch them here.
             "fileStates" => {
                 if self
@@ -1974,6 +2039,7 @@ impl Core {
                     return Err("Workspace exceeds 32 MB".into());
                 }
                 let mut w: Value = serde_json::from_str(&s).map_err(|e| e.to_string())?;
+                validate_loaded_shape(&w)?;
                 let mut packages = HashMap::new();
                 if let Some(encoded) = w
                     .as_object_mut()
@@ -3658,6 +3724,7 @@ impl Core {
                     .and_then(|s| s.to_str())
                     .unwrap_or("Untitled"));
                 staged.workspace["revision"] = json!(0);
+                staged.serialized_size = None;
                 staged.history.clear();
                 if op == "inspectTemplate" {
                     let mut preview = workspace_description(&staged.workspace);

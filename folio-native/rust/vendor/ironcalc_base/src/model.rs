@@ -229,7 +229,31 @@ pub struct Model<'a> {
     /// Evaluated CF results per cell, keyed by (sheet_index, row, column).
     /// Rebuilt from scratch on every call to evaluate_conditional_formatting().
     pub(crate) cf_cache: HashMap<(u32, i32, i32), Vec<CfCellResult>>,
+    /// Cells read so far by each formula being evaluated, innermost last.
+    /// See [`MAX_FORMULA_READS`].
+    pub(crate) formula_reads: Vec<u64>,
 }
+
+/// The most cells one formula may read directly (Folio). A formula over a
+/// whole-sheet range would otherwise visit 17 billion cells, taking minutes
+/// or exhausting memory while building an array. Such a formula evaluates to
+/// `#NUM!` instead. Reads made by the formulas it depends on count against
+/// their own budgets.
+pub(crate) const MAX_FORMULA_READS: u64 = 1 << 24;
+
+/// The error from [`Model::evaluate_expression_cells`] when the expression
+/// went over [`MAX_FORMULA_READS`].
+pub const TOO_MANY_READS: &str = "The formula reads too many cells";
+
+/// Unwinds out of a formula that exceeded [`MAX_FORMULA_READS`]; caught
+/// where that formula's evaluation started.
+struct FormulaReadsExceeded;
+
+/// Ranges with more cells than this are clipped to the sheet's populated
+/// extent by functions that skip empty cells (Folio). Finding the extent
+/// scans the populated cells, which is cheaper than visiting a range this
+/// large.
+const CLAMP_AREA: i64 = 1 << 20;
 
 // FIXME: Maybe this should be the same as CellReference
 /// A struct pointing to a cell
@@ -546,7 +570,7 @@ impl<'a> Model<'a> {
             row: 1,
             column: 1,
         };
-        match self.evaluate_node_in_context(&node, context_index) {
+        match self.with_read_budget(|model| model.evaluate_node_in_context(&node, context_index))? {
             CalcResult::Number(n) => Some(n),
             _ => None,
         }
@@ -554,8 +578,23 @@ impl<'a> Model<'a> {
 
     /// Evaluate a host-supplied expression at a worksheet cell without writing
     /// a helper cell. Used for validation criteria and bounded list sources.
-    /// The workbook must have been evaluated before calling this method.
+    /// The workbook must have been evaluated before calling this method. The
+    /// expression has its own cell-read budget, like a formula cell.
     pub fn evaluate_expression_cells(
+        &mut self,
+        formula: &str,
+        sheet: u32,
+        row: i32,
+        column: i32,
+        limit: usize,
+    ) -> Result<Vec<Vec<crate::cell::CellValue>>, String> {
+        self.with_read_budget(|model| {
+            model.evaluate_expression_cells_unbudgeted(formula, sheet, row, column, limit)
+        })
+        .unwrap_or_else(|| Err(TOO_MANY_READS.into()))
+    }
+
+    fn evaluate_expression_cells_unbudgeted(
         &mut self,
         formula: &str,
         sheet: u32,
@@ -1500,7 +1539,58 @@ impl<'a> Model<'a> {
 
     // Evaluates a cell and returns the value in the cell
     // FIXME: CalcResult cannot be Array or Range, should we have a different type?
+    /// The part of the range `left:right` that can hold values: large ranges
+    /// are clipped to the sheet's populated extent. Only for callers that
+    /// skip empty cells; the result may be empty (`left` below or right of
+    /// `right`).
+    pub(crate) fn clamp_to_data(
+        &self,
+        left: CellReferenceIndex,
+        right: CellReferenceIndex,
+    ) -> (CellReferenceIndex, CellReferenceIndex) {
+        let area = (right.row - left.row + 1) as i64 * (right.column - left.column + 1) as i64;
+        if area <= CLAMP_AREA || left.sheet != right.sheet {
+            return (left, right);
+        }
+        let Ok(sheet) = self.workbook.worksheet(left.sheet) else {
+            return (left, right);
+        };
+        let extent = sheet.dimension();
+        (
+            CellReferenceIndex {
+                row: left.row.max(extent.min_row),
+                column: left.column.max(extent.min_column),
+                ..left
+            },
+            CellReferenceIndex {
+                row: right.row.min(extent.max_row),
+                column: right.column.min(extent.max_column),
+                ..right
+            },
+        )
+    }
+
+    /// Runs `f` with its own cell-read budget (see [`MAX_FORMULA_READS`]).
+    /// `None` means it read too many cells and was abandoned.
+    pub(crate) fn with_read_budget<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> Option<T> {
+        self.formula_reads.push(0);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(self)));
+        self.formula_reads.pop();
+        match result {
+            Ok(value) => Some(value),
+            Err(payload) if payload.is::<FormulaReadsExceeded>() => None,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+
     pub(crate) fn evaluate_cell(&mut self, cell_reference: CellReferenceIndex) -> CalcResult {
+        if let Some(reads) = self.formula_reads.last_mut() {
+            *reads += 1;
+            if *reads > MAX_FORMULA_READS {
+                // `resume_unwind` skips the panic hook: this is not a bug.
+                std::panic::resume_unwind(Box::new(FormulaReadsExceeded));
+            }
+        }
         let original_cell = match self.fetch_cell(cell_reference) {
             Some(c) => c.clone(),
             None => return CalcResult::EmptyCell,
@@ -1592,43 +1682,53 @@ impl<'a> Model<'a> {
                 }
                 // mark cell as being evaluated
                 self.cells.insert(key, CellState::Evaluating);
-                let (node, _static_result) =
-                    &self.parsed_formulas[cell_reference.sheet as usize][f as usize];
-                let result = self.evaluate_node_in_context(&node.clone(), cell_reference);
+                let node = self.parsed_formulas[cell_reference.sheet as usize][f as usize]
+                    .0
+                    .clone();
+                let evaluated = self.with_read_budget(|model| {
+                    let result = model.evaluate_node_in_context(&node, cell_reference);
 
-                // At this point a range needs to be transformed into an array
-                let result = if let CalcResult::Range { left, right } = result {
-                    if left.sheet == right.sheet
-                        && left.row == right.row
-                        && left.column == right.column
-                    {
-                        // it is a single cell range, we can just return the value of the cell
-                        self.evaluate_cell(left)
-                    } else {
-                        let array_height = right.row - left.row + 1;
-                        let array_width = right.column - left.column + 1;
-                        let last_row = cell_reference.row + array_height - 1;
-                        let last_col = cell_reference.column + array_width - 1;
-                        if last_row > LAST_ROW || last_col > LAST_COLUMN {
-                            CalcResult::new_error(
-                                Error::SPILL,
-                                cell_reference,
-                                "Spill would exceed worksheet bounds".to_string(),
-                            )
+                    // At this point a range needs to be transformed into an array
+                    if let CalcResult::Range { left, right } = result {
+                        if left.sheet == right.sheet
+                            && left.row == right.row
+                            && left.column == right.column
+                        {
+                            // it is a single cell range, we can just return the value of the cell
+                            model.evaluate_cell(left)
                         } else {
-                            let array = self.evaluate_range(left, right);
-                            CalcResult::Array(array)
+                            let array_height = right.row - left.row + 1;
+                            let array_width = right.column - left.column + 1;
+                            let last_row = cell_reference.row + array_height - 1;
+                            let last_col = cell_reference.column + array_width - 1;
+                            if last_row > LAST_ROW || last_col > LAST_COLUMN {
+                                CalcResult::new_error(
+                                    Error::SPILL,
+                                    cell_reference,
+                                    "Spill would exceed worksheet bounds".to_string(),
+                                )
+                            } else {
+                                let array = model.evaluate_range(left, right);
+                                CalcResult::Array(array)
+                            }
                         }
+                    } else if matches!(result, CalcResult::Lambda(_)) {
+                        CalcResult::new_error(
+                            Error::CALC,
+                            cell_reference,
+                            "A LAMBDA was returned but not called".to_string(),
+                        )
+                    } else {
+                        result
                     }
-                } else if matches!(result, CalcResult::Lambda(_)) {
+                });
+                let result = evaluated.unwrap_or_else(|| {
                     CalcResult::new_error(
-                        Error::CALC,
+                        Error::NUM,
                         cell_reference,
-                        "A LAMBDA was returned but not called".to_string(),
+                        "This formula reads too many cells".to_string(),
                     )
-                } else {
-                    result
-                };
+                });
 
                 if let Err(e) = self.set_cells_with_result(cell_reference, &original_cell, &result)
                 {
@@ -1816,6 +1916,7 @@ impl<'a> Model<'a> {
             spill_cells: Vec::new(),
             support: HashMap::new(),
             cf_cache: HashMap::new(),
+            formula_reads: Vec::new(),
         };
 
         model.parse_formulas();
