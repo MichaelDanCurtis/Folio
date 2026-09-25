@@ -12,6 +12,9 @@ use std::{
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 pub const MAX_PACKAGE: usize = 32 * 1024 * 1024;
+/// Largest single part, and all parts together, once inflated.
+const MAX_PART: usize = 64 * 1024 * 1024;
+const MAX_EXPANDED: u64 = 128 * 1024 * 1024;
 #[derive(Clone, Default)]
 pub struct Package {
     pub entries: BTreeMap<String, Vec<u8>>,
@@ -44,18 +47,24 @@ impl Package {
             let name = file.name().to_string();
             if name.starts_with('/')
                 || name.split('/').any(|p| p == "..")
-                || file.size() > 64 * 1024 * 1024
+                || file.size() > MAX_PART as u64
             {
                 return Err("Invalid or oversized Office package part".into());
             }
-            total += file.size();
-            if total > 128 * 1024 * 1024 {
+            let declared = file.size();
+            if total + declared > MAX_EXPANDED {
                 return Err("Expanded Office package exceeds 128 MB".into());
             }
+            // A part's declared size can lie, so the limits apply to what
+            // actually inflates, and a mismatch means a damaged package.
             let mut data = Vec::new();
-            file.take(64 * 1024 * 1024 + 1)
+            file.take((MAX_PART as u64).min(MAX_EXPANDED - total) + 1)
                 .read_to_end(&mut data)
                 .map_err(|e| e.to_string())?;
+            if data.len() as u64 != declared {
+                return Err("Office package part is damaged or larger than it declares".into());
+            }
+            total += declared;
             if entries.insert(name, data).is_some() {
                 return Err("Duplicate Office package part".into());
             }
@@ -167,7 +176,71 @@ pub fn scoped_record(xml: &str, node: roxmltree::Node) -> String {
     let inner = node.children().map(|n| raw(xml, n)).collect::<String>();
     format!("<{tag}{declarations}{attrs}>{inner}</{tag}>")
 }
+/// Deepest element nesting accepted. Real documents stay far below it (a
+/// table in a table in a table is about ten levels). roxmltree and the
+/// importers both recurse per level, so the limit is checked on the raw text
+/// before parsing: a hostile file could otherwise overflow the stack, which
+/// aborts the process rather than returning an error.
+pub const MAX_XML_DEPTH: usize = 256;
+/// Whether `xml`'s element nesting exceeds `limit`. Comments, CDATA,
+/// processing instructions and quoted attribute values are skipped, so a
+/// `<` or `>` inside them is not counted. Malformed text may be miscounted,
+/// but the parser rejects it anyway.
+fn nested_deeper_than(xml: &str, limit: usize) -> bool {
+    let b = xml.as_bytes();
+    let skip_to = |from: usize, end: &[u8]| {
+        b[from..]
+            .windows(end.len())
+            .position(|w| w == end)
+            .map_or(b.len(), |i| from + i + end.len())
+    };
+    let mut depth = 0usize;
+    let mut i = 0;
+    while let Some(offset) = b[i..].iter().position(|&c| c == b'<') {
+        i += offset;
+        let rest = &b[i..];
+        if rest.starts_with(b"<!--") {
+            i = skip_to(i + 4, b"-->");
+        } else if rest.starts_with(b"<![CDATA[") {
+            i = skip_to(i + 9, b"]]>");
+        } else if rest.starts_with(b"<?") {
+            i = skip_to(i + 2, b"?>");
+        } else if rest.starts_with(b"<!") {
+            i = skip_to(i + 2, b">");
+        } else if rest.starts_with(b"</") {
+            depth = depth.saturating_sub(1);
+            i = skip_to(i + 2, b">");
+        } else {
+            // A start tag: find its `>` outside quoted attribute values.
+            let mut j = i + 1;
+            let mut quote = None;
+            while j < b.len() {
+                match (quote, b[j]) {
+                    (None, b'"' | b'\'') => quote = Some(b[j]),
+                    (Some(q), c) if c == q => quote = None,
+                    (None, b'>') => break,
+                    _ => {}
+                }
+                j += 1;
+            }
+            if j >= b.len() {
+                return false;
+            }
+            if b[j - 1] != b'/' {
+                depth += 1;
+                if depth > limit {
+                    return true;
+                }
+            }
+            i = j + 1;
+        }
+    }
+    false
+}
 pub fn parse(xml: &str) -> Result<roxmltree::Document<'_>, String> {
+    if nested_deeper_than(xml, MAX_XML_DEPTH) {
+        return Err("Office XML is nested too deeply".into());
+    }
     roxmltree::Document::parse(xml).map_err(|e| format!("Invalid Office XML: {e}"))
 }
 pub fn replace_ranges(

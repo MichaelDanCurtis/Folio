@@ -10,6 +10,8 @@ mod formula_audit;
 #[cfg(test)]
 mod formula_audit_tests;
 mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be accurate, and you can change it according to your needs. */
+#[cfg(test)]
+mod fuzz_tests;
 mod goal_seek;
 #[cfg(test)]
 mod goal_seek_tests;
