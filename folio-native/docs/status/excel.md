@@ -18,7 +18,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | X01.10 | Cut and paste (move) with reference updates | M1 | Specified | — | Cut/move not built |
 | X01.11 | Clipboard exchange with Excel and other apps (HTML, TSV, RTF) | M1 | Specified | — | TSV only (see D03.05) |
 | X01.12 | Fill Down/Right/Up/Left (Ctrl+D, Ctrl+R) with relative formula adjustment | M1 | Automated verified | 0.22 ([VALIDATION](../../VALIDATION.md#0220-worksheet-directional-fill-2026-09-19)) | Native package check |
-| X01.13 | Fill handle drag and double-click to extend | M1 | Specified | — | Not built |
+| X01.13 | Fill handle drag and double-click to extend | M1 | Automated verified | Workbook essentials Task 9: dragging the handle repeats the selected block down, up, right or left (formulas adjust per copy) and selects the result; dragging back inside clears the released cells; double-click fills down beside the adjacent column (`sheet_fill_tests.rs`, `sheet_fill_handle_test.dart`) | Series fill (X01.14) and the Auto Fill Options button; auto-scroll while dragging past the window edge; native check |
 | X01.14 | Series fill (linear, growth, dates) and custom lists | M2 | Specified | — | Not built |
 | X01.15 | Flash Fill equivalent | M3 | Specified | — | Not built |
 | X01.16 | Conditional formatting copied by paste and fill | M2 | Automated verified | 0.50 ([CONDITIONAL_COPY](../CONDITIONAL_COPY.md)) | Native check |

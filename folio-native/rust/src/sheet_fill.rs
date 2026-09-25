@@ -55,6 +55,51 @@ impl Fill {
             return Err("Fill up to 100,000 cells at once".into());
         }
         let mut copies = vec![];
+        // The fill handle repeats a whole source block across the range.
+        if let Some(source) = r.get("source").filter(|v| !v.is_null()) {
+            let source = Area::parse(source.as_str().ok_or("Invalid fill source")?.trim())?;
+            let vertical = matches!(direction, "down" | "up");
+            let inside = source.top >= area.top
+                && source.bottom <= area.bottom
+                && source.left >= area.left
+                && source.right <= area.right;
+            let aligned = if vertical {
+                source.left == area.left && source.right == area.right
+            } else {
+                source.top == area.top && source.bottom == area.bottom
+            };
+            let edge = match direction {
+                "down" => source.top == area.top,
+                "up" => source.bottom == area.bottom,
+                "right" => source.left == area.left,
+                _ => source.right == area.right,
+            };
+            if !inside || !aligned || !edge {
+                return Err(
+                    "The fill range must extend the source cells in the fill direction".into(),
+                );
+            }
+            let height = (source.bottom - source.top + 1) as isize;
+            let width = (source.right - source.left + 1) as isize;
+            for row in area.top..=area.bottom {
+                for col in area.left..=area.right {
+                    let from = (
+                        source.top
+                            + (row as isize - source.top as isize).rem_euclid(height) as usize,
+                        source.left
+                            + (col as isize - source.left as isize).rem_euclid(width) as usize,
+                    );
+                    if from != (row, col) {
+                        copies.push((address(from.0, from.1), address(row, col)));
+                    }
+                }
+            }
+            return Ok(Self {
+                sheet,
+                area,
+                copies,
+            });
+        }
         for row in area.top..=area.bottom {
             for col in area.left..=area.right {
                 let source = match direction {

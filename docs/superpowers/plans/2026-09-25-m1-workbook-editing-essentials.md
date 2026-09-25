@@ -113,9 +113,9 @@ Native qualification joins the rank 2 Mac sweep. The register rows and counts ar
 
 **Files:** `lib/src/sheet_fill_handle.dart` (new), grid wiring, tests
 
-- [ ] **Dragging the fill handle** fills down, right, up or left using the existing fill op (X01.12). Series (X01.14) stays separate.
-- [ ] **Double-clicking the handle** fills down to the end of the adjacent data column.
-- [ ] **Dragging back inside the selection** clears the cells released.
+- [x] **Dragging the fill handle** fills down, right, up or left using the existing fill op (X01.12). Series (X01.14) stays separate.
+- [x] **Double-clicking the handle** fills down to the end of the adjacent data column.
+- [x] **Dragging back inside the selection** clears the cells released.
 
 ### Task 10: Close-out
 
