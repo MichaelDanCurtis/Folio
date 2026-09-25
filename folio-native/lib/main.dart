@@ -1,3 +1,5 @@
+import 'src/document_case.dart' show documentText;
+import 'src/document_word_count.dart';
 import 'src/document_page_preview.dart';
 import 'src/formula_inspector.dart';
 import 'src/goal_seek_dialog.dart';
@@ -2701,6 +2703,30 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
     );
   }
 
+  Future<void> showWordCount() async {
+    if (spreadsheet || _leavingWorkspace) return;
+    await flush();
+    if (!mounted) return;
+    final selection = editor.selection;
+    final text = documentText(editor.document.toDelta());
+    final notes = await model.core.call({'op': 'documentNotesText'});
+    final layout = selection.isCollapsed
+        ? await model.core.call({'op': 'documentPagePreview'})
+        : null;
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => DocumentWordCountDialog(
+        document: documentParagraphs(model.workspace['document'] as Map),
+        notes: notesParagraphs(notes),
+        selection: selection.isCollapsed
+            ? null
+            : text.substring(selection.start, selection.end),
+        layout: layout,
+      ),
+    );
+  }
+
   Future<void> showHeaders() async {
     if (spreadsheet || _leavingWorkspace) return;
     await flush();
@@ -2981,6 +3007,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
         if (!spreadsheet) trackingShortcut: const ToggleTrackingIntent(),
         ...searchShortcuts,
         if (!spreadsheet) ...bookmarkShortcuts,
+        if (!spreadsheet) ...wordCountShortcuts,
         ...commentShortcuts,
         if (spreadsheet)
           const SingleActivator(LogicalKeyboardKey.f2, shift: true):
@@ -3025,6 +3052,13 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
               if (!_leavingWorkspace) {
                 guard(() => showSheetReviews(kind: 'note'));
               }
+              return null;
+            },
+          ),
+          WordCountIntent: CallbackAction<WordCountIntent>(
+            onInvoke: (_) {
+              if (_leavingWorkspace) return null;
+              guard(showWordCount);
               return null;
             },
           ),
@@ -4079,9 +4113,13 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
         ),
         child: Row(
           children: [
-            Text(
-              '$_wordCount words',
-              style: const TextStyle(fontSize: 9, color: muted),
+            InkWell(
+              key: const Key('status-word-count'),
+              onTap: spreadsheet ? null : () => guard(showWordCount),
+              child: Text(
+                '$_wordCount words',
+                style: const TextStyle(fontSize: 9, color: muted),
+              ),
             ),
             const SizedBox(width: 20),
             Text(

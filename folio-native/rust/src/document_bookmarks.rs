@@ -477,7 +477,8 @@ pub fn command(document: &Value, request: &Value) -> Result<Value, String> {
             list.remove(found.ok_or("Bookmark no longer exists")?);
         }
         Some("set") => {
-            if !valid_name(name, false) {
+            // Hidden `_` names are Word's own (links to headings, cross-references).
+            if !valid_name(name, request["hidden"] == true) {
                 return Err("Start the bookmark name with a letter; use letters, numbers or underscores (40 characters maximum).".into());
             }
             let mut b = json!({"name":name,"start":request["start"],"end":request["end"]});

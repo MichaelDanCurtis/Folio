@@ -18,18 +18,18 @@
 
 ### Task 2: Hyperlink UI (W01.14)
 
-- [ ] **Insert and edit** with Ctrl/Cmd+K: text to display, and an address or a place in this document (a heading or bookmark).
-- [ ] **Remove the link**, keeping its text.
-- [ ] **Follow** with Ctrl/Cmd+click, or from the context menu:
+- [x] **Insert and edit** with Ctrl/Cmd+K: text to display, and an address or a place in this document (a heading or bookmark).
+- [x] **Remove the link**, keeping its text.
+- [x] **Follow** with Ctrl/Cmd+click, or from the context menu:
   - an external link asks the platform to open it;
   - an internal link moves the caret to the target.
-- [ ] Only http, https and mailto addresses are followed.
+- [x] Only http, https and mailto addresses are followed.
 
 ### Task 3: Word Count dialog (W12.09)
 
-- [ ] Pages (from the page layout), words, characters with and without spaces, paragraphs and lines, for the document or the selection.
-- [ ] A checkbox includes text boxes, footnotes and endnotes.
-- [ ] The status-bar word count opens the dialog.
+- [x] Pages (from the page layout), words, characters with and without spaces, paragraphs and lines, for the document or the selection.
+- [x] A checkbox includes text boxes, footnotes and endnotes.
+- [x] The status-bar word count opens the dialog.
 
 ### Task 4: Editor zoom (W17.02)
 

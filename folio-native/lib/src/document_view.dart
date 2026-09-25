@@ -1,4 +1,5 @@
 import 'document_fields.dart';
+import 'document_links.dart';
 import 'document_page_setup.dart';
 import 'document_revisions.dart';
 import 'document_named_styles.dart';
@@ -343,6 +344,144 @@ class DocumentViewState extends State<DocumentView> {
     }
   }
 
+  /// Insert or edit the hyperlink at the selection (Ctrl/Cmd+K).
+  Future<void> editLink() async {
+    try {
+      await model?.flush();
+      if (!mounted) return;
+      final before = controller.document.toDelta();
+      final revision = model?.revision;
+      var selection = controller.selection;
+      final existing = selection.isCollapsed
+          ? linkRangeAt(before, selection.start)
+          : null;
+      if (existing != null) {
+        selection = TextSelection(
+          baseOffset: existing.start,
+          extentOffset: existing.end,
+        );
+      }
+      final slice = before.slice(selection.start, selection.end).toList();
+      final plain = slice.every((op) => op.data is String);
+      final text = slice.map((op) => op.data is String ? op.data : '').join();
+      if (!plain || text.contains('\n')) {
+        throw const FormatException(
+          'Select text within one paragraph to link it.',
+        );
+      }
+      final document = model?.workspace['document'] as Map?;
+      final result = await showDialog<LinkResult>(
+        context: context,
+        builder: (_) => DocumentLinkDialog(
+          text: text,
+          address: selection.isCollapsed
+              ? ''
+              : linkAt(before, selection.start) ?? '',
+          existing: existing != null || linkAt(before, selection.start) != null,
+          places: document == null ? const [] : linkPlaces(document),
+        ),
+      );
+      if (result == null || !mounted) return;
+      if (before != controller.document.toDelta() ||
+          revision != model?.revision) {
+        throw const FormatException(
+          'The document changed. Select the text and try again.',
+        );
+      }
+      if (result.remove) {
+        final range = selection.isCollapsed
+            ? null
+            : TextRange(start: selection.start, end: selection.end);
+        if (range != null) {
+          controller.compose(
+            removeLinkDelta(range),
+            selection,
+            q.ChangeSource.local,
+          );
+        }
+        _focus.requestFocus();
+        return;
+      }
+      var href = result.href;
+      final place = result.place;
+      if (place != null && place.bookmark == null) {
+        // A heading gets Word's hidden bookmark the first time it is linked.
+        final name = headingBookmarkName(
+          place.label,
+          documentBookmarks(document!).map((b) => b['name'] as String),
+        );
+        await model!.mutate({
+          'op': 'bookmark',
+          'action': 'set',
+          'name': name,
+          'hidden': true,
+          'start': place.start,
+          'end': place.end,
+          'workspaceId': model!.workspace['id'],
+          'baseRevision': revision,
+        }, refreshDocument: true);
+        if (!mounted) return;
+        href = '#$name';
+      }
+      final change = setLinkDelta(
+        controller.document.toDelta(),
+        selection.start,
+        selection.end,
+        result.text,
+        href,
+      );
+      final end = selection.start + result.text.length;
+      controller.compose(
+        change,
+        TextSelection.collapsed(offset: end),
+        q.ChangeSource.local,
+      );
+      controller.updateSelection(
+        TextSelection.collapsed(offset: end),
+        q.ChangeSource.local,
+      );
+      _focus.requestFocus();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e is FormatException ? e.message : '$e')),
+        );
+      }
+    }
+  }
+
+  /// Follows [href]: web and mail links open outside Folio, and a link to a
+  /// bookmark moves the caret there.
+  Future<void> followLink(String href) async {
+    void say(String message) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+
+    switch (linkKind(href)) {
+      case LinkKind.internal:
+        final document = model?.workspace['document'] as Map?;
+        final name = href.substring(1).toLowerCase();
+        final bookmark = document == null
+            ? null
+            : documentBookmarks(document)
+                  .where((b) => (b['name'] as String).toLowerCase() == name)
+                  .firstOrNull;
+        if (bookmark == null) {
+          say('This link\'s destination is no longer in the document.');
+          return;
+        }
+        await revealBookmark(document!, bookmark);
+      case LinkKind.web || LinkKind.mail:
+        await openExternalLink(Uri.parse(href));
+      case LinkKind.blocked:
+        say('Folio only follows web, email and in-document links.');
+    }
+  }
+
   void reveal(int start, int end, {bool requestFocus = false}) {
     if (requestFocus) _focus.requestFocus();
     final limit = controller.document.length - 1;
@@ -449,8 +588,35 @@ class DocumentViewState extends State<DocumentView> {
             onContextAction?.call(name);
           },
         );
+    final link = linkAt(controller.document.toDelta(), selection.start);
+    ContextMenuButtonItem run(String label, VoidCallback onPressed) =>
+        ContextMenuButtonItem(
+          label: label,
+          onPressed: () {
+            raw.hideToolbar();
+            onPressed();
+          },
+        );
     final actions = <ContextMenuButtonItem>[
       ...raw.contextMenuButtonItems,
+      if (link != null) ...[
+        run('Open link', () => followLink(link)),
+        run('Edit link…', editLink),
+        run('Remove link', () {
+          final range = linkRangeAt(
+            controller.document.toDelta(),
+            selection.start,
+          );
+          if (range != null) {
+            controller.compose(
+              removeLinkDelta(range),
+              selection,
+              q.ChangeSource.local,
+            );
+          }
+        }),
+      ] else
+        run('Link…', editLink),
       action('New comment', 'comment'),
       action('Spelling & grammar', 'proofread'),
       action('Check grammar with AI', 'grammar'),
@@ -590,6 +756,12 @@ class DocumentViewState extends State<DocumentView> {
                     child: const Text('Styles…'),
                   ),
                   IconButton(
+                    key: const Key('document-link'),
+                    tooltip: 'Link (Ctrl+K)',
+                    onPressed: editLink,
+                    icon: const Icon(Icons.link, size: 19),
+                  ),
+                  IconButton(
                     key: const Key('insert-table'),
                     tooltip: 'Insert table',
                     onPressed: insertTable,
@@ -672,6 +844,8 @@ class DocumentViewState extends State<DocumentView> {
                 textSpanBuilder:
                     proofreading?.spanBuilder ?? q.defaultSpanBuilder,
                 placeholder: 'Start writing…',
+                onLaunchUrl: followLink,
+                transformLink: (link) => link,
                 // Pinned Quill 11.6.0; the callback has widget coverage.
                 // ignore: experimental_member_use
                 customLeadingBlockBuilder: (node, config) {
@@ -708,6 +882,7 @@ class DocumentViewState extends State<DocumentView> {
                   ...searchShortcuts,
                   ...bookmarkShortcuts,
                   ...documentMarkShortcuts,
+                  ...linkShortcuts,
                   const SingleActivator(LogicalKeyboardKey.keyZ, meta: true):
                       const UndoWorkspace(),
                   const SingleActivator(
@@ -720,6 +895,12 @@ class DocumentViewState extends State<DocumentView> {
                 },
                 customActions: {
                   ...documentMarkActions(controller, _focus),
+                  EditLinkIntent: CallbackAction<EditLinkIntent>(
+                    onInvoke: (_) {
+                      editLink();
+                      return null;
+                    },
+                  ),
                   UndoWorkspace: CallbackAction<UndoWorkspace>(
                     onInvoke: (intent) {
                       intent.redo ? redo() : undo();

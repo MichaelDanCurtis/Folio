@@ -22,6 +22,15 @@ class DocumentPageLayout {
   final List<TextPainter> _painters;
   final bool converged;
   DocumentPageLayout(this.pages, this.notices, this._painters, this.converged);
+
+  /// Lines of body text, as Word Count reports them.
+  int get lineCount => pages
+      .expand((page) => page.content)
+      .where((p) => p.area == 'body')
+      .expand((p) => p.text.split('\n'))
+      .where((line) => line.trim().isNotEmpty)
+      .length;
+
   void dispose() {
     for (final painter in _painters) {
       painter.dispose();

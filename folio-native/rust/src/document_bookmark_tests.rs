@@ -416,3 +416,48 @@ fn exact_proposal_edits_disambiguate_repeated_text_and_reject_wrong_workspaces()
     c.dispatch(json!({"op":"cells","cells":[{"sheetId":c.workspace["sheets"][0]["id"],"address":"A25","value":"42"}]})).unwrap();
     assert_eq!(c.workspace["document"], saved);
 }
+
+#[test]
+fn hidden_names_are_set_only_when_asked_for() {
+    let d = doc("Intro\nBody");
+    let plain = json!({"action":"set","name":"_Intro","start":0,"end":5});
+    assert!(bm::command(&d, &plain).is_err());
+    let hidden = json!({"action":"set","name":"_Intro","start":0,"end":5,"hidden":true});
+    let next = bm::command(&d, &hidden).unwrap();
+    assert_eq!(range(&next, "_Intro"), (0, 5));
+}
+
+#[test]
+fn a_link_to_a_hidden_heading_bookmark_round_trips() {
+    let dir = std::env::temp_dir().join(format!("folio-heading-link-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("source.docx");
+    let mut c = Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    c.dispatch(json!({"op":"document","document":{"type":"doc","content":[
+        {"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Intro"}]},
+        {"type":"paragraph","content":[{"type":"text","text":"Back to top"}]}]}}))
+        .unwrap();
+    c.dispatch(json!({"op":"exportOffice","format":"docx","path":source}))
+        .unwrap();
+    c.dispatch(json!({"op":"importOffice","path":source}))
+        .unwrap();
+    c.dispatch(json!({"op":"bookmark","action":"set","name":"_Intro","hidden":true,"start":0,"end":5,"workspaceId":c.workspace["id"],"baseRevision":c.workspace["revision"]})).unwrap();
+    let mut d = c.workspace["document"].clone();
+    d["content"][1]["content"][0]["marks"] = json!([{"type":"link","attrs":{"href":"#_Intro"}}]);
+    c.dispatch(json!({"op":"document","document":d,"baseRevision":c.workspace["revision"]}))
+        .unwrap();
+    let out = dir.join("linked.docx");
+    c.dispatch(json!({"op":"exportOffice","format":"docx","path":out}))
+        .unwrap();
+    let mut reopened = Core::new();
+    let imported = reopened
+        .dispatch(json!({"op":"importOffice","path":out}))
+        .unwrap();
+    let doc = &imported["workspace"]["document"];
+    assert_eq!(range(doc, "_Intro"), (0, 5));
+    assert_eq!(
+        doc["content"][1]["content"][0]["marks"][0]["attrs"]["href"],
+        "#_Intro"
+    );
+}

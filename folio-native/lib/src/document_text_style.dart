@@ -287,6 +287,7 @@ class DocumentTextToolbar extends StatelessWidget {
             showSubscript: false,
             showSuperscript: false,
             showClearFormat: false,
+            showLink: false,
           ),
         ),
       ),

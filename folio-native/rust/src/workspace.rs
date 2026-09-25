@@ -1778,6 +1778,7 @@ impl Core {
                 | "documentSectionContext"
                 | "documentHeaders"
                 | "documentPagePreview"
+                | "documentNotesText"
                 | "copyCells"
                 | "previewNumberFormat"
                 | "validationEntryCheck"
@@ -2670,6 +2671,12 @@ impl Core {
                 self.packages.insert(id, Arc::new(updated));
                 self.commit(n)
             }
+            "documentNotesText" => crate::docx_note_text::read(
+                self.workspace["officeDocument"]["packageId"]
+                    .as_str()
+                    .and_then(|id| self.packages.get(id))
+                    .map(AsRef::as_ref),
+            ),
             "documentStyles" => {
                 let catalog = self.workspace["document"]["attrs"]
                     .get(crate::docx_styles::KEY)
