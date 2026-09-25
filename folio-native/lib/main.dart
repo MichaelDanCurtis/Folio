@@ -45,6 +45,7 @@ import 'src/document_history_change.dart';
 import 'package:dart_quill_delta/dart_quill_delta.dart';
 import 'src/document_view.dart';
 import 'src/sheet_view.dart';
+import 'src/sheet_formula_point.dart';
 import 'src/sheet_zoom.dart';
 import 'src/sheet_status.dart';
 import 'src/table_controls.dart' show VisibleRows, VisibleColumns;
@@ -4088,6 +4089,20 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
               style: const TextStyle(fontSize: 9, color: muted),
             ),
             const SizedBox(width: 12),
+            if (spreadsheet && sheetKey.currentState != null)
+              ValueListenableBuilder<EditMode?>(
+                valueListenable: sheetKey.currentState!.editModeNotifier,
+                builder: (_, mode, _) => mode == null
+                    ? const SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Text(
+                          mode.label,
+                          key: const Key('edit-mode'),
+                          style: const TextStyle(fontSize: 9, color: muted),
+                        ),
+                      ),
+              ),
             Expanded(child: _statusSummary(spreadsheet)),
             const SizedBox(width: 20),
             if (spreadsheet)

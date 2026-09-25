@@ -105,8 +105,8 @@ Native qualification joins the rank 2 Mac sweep. The register rows and counts ar
 
 **Files:** `lib/src/sheet_formula_point.dart` (new), editor wiring, tests
 
-- [ ] While a formula is being typed, and the caret is where a reference can go (after `=`, an operator, a comma or `(`), arrow keys and clicks insert or replace a reference; Shift extends it to a range.
-- [ ] F2 toggles between Edit and Point mode, and the status bar shows the mode.
+- [x] While a formula is being typed, and the caret is where a reference can go (after `=`, an operator, a comma or `(`), arrow keys and clicks insert or replace a reference; Shift extends it to a range.
+- [x] F2 toggles between Edit and Point mode, and the status bar shows the mode.
 - [ ] Clicking another sheet's tab inserts a `Sheet!A1` reference.
 
 ### Task 9: Fill handle (X01.13)

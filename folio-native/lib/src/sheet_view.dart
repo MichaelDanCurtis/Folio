@@ -25,6 +25,7 @@ import 'sheet_column_metrics.dart';
 import 'sheet_editing_keys.dart';
 import 'sheet_navigation.dart';
 import 'sheet_borders.dart';
+import 'sheet_formula_point.dart';
 import 'sheet_go_to.dart';
 import 'sheet_zoom.dart';
 import 'sheet_clipboard.dart';
@@ -443,6 +444,7 @@ class SheetViewState extends State<SheetView> {
   @override
   void initState() {
     super.initState();
+    cellController.addListener(_syncEditMode);
     updateGeometry();
     if (visibleRows.isHidden(row) && visibleRows.hidden.length < 1048576) {
       row = visibleRows.toPhysical(
@@ -901,6 +903,10 @@ class SheetViewState extends State<SheetView> {
     setState(() {
       extendSelectionMode = false;
       editing = true;
+      // Typing starts Enter mode, where arrows point in formulas; F2 and a
+      // double-click start Edit mode, where they move the caret.
+      editMode = initial == null ? EditMode.edit : EditMode.enter;
+      _point = null;
       final text = initial ?? raw(selected);
       cellController.value = TextEditingValue(
         text: text,
@@ -1595,6 +1601,116 @@ class SheetViewState extends State<SheetView> {
     } catch (e) {
       fail(e);
     }
+  }
+
+  /// Enter or Edit mode for the cell being edited (X01.06).
+  EditMode editMode = EditMode.enter;
+
+  /// The reference being chosen in Point mode.
+  FormulaPoint? _point;
+
+  /// The status bar's mode: Enter, Edit or Point while editing, else null.
+  final editModeNotifier = ValueNotifier<EditMode?>(null);
+
+  EditMode? get shownEditMode =>
+      !editing ? null : (_livePoint != null ? EditMode.point : editMode);
+
+  /// The reference being chosen, while the caret still sits right after it
+  /// and the text still holds it; typing or moving the caret ends it.
+  FormulaPoint? get _livePoint {
+    final point = _point;
+    final value = cellController.value;
+    if (point == null ||
+        !value.selection.isCollapsed ||
+        value.selection.baseOffset != point.end ||
+        value.text.length < point.end ||
+        value.text.substring(point.start, point.end) != point.reference) {
+      return null;
+    }
+    return point;
+  }
+
+  void _syncEditMode() {
+    if (editModeNotifier.value == shownEditMode) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) editModeNotifier.value = shownEditMode;
+    });
+  }
+
+  /// Point mode: puts the reference to ([r], [c]) into the formula being
+  /// typed, or extends the current one to a range when [extend] is set.
+  /// Returns false, changing nothing, where no reference can go.
+  bool pointAt(int r, int c, {bool extend = false}) {
+    final value = cellController.value;
+    final point = _livePoint;
+    FormulaPoint next;
+    if (point != null) {
+      next = FormulaPoint(
+        start: point.start,
+        end: point.end,
+        anchorRow: extend ? point.anchorRow : r,
+        anchorColumn: extend ? point.anchorColumn : c,
+        row: r,
+        column: c,
+      );
+    } else {
+      final caret = value.selection.isCollapsed
+          ? value.selection.baseOffset
+          : -1;
+      if (!canPoint(value.text, caret)) return false;
+      next = FormulaPoint(
+        start: caret,
+        end: caret,
+        anchorRow: r,
+        anchorColumn: c,
+        row: r,
+        column: c,
+      );
+    }
+    final (updated, placed) = applyPoint(value, next);
+    setState(() {
+      cellController.value = updated;
+      _point = placed;
+    });
+    cellFocus.requestFocus();
+    return true;
+  }
+
+  KeyEventResult _pointKey(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final keyboard = HardwareKeyboard.instance;
+    if (key == LogicalKeyboardKey.f2 &&
+        !keyboard.isShiftPressed &&
+        !keyboard.isControlPressed &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed) {
+      setState(() {
+        editMode = editMode == EditMode.edit ? EditMode.enter : EditMode.edit;
+        _point = null;
+      });
+      return KeyEventResult.handled;
+    }
+    final step = arrowStep(key);
+    if (step == null) {
+      return KeyEventResult.ignored;
+    }
+    if (editMode == EditMode.edit ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    final (dr, dc) = step;
+    final point = _livePoint;
+    final fromRow = point?.row ?? row, fromColumn = point?.column ?? col;
+    final r = dr == 0 ? fromRow : visibleRows.next(fromRow, dr);
+    final c = dc == 0 ? fromColumn : visibleColumns.next(fromColumn, dc);
+    return pointAt(r, c, extend: keyboard.isShiftPressed)
+        ? KeyEventResult.handled
+        : KeyEventResult.ignored;
   }
 
   KeyEventResult _capturePendingEntry(KeyEvent event) {
@@ -3000,6 +3116,7 @@ class SheetViewState extends State<SheetView> {
 
   @override
   Widget build(BuildContext context) {
+    _syncEditMode();
     _clearOverflowPainters();
     _overflowScaler = MediaQuery.textScalerOf(context);
     _overflowDirection = Directionality.of(context);
@@ -4252,6 +4369,17 @@ class SheetViewState extends State<SheetView> {
                             return;
                           }
                           if (event.buttons == kPrimaryMouseButton &&
+                              editing &&
+                              !active &&
+                              pointAt(
+                                r,
+                                c,
+                                extend:
+                                    HardwareKeyboard.instance.isShiftPressed,
+                              )) {
+                            return;
+                          }
+                          if (event.buttons == kPrimaryMouseButton &&
                               !(active && editing)) {
                             select(r, c);
                           }
@@ -4306,7 +4434,13 @@ class SheetViewState extends State<SheetView> {
                                   ),
                                   child: active && editing
                                       ? SheetEditingKeys(
-                                          intercept: _capturePendingEntry,
+                                          intercept: (event) {
+                                            final pointed = _pointKey(event);
+                                            return pointed !=
+                                                    KeyEventResult.ignored
+                                                ? pointed
+                                                : _capturePendingEntry(event);
+                                          },
                                           controller: cellController,
                                           focus: cellFocus,
                                           onCommit: (r, c) =>
@@ -4603,6 +4737,7 @@ class SheetViewState extends State<SheetView> {
 
   @override
   void dispose() {
+    editModeNotifier.dispose();
     _clearOverflowPainters();
     gridFocus.removeListener(_gridFocusChanged);
     _syncDesktopGridFocus(false);
