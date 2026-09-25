@@ -3,7 +3,7 @@
 //! than hanging the engine or exhausting memory.
 use crate::workspace::Core;
 use serde_json::{json, Value};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 fn blank() -> Core {
     let mut c = Core::new();
@@ -21,7 +21,7 @@ fn with(cells: &[(&str, &str)]) -> (Core, Value) {
     let started = Instant::now();
     c.dispatch(json!({"op":"cells","cells":cells})).unwrap();
     assert!(
-        started.elapsed() < Duration::from_secs(10),
+        started.elapsed() < crate::fuzz_tests::slow_limit(),
         "took {:?}",
         started.elapsed()
     );
@@ -84,7 +84,10 @@ fn whole_sheet_aggregates_are_exact_and_fast() {
     for (address, formula, expected) in &formulas {
         assert_eq!(text(&formatted, address), *expected, "{formula}");
     }
-    assert!(elapsed < Duration::from_secs(10), "took {elapsed:?}");
+    assert!(
+        elapsed < crate::fuzz_tests::slow_limit(),
+        "took {elapsed:?}"
+    );
 }
 
 /// Data at opposite corners makes the populated extent the whole sheet, so
@@ -169,7 +172,10 @@ fn a_conditional_format_rule_that_reads_too_many_cells_is_false() {
     let snapshot = c.snapshot();
     let formatted = &snapshot["formatted"][&sheet];
     // One budget's worth of reads, not one per cell (200 would take minutes).
-    assert!(elapsed < Duration::from_secs(20), "took {elapsed:?}");
+    assert!(
+        elapsed < crate::fuzz_tests::slow_limit(),
+        "took {elapsed:?}"
+    );
     for row in [1, 200] {
         let cell = &formatted[format!("A{row}")];
         assert!(cell["conditionalStyle"]["fill"].is_null(), "{cell}");
@@ -180,4 +186,54 @@ fn a_conditional_format_rule_that_reads_too_many_cells_is_false() {
         snapshot["conditionalWarnings"][&sheet],
         json!(["Rule 2 reads too many cells and is not displayed."])
     );
+}
+
+/// Whole-column lookups read only the populated rows: fast, and a sorted
+/// search ends at the last value that is not greater (Excel), not in the
+/// million blank rows below the data.
+#[test]
+fn whole_column_lookups_are_fast_and_match_excel() {
+    let mut cells = vec![];
+    for row in 1..=10 {
+        cells.push((format!("A{row}"), format!("{}", row * 10)));
+        cells.push((format!("B{row}"), format!("item {row}")));
+    }
+    let formulas = [
+        ("D1", "=VLOOKUP(55,A:B,2)", "item 5"),
+        ("D2", "=VLOOKUP(70,A:B,2,FALSE)", "item 7"),
+        (
+            "D3",
+            "=IF(ISNA(VLOOKUP(71,A:B,2,FALSE)),\"none\",1)",
+            "none",
+        ),
+        ("D4", "=MATCH(35,A:A)", "3"),
+        ("D5", "=MATCH(90,A:A,0)", "9"),
+        ("D6", "=LOOKUP(1000,A:A,B:B)", "item 10"),
+        ("D7", "=HLOOKUP(\"x\",F1:XFD2,2,FALSE)", "found"),
+        ("D8", "=VLOOKUP(5,A:B,2)", "#N/A"),
+    ];
+    cells.push(("F1".into(), "x".into()));
+    cells.push(("F2".into(), "found".into()));
+    let mut all: Vec<(&str, &str)> = cells
+        .iter()
+        .map(|(a, v)| (a.as_str(), v.as_str()))
+        .collect();
+    for (address, formula, _) in &formulas {
+        all.push((address, formula));
+    }
+    // Many whole-column lookups, as in real workbooks.
+    let many: Vec<(String, String)> = (1..=2000)
+        .map(|r| {
+            (
+                format!("H{r}"),
+                format!("=IF(ISNA(VLOOKUP({r},A:B,2,FALSE)),\" \",VLOOKUP({r},A:B,2,FALSE))"),
+            )
+        })
+        .collect();
+    all.extend(many.iter().map(|(a, v)| (a.as_str(), v.as_str())));
+    let (_, formatted) = with(&all);
+    for (address, formula, expected) in formulas {
+        assert_eq!(text(&formatted, address), expected, "{formula}");
+    }
+    assert_eq!(text(&formatted, "H10"), "item 1");
 }

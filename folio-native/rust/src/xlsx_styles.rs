@@ -1,4 +1,5 @@
 use crate::office::*;
+use crate::xlsx_colors::Colors;
 use serde_json::{json, Value};
 const S: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 pub const FONT_KEYS: &[&str] = &[
@@ -81,6 +82,23 @@ impl SheetStyleBases {
             }
         }
         Ok(result)
+    }
+    /// The style a cell falls back to without its own: its row's, else its
+    /// column's, else the default.
+    pub fn line(&self, address: &str) -> Result<&str, String> {
+        let (r, c) = crate::formula::parse_address(address)?;
+        Ok(self
+            .rows
+            .get(&(r + 1))
+            .map(String::as_str)
+            .or_else(|| {
+                self.columns
+                    .iter()
+                    .rev()
+                    .find(|(min, max, _)| c + 1 >= *min && c + 1 <= *max)
+                    .map(|(_, _, s)| s.as_str())
+            })
+            .unwrap_or("0"))
     }
     pub fn at(&self, address: &str) -> Result<&str, String> {
         let (r, c) = crate::formula::parse_address(address)?;
@@ -248,7 +266,7 @@ fn alignment<'a, 'i>(
         own.or(inherited)
     }
 }
-fn project(root: roxmltree::Node, xf: roxmltree::Node) -> Value {
+fn project(root: roxmltree::Node, xf: roxmltree::Node, colors: &Colors) -> Value {
     let font = component(root, xf, "fontId", "applyFont")
         .parse()
         .ok()
@@ -306,17 +324,43 @@ fn project(root: roxmltree::Node, xf: roxmltree::Node) -> Value {
             spec[key] = json!("automatic");
             continue;
         }
-        if let Some(rgb) = node
-            .and_then(|n| attr(n, "rgb"))
-            .filter(|v| matches!(v.len(), 6 | 8) && v.bytes().all(|c| c.is_ascii_hexdigit()))
-        {
-            spec[key] = json!(format!("#{}", if rgb.len() == 8 { &rgb[2..] } else { rgb }));
+        if let Some(color) = node.and_then(|n| colors.resolve(n)) {
+            spec[key] = json!(color);
         }
+    }
+    let border = component(root, xf, "borderId", "applyBorder")
+        .parse()
+        .ok()
+        .and_then(|id| record(root, "borders", id));
+    let mut sides = serde_json::Map::new();
+    for side in ["top", "left", "bottom", "right"] {
+        // `start` and `end` are the Strict/right-to-left names.
+        let node = border.and_then(|b| {
+            child(b, side).or_else(|| match side {
+                "left" => child(b, "start"),
+                "right" => child(b, "end"),
+                _ => None,
+            })
+        });
+        if let Some(style) = node.and_then(|n| attr(n, "style")).filter(|s| *s != "none") {
+            let mut line = json!({"style":style});
+            if let Some(color) = node
+                .and_then(|n| child(n, "color"))
+                .and_then(|n| colors.resolve(n))
+            {
+                line["color"] = json!(color);
+            }
+            sides.insert(side.into(), line);
+        }
+    }
+    if !sides.is_empty() {
+        spec["border"] = Value::Object(sides);
     }
     crate::xlsx_alignment::project(alignment(root, xf), &mut spec);
     spec
 }
 pub fn read(pkg: &Package) -> Vec<Value> {
+    let colors = Colors::read(pkg);
     let Ok(xml) = pkg.text("xl/styles.xml") else {
         return vec![];
     };
@@ -326,7 +370,7 @@ pub fn read(pkg: &Package) -> Vec<Value> {
         .map(|n| {
             n.children()
                 .filter(|n| n.is_element())
-                .map(|xf| project(root, xf))
+                .map(|xf| project(root, xf, &colors))
                 .collect()
         })
         .unwrap_or_default()
@@ -335,6 +379,7 @@ pub fn read(pkg: &Package) -> Vec<Value> {
 /// Column widths use the built-in Normal style, which need not be cell XF 0
 /// or have the English display name "Normal".
 pub fn normal_font(pkg: &Package) -> Value {
+    let colors = Colors::read(pkg);
     let Ok(xml) = pkg.text("xl/styles.xml") else {
         return json!({});
     };
@@ -360,7 +405,7 @@ pub fn normal_font(pkg: &Package) -> Value {
     else {
         return json!({});
     };
-    let projected = project(root, xf);
+    let projected = project(root, xf, &colors);
     json!(projected
         .as_object()
         .unwrap()
@@ -1104,13 +1149,14 @@ pub fn patch_character_formats(pkg: &Package, xml: &str, sheet: &Value) -> Resul
 }
 pub fn add(pkg: &mut Package, spec: &Value, base: Option<&str>) -> Result<String, String> {
     ensure(pkg)?;
+    let colors = Colors::read(pkg);
     let source = pkg.text("xl/styles.xml")?.to_string();
     let d = parse(&source)?;
     let root = d.root_element();
     let base_id = base.and_then(|v| v.parse::<usize>().ok()).unwrap_or(0);
     let xf = record(root, "cellXfs", base_id)
         .ok_or("Cell format is missing from the source workbook")?;
-    let projected = project(root, xf);
+    let projected = project(root, xf, &colors);
     let changed = |key: &str| spec.get(key).filter(|v| projected.get(key) != Some(*v));
     let mut xf_xml = scoped_record(&source, xf);
     let mut xml = source.clone();
@@ -1176,11 +1222,40 @@ pub fn add(pkg: &mut Package, spec: &Value, base: Option<&str>) -> Result<String
         updates.push(("applyFont", Some("1".into())));
     }
     if let Some(color) = changed("fill").and_then(Value::as_str) {
-        let fill=format!("<fill xmlns=\"{S}\"><patternFill patternType=\"solid\"><fgColor rgb=\"FF{}\"/><bgColor indexed=\"64\"/></patternFill></fill>",esc(color.trim_start_matches('#')));
+        let fill = if color == "none" {
+            format!("<fill xmlns=\"{S}\"><patternFill patternType=\"none\"/></fill>")
+        } else {
+            format!("<fill xmlns=\"{S}\"><patternFill patternType=\"solid\"><fgColor rgb=\"FF{}\"/><bgColor indexed=\"64\"/></patternFill></fill>",esc(color.trim_start_matches('#')))
+        };
         let (next, id) = section(&xml, "fills", &fill)?;
         xml = next;
         updates.push(("fillId", Some(id.to_string())));
         updates.push(("applyFill", Some("1".into())));
+    }
+    if let Some(border) = changed("border") {
+        // CT_Border's children are ordered left, right, top, bottom,
+        // diagonal.
+        let mut record = format!("<border xmlns=\"{S}\">");
+        for side in ["left", "right", "top", "bottom"] {
+            match border[side]["style"].as_str() {
+                Some(style) if style != "none" => {
+                    record.push_str(&format!("<{side} style=\"{}\">", esc(style)));
+                    record.push_str(&match border[side]["color"].as_str() {
+                        Some(color) => {
+                            format!("<color rgb=\"FF{}\"/>", esc(color.trim_start_matches('#')))
+                        }
+                        None => "<color indexed=\"64\"/>".into(),
+                    });
+                    record.push_str(&format!("</{side}>"));
+                }
+                _ => record.push_str(&format!("<{side}/>")),
+            }
+        }
+        record.push_str("<diagonal/></border>");
+        let (next, id) = section(&xml, "borders", &record)?;
+        xml = next;
+        updates.push(("borderId", Some(id.to_string())));
+        updates.push(("applyBorder", Some("1".into())));
     }
     if let Some(code) = changed("numFmt").and_then(Value::as_str) {
         let current = parse(&xml)?;
@@ -1264,6 +1339,51 @@ pub fn add(pkg: &mut Package, spec: &Value, base: Option<&str>) -> Result<String
     Ok(id.to_string())
 }
 
+/// Border line styles SpreadsheetML allows.
+pub const BORDER_STYLES: &[&str] = &[
+    "thin",
+    "medium",
+    "dashed",
+    "dotted",
+    "thick",
+    "double",
+    "hair",
+    "mediumDashed",
+    "dashDot",
+    "mediumDashDot",
+    "dashDotDot",
+    "mediumDashDotDot",
+    "slantDashDot",
+];
+
+fn validate_border(v: &Value) -> Result<(), String> {
+    let sides = v.as_object().ok_or("Invalid border")?;
+    for (side, line) in sides {
+        if !matches!(side.as_str(), "top" | "left" | "bottom" | "right") {
+            return Err("Invalid border side".into());
+        }
+        if line.is_null() {
+            continue;
+        }
+        if !line["style"]
+            .as_str()
+            .is_some_and(|s| s == "none" || BORDER_STYLES.contains(&s))
+        {
+            return Err("Choose a border line style".into());
+        }
+        if let Some(color) = line.get("color") {
+            if color.as_str().is_none_or(|s| {
+                s.len() != 7
+                    || !s.starts_with('#')
+                    || !s[1..].bytes().all(|b| b.is_ascii_hexdigit())
+            }) {
+                return Err("Invalid border color".into());
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn validate_format(style: &serde_json::Map<String, Value>) -> Result<(), String> {
     for (key, v) in style {
         match key.as_str() {
@@ -1307,8 +1427,9 @@ pub fn validate_format(style: &serde_json::Map<String, Value>) -> Result<(), Str
             "numFmt" => {
                 crate::number_format::validate(v.as_str().ok_or("Invalid number format")?)?;
             }
+            "border" => validate_border(v)?,
             "color" | "fill" => {
-                if key == "color" && v == "automatic" {
+                if (key == "color" && v == "automatic") || (key == "fill" && v == "none") {
                     continue;
                 }
                 if v.as_str().is_none_or(|s| {

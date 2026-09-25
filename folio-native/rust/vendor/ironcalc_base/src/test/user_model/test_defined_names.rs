@@ -103,9 +103,11 @@ fn delete_sheet() {
 
     model.delete_sheet(0).unwrap();
 
+    // Folio: the name now points at a deleted sheet, which Excel shows as
+    // #REF! (formula-valued names evaluate; see FOLIO_PATCH.md).
     assert_eq!(
         model.get_formatted_cell_value(0, 2, 1),
-        Ok("#NAME?".to_string())
+        Ok("#REF!".to_string())
     );
 
     assert_eq!(
@@ -322,14 +324,25 @@ fn invalid_sheet() {
 fn invalid_formula() {
     let mut model = new_empty_user_model();
     model.set_user_input(0, 1, 1, "Hello").unwrap();
-    assert!(model.new_defined_name("MyName", None, "A1").is_err());
-
+    // Folio: a formula that doesn't parse is still refused...
+    assert!(model.new_defined_name("MyName", None, "(1+").is_err());
     model.set_user_input(0, 1, 2, "=MyName").unwrap();
-
     assert_eq!(
         model.get_formatted_cell_value(0, 1, 2),
         Ok("#NAME?".to_string())
     );
+
+    // ...but any formula is a valid name, as in Excel. A relative reference
+    // is relative to the cell using the name, so from B1 it is B1 itself.
+    model.new_defined_name("Relative", None, "A1").unwrap();
+    model.set_user_input(0, 1, 3, "=Relative").unwrap();
+    assert_eq!(
+        model.get_formatted_cell_value(0, 1, 3),
+        Ok("#CIRC!".to_string())
+    );
+    model.new_defined_name("Rate", None, "0.25*4").unwrap();
+    model.set_user_input(0, 1, 4, "=Rate+1").unwrap();
+    assert_eq!(model.get_formatted_cell_value(0, 1, 4), Ok("2".to_string()));
 }
 
 #[test]

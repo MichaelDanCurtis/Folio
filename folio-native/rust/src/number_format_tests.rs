@@ -332,3 +332,18 @@ fn layout_markers_never_consume_literal_unicode_text() {
     assert_eq!(got["text"], format!(" {value} "));
     assert_eq!(got["segments"][1]["text"], value);
 }
+
+#[test]
+fn am_pm_letters_and_fractional_seconds_follow_excel() {
+    // 14:35:27.01 and 04:05:06.01, from Excel's own results in the Office
+    // corpus (DateFormatTests.xlsx).
+    let afternoon = (14.0 * 3600.0 + 35.0 * 60.0 + 27.01) / 86400.0;
+    let morning = (4.0 * 3600.0 + 5.0 * 60.0 + 6.01) / 86400.0;
+    let text = |code: &str, v: f64| ssf_rs::checked::number(code, v, false).unwrap();
+    assert_eq!(text("hh:mm:ss a/p", afternoon), "02:35:27 p");
+    assert_eq!(text("hh:mm:ss A/P", morning), "04:05:06 A");
+    assert_eq!(text("h:mm:ss AM/PM", afternoon), "2:35:27 PM");
+    assert_eq!(text("h:m:s.00 A/P", morning), "4:5:6.01 A");
+    assert_eq!(text("h:m:s.00", morning), "4:5:6.01");
+    assert_eq!(text("[h]:mm:ss.000", 3.0 + morning), "76:05:06.010");
+}

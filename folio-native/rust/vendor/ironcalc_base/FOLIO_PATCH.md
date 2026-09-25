@@ -143,3 +143,83 @@ src/functions/subtotal.rs and src/functions/text/common.rs. Folio's
 `formula_limits_tests.rs` covers exact whole-sheet results, the budget, and
 whole-column array math. The vendored suite passes except
 `test_to_from_bytes::errors`, which fails identically without these changes.
+
+## Whole-column lookups
+
+VLOOKUP, HLOOKUP, LOOKUP and MATCH used to read every cell of their search
+vector. For a whole column, that is a million `evaluate_cell` calls per
+lookup. A real Excel workbook in the Office-created corpus has about 1,600
+such formulas and took around 20 minutes to open. Upstream already clipped
+whole-column references for XLOOKUP and XMATCH.
+
+The search vector is now read only up to the searched column's (or row's)
+last populated cell, once the vector is longer than 65,536 cells:
+`Model::populated_end`, `LookupTable::search_vector` and `as_search_vector`.
+- Exact searches keep their results. If nothing matches among the populated
+  cells and a blank would match, the first trailing blank is returned
+  (`lookup_index_populated`, and MATCH's own check).
+- Sorted searches end at the last value not greater than the target, as in
+  Excel. Before, a blank compared as 0, so the binary search walked into the
+  trailing blanks and returned an empty row.
+
+Folio's `formula_limits_tests.rs` covers both kinds of search, MATCH,
+LOOKUP, HLOOKUP across a whole row, and 2,000 whole-column lookups.
+Modified: src/functions/lookup_and_reference/mod.rs.
+
+## Formula-valued defined names
+
+Upstream accepted only references and LAMBDA definitions as defined names;
+anything else was refused and showed `#NAME?`. Excel allows any formula, and
+workbooks use it for constants (`TaxRate = 0.07`) and derived values
+(`=2*Inputs!$A$1`). Such names now parse to `ParsedDefinedName::Formula`,
+which is evaluated in the context of the cell using the name. A relative
+reference is therefore relative to that cell, as in Excel.
+`Model::evaluating_names` reports a name that refers to itself as `#CIRC!`
+instead of recursing. `with_read_budget` restores that stack when a formula
+is abandoned for reading too many cells.
+
+Two upstream tests are updated to the Excel behaviour, in
+`test_defined_names.rs`:
+- `invalid_formula`: `=A1` is a valid, relative name, and only unparsable
+  formulas are refused.
+- `delete_sheet`: a name pointing at a deleted sheet shows `#REF!`.
+
+Folio passes a workbook's defined names to the model from the package's
+`definedNames` (`xlsx_names.rs`). Before this, no imported name reached the
+calculation at all.
+
+Modified: src/model.rs, src/new_empty.rs,
+src/functions/information/mod.rs, src/test/user_model/test_defined_names.rs.
+
+## Range names in implicit intersection
+
+`is_range_reference` in `static_analysis.rs` decides whether a defined name
+needs an automatic `@`. Its pattern, `:[A-Z]*[0-9]*$`, didn't allow `$`, and
+name definitions almost always use absolute references (`Sheet1!$A$1:$A$9`).
+So a range name used where one value is expected was never intersected. The
+pattern now accepts `$`. Folio's `legacy_formula` (`structure.rs`) relies on
+`add_implicit_intersection` to give imported legacy formulas Excel 365's
+automatic `@`; `legacy_formula_tests.rs` covers it.
+Modified: src/expressions/parser/static_analysis.rs.
+
+## Arguments that take ranges as they are
+
+`get_function_args_signature` marked every argument of about 300 functions
+as scalar. `add_implicit_intersection` then gave legacy formulas an `@`
+where Excel passes the range through. The Office corpus found
+`=WORKDAY(C2,6,D2:D5)`, whose holidays became `@D2:D5` and whose result was
+a day early. Now these are `Vector`:
+- WORKDAY and WORKDAY.INTL holidays;
+- the reference arguments of CELL, ISFORMULA, FORMULATEXT, SHEET and SHEETS;
+- the value arguments of IF and CHOOSE, which return the range they pick.
+  A new `passed_through` static result makes `=IF(1,A1:A5)` on its own
+  still a range (`=@IF(1,A1:A5)`), while `SUM(IF(1,A1:A5))` sums the range,
+  as in legacy Excel.
+
+`args_signature_with_vectors` is the helper. The upstream test
+`test_add_implicit_intersection::simple_test` now expects
+`@IF(@A1:A10,B1:B10,C1:C10)`, which gives the same value in a cell and
+keeps the ranges inside `SUM(IF(...))`. Covered by
+`range_arguments_keep_their_ranges` in Folio's `legacy_formula_tests.rs`.
+Modified: src/expressions/parser/static_analysis.rs,
+src/expressions/parser/tests/test_add_implicit_intersection.rs.

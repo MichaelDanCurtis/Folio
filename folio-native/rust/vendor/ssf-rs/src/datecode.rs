@@ -255,11 +255,9 @@ pub fn write_date(t: char, fmt: &str, val: &DateCode, ss0: i64) -> Result<String
                 ss = 0;
             }
             if fmt == "s" {
-                return Ok(if ss == 0 {
-                    "0".to_string()
-                } else {
-                    jsnum::to_string_js(ss as f64 / tt as f64)
-                });
+                // Folio: whole seconds. Any `.0` part is its own token; the
+                // port printed the fraction twice (`s.00` gave "6.01.01").
+                return Ok((ss / tt).to_string());
             }
             let o = pad0_i(ss, (2 + ss0) as usize);
             if fmt == "ss" {

@@ -13,7 +13,11 @@ static RANGE_REFERENCE_REGEX: OnceLock<Regex> = OnceLock::new();
 #[allow(clippy::expect_used)]
 fn get_re() -> &'static Regex {
     RANGE_REFERENCE_REGEX
-        .get_or_init(|| Regex::new(r":[A-Z]*[0-9]*$").expect("Regex is known to be valid"))
+        // Folio: allow `$`, since name definitions use absolute references
+        // (`Sheet1!$A$1:$A$9`); without it no range name got its `@`.
+        .get_or_init(|| {
+            Regex::new(r":\$?[A-Z]*\$?[0-9]*$").expect("Regex is known to be valid")
+        })
 }
 
 fn is_range_reference(s: &str) -> bool {
@@ -413,6 +417,33 @@ fn scalar_arguments(args: &[Node]) -> StaticResult {
     StaticResult::Array(n, m)
 }
 
+// FOLIO PATCH: IF and CHOOSE return the value arguments they pick, ranges
+// included, so a range there makes the result a range.
+fn passed_through(condition: &Node, values: &[Node]) -> StaticResult {
+    for value in values {
+        if let StaticResult::Range(..) | StaticResult::Unknown = run_static_analysis_on_node(value) {
+            return StaticResult::Unknown;
+        }
+    }
+    scalar_arguments(std::slice::from_ref(condition))
+        .max_with(scalar_arguments(values))
+}
+
+impl StaticResult {
+    fn max_with(self, other: StaticResult) -> StaticResult {
+        match (self, other) {
+            (StaticResult::Unknown, _) | (_, StaticResult::Unknown) => StaticResult::Unknown,
+            (StaticResult::Scalar, x) | (x, StaticResult::Scalar) => x,
+            (StaticResult::Array(a, b), StaticResult::Array(c, d))
+            | (StaticResult::Array(a, b), StaticResult::Range(c, d))
+            | (StaticResult::Range(a, b), StaticResult::Array(c, d))
+            | (StaticResult::Range(a, b), StaticResult::Range(c, d)) => {
+                StaticResult::Array(a.max(c), b.max(d))
+            }
+        }
+    }
+}
+
 // We only care if the function can return a range or not
 fn not_implemented(_args: &[Node]) -> StaticResult {
     StaticResult::Scalar
@@ -512,6 +543,24 @@ fn args_signature_scalars(
     }
 }
 
+// FOLIO PATCH: like `args_signature_scalars`, but the arguments at `vectors`
+// take ranges as they are (reference arguments, IF/CHOOSE results, holiday
+// lists), so legacy formulas get no automatic `@` there.
+fn args_signature_with_vectors(
+    arg_count: usize,
+    required_count: usize,
+    optional_count: usize,
+    vectors: &[usize],
+) -> Vec<Signature> {
+    let mut signature = args_signature_scalars(arg_count, required_count, optional_count);
+    for (index, s) in signature.iter_mut().enumerate() {
+        if matches!(s, Signature::Scalar) && vectors.contains(&index) {
+            *s = Signature::Vector;
+        }
+    }
+    signature
+}
+
 fn args_signature_lambda(arg_count: usize) -> Vec<Signature> {
     // LAMBDA([param1, param2, ...], body) — at least 1 arg (the body)
     if arg_count == 0 {
@@ -588,7 +637,8 @@ fn args_signature_sheet(arg_count: usize) -> Vec<Signature> {
     if arg_count == 0 {
         vec![]
     } else if arg_count == 1 {
-        vec![Signature::Scalar]
+        // FOLIO PATCH: SHEET takes a reference as it is.
+        vec![Signature::Vector]
     } else {
         vec![Signature::Error; arg_count]
     }
@@ -983,7 +1033,7 @@ fn get_function_args_signature(kind: &Function, arg_count: usize) -> Vec<Signatu
     match kind {
         Function::And => vec![Signature::Vector; arg_count],
         Function::False => args_signature_no_args(arg_count),
-        Function::If => args_signature_scalars(arg_count, 2, 1),
+        Function::If => args_signature_with_vectors(arg_count, 2, 1, &[1, 2]),
         Function::Iferror => args_signature_scalars(arg_count, 2, 0),
         Function::Ifna => args_signature_scalars(arg_count, 2, 0),
         Function::Ifs => vec![Signature::Scalar; arg_count],
@@ -1002,7 +1052,13 @@ fn get_function_args_signature(kind: &Function, arg_count: usize) -> Vec<Signatu
         Function::Atan => args_signature_scalars(arg_count, 1, 0),
         Function::Atan2 => args_signature_scalars(arg_count, 2, 0),
         Function::Atanh => args_signature_scalars(arg_count, 1, 0),
-        Function::Choose => vec![Signature::Scalar; arg_count],
+        Function::Choose => {
+            let mut signature = vec![Signature::Vector; arg_count];
+            if let Some(first) = signature.first_mut() {
+                *first = Signature::Scalar;
+            }
+            signature
+        }
         Function::Column => args_signature_row(arg_count),
         Function::Columns => args_signature_one_vector(arg_count),
         Function::Ln => args_signature_scalars(arg_count, 1, 0),
@@ -1032,7 +1088,7 @@ fn get_function_args_signature(kind: &Function, arg_count: usize) -> Vec<Signatu
         Function::Iserr => args_signature_scalars(arg_count, 1, 0),
         Function::Iserror => args_signature_scalars(arg_count, 1, 0),
         Function::Iseven => args_signature_scalars(arg_count, 1, 0),
-        Function::Isformula => args_signature_scalars(arg_count, 1, 0),
+        Function::Isformula => args_signature_with_vectors(arg_count, 1, 0, &[0]),
         Function::Islogical => args_signature_scalars(arg_count, 1, 0),
         Function::Isna => args_signature_scalars(arg_count, 1, 0),
         Function::Isnontext => args_signature_scalars(arg_count, 1, 0),
@@ -1145,8 +1201,8 @@ fn get_function_args_signature(kind: &Function, arg_count: usize) -> Vec<Signatu
         Function::Days360 => args_signature_scalars(arg_count, 2, 1),
         Function::Weekday => args_signature_scalars(arg_count, 1, 1),
         Function::Weeknum => args_signature_scalars(arg_count, 1, 1),
-        Function::Workday => args_signature_scalars(arg_count, 2, 1),
-        Function::WorkdayIntl => args_signature_scalars(arg_count, 2, 2),
+        Function::Workday => args_signature_with_vectors(arg_count, 2, 1, &[2]),
+        Function::WorkdayIntl => args_signature_with_vectors(arg_count, 2, 2, &[3]),
         Function::Yearfrac => args_signature_scalars(arg_count, 2, 1),
         Function::Isoweeknum => args_signature_scalars(arg_count, 1, 0),
         Function::Accrint => args_signature_scalars(arg_count, 6, 2),
@@ -1261,7 +1317,7 @@ fn get_function_args_signature(kind: &Function, arg_count: usize) -> Vec<Signatu
         Function::Subtotal => args_signature_npv(arg_count),
         Function::Rand => args_signature_no_args(arg_count),
         Function::Randbetween => args_signature_scalars(arg_count, 2, 0),
-        Function::Formulatext => args_signature_scalars(arg_count, 1, 0),
+        Function::Formulatext => args_signature_with_vectors(arg_count, 1, 0, &[0]),
         Function::Unicode => args_signature_scalars(arg_count, 1, 0),
         Function::Unichar => args_signature_scalars(arg_count, 1, 0),
         Function::Char => args_signature_scalars(arg_count, 1, 0),
@@ -1346,8 +1402,8 @@ fn get_function_args_signature(kind: &Function, arg_count: usize) -> Vec<Signatu
             }
         }
         Function::N => args_signature_scalars(arg_count, 1, 0),
-        Function::Sheets => args_signature_scalars(arg_count, 0, 1),
-        Function::Cell => args_signature_scalars(arg_count, 1, 1),
+        Function::Sheets => args_signature_with_vectors(arg_count, 0, 1, &[0]),
+        Function::Cell => args_signature_with_vectors(arg_count, 1, 1, &[1]),
         Function::Info => args_signature_scalars(arg_count, 1, 1),
         Function::Daverage => vec![Signature::Vector, Signature::Scalar, Signature::Vector],
         Function::Dcount => vec![Signature::Vector, Signature::Scalar, Signature::Vector],
@@ -1633,6 +1689,7 @@ fn static_analysis_on_function(kind: &Function, args: &[Node]) -> StaticResult {
     match kind {
         Function::And => StaticResult::Scalar,
         Function::False => StaticResult::Scalar,
+        Function::If if !args.is_empty() => passed_through(&args[0], &args[1..]),
         Function::If => scalar_arguments(args),
         Function::Iferror => scalar_arguments(args),
         Function::Ifna => scalar_arguments(args),
@@ -1652,6 +1709,7 @@ fn static_analysis_on_function(kind: &Function, args: &[Node]) -> StaticResult {
         Function::Atan => scalar_arguments(args),
         Function::Atan2 => scalar_arguments(args),
         Function::Atanh => scalar_arguments(args),
+        Function::Choose if !args.is_empty() => passed_through(&args[0], &args[1..]),
         Function::Choose => scalar_arguments(args),
         Function::Column => not_implemented(args),
         Function::Columns => not_implemented(args),

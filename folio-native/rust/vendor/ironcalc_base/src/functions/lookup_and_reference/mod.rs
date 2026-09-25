@@ -85,19 +85,64 @@ impl LookupTable {
         }
     }
 
-    /// Materializes the first row of the table (the search vector for HLOOKUP).
-    fn first_row(&self, model: &mut Model, cell: CellReferenceIndex) -> Vec<CalcResult> {
-        (0..self.columns())
-            .map(|column| self.get(model, 0, column, cell))
-            .collect()
+    /// The search vector for VLOOKUP/LOOKUP (`vertical`) or HLOOKUP, read
+    /// only up to the sheet's populated extent, and the vector's full length
+    /// (Folio). Everything past the extent is empty.
+    fn search_vector(
+        &self,
+        model: &mut Model,
+        vertical: bool,
+        cell: CellReferenceIndex,
+    ) -> (Vec<CalcResult>, usize) {
+        let full = if vertical { self.rows() } else { self.columns() };
+        let read = match self {
+            LookupTable::Range { left, right } => {
+                let end = model.populated_end(left, right, vertical);
+                if vertical {
+                    end.row - left.row + 1
+                } else {
+                    end.column - left.column + 1
+                }
+            }
+            LookupTable::Array(_) => full,
+        };
+        let values = (0..read.clamp(0, full))
+            .map(|i| {
+                if vertical {
+                    self.get(model, i, 0, cell)
+                } else {
+                    self.get(model, 0, i, cell)
+                }
+            })
+            .collect();
+        (values, full.max(0) as usize)
     }
+}
 
-    /// Materializes the first column of the table (the search vector for VLOOKUP).
-    fn first_column(&self, model: &mut Model, cell: CellReferenceIndex) -> Vec<CalcResult> {
-        (0..self.rows())
-            .map(|row| self.get(model, row, 0, cell))
-            .collect()
+/// Ranges longer than this are searched only up to the sheet's populated
+/// extent (Folio). A whole-column VLOOKUP would otherwise read a million
+/// cells per call, and a sorted search would land in the trailing blanks.
+const SEARCH_CLAMP: i32 = 1 << 16;
+
+/// `lookup_index` over a search vector that stops at the populated extent
+/// and stands for `full_len` cells. The cells past it are blank. A sorted
+/// search ignores them, as Excel does. An exact search that finds nothing
+/// among the populated cells matches the first blank, if a blank matches.
+fn lookup_index_populated(
+    lookup_value: &CalcResult,
+    populated: &[CalcResult],
+    full_len: usize,
+    is_sorted: bool,
+) -> Option<usize> {
+    let found = lookup_index(lookup_value, populated, is_sorted);
+    if found.is_none()
+        && !is_sorted
+        && populated.len() < full_len
+        && lookup_index(lookup_value, &[CalcResult::EmptyCell], false).is_some()
+    {
+        return Some(populated.len());
     }
+    found
 }
 
 /// Finds the 0-based index of `lookup_value` within `search_vector`.
@@ -203,6 +248,78 @@ impl<'a> Model<'a> {
     /// and in-formula array literals. Used by the vector-based lookup functions
     /// (MATCH, LOOKUP). Returns the appropriate error `CalcResult` when the value
     /// is not a vector or not a valid source.
+    /// The end of a lookup range worth reading: a long row or column stops
+    /// at its last populated cell (Folio). See [`SEARCH_CLAMP`].
+    fn populated_end(
+        &self,
+        left: &CellReferenceIndex,
+        right: &CellReferenceIndex,
+        vertical: bool,
+    ) -> CellReferenceIndex {
+        let len = if vertical {
+            right.row - left.row + 1
+        } else {
+            right.column - left.column + 1
+        };
+        if len <= SEARCH_CLAMP {
+            return *right;
+        }
+        let Ok(sheet) = self.workbook.worksheet(left.sheet) else {
+            return *right;
+        };
+        // The searched column's last populated row (or the searched row's
+        // last populated column), not the sheet's: other columns may run far
+        // below the data being searched.
+        if vertical {
+            let last = sheet
+                .sheet_data
+                .iter()
+                .filter(|(_, columns)| columns.contains_key(&left.column))
+                .map(|(row, _)| *row)
+                .max()
+                .unwrap_or(0);
+            CellReferenceIndex {
+                row: right.row.min(last),
+                ..*right
+            }
+        } else {
+            let last = sheet
+                .sheet_data
+                .get(&left.row)
+                .and_then(|columns| columns.keys().max().copied())
+                .unwrap_or(0);
+            CellReferenceIndex {
+                column: right.column.min(last),
+                ..*right
+            }
+        }
+    }
+
+    /// `as_vector` for searching: a range is read only up to the sheet's
+    /// populated extent. Returns the values read and the full length.
+    fn as_search_vector(
+        &mut self,
+        value: CalcResult,
+        cell: CellReferenceIndex,
+    ) -> Result<(Vec<CalcResult>, usize), CalcResult> {
+        match value {
+            CalcResult::Range { left, right } if left.row == right.row || left.column == right.column => {
+                let vertical = left.column == right.column && left.row != right.row;
+                let full = if vertical {
+                    right.row - left.row + 1
+                } else {
+                    right.column - left.column + 1
+                };
+                let end = self.populated_end(&left, &right, vertical);
+                Ok((self.prepare_array(&left, &end, vertical), full as usize))
+            }
+            other => self.as_vector(other, cell).map(|v| {
+                let len = v.len();
+                (v, len)
+            }),
+        }
+    }
+
     fn as_vector(
         &mut self,
         value: CalcResult,
@@ -415,7 +532,7 @@ impl<'a> Model<'a> {
         // MATCH operates on a vector (a single row or single column). We
         // materialize the second argument, be it a range reference or an array
         // literal, into a flat list of values and then run the search on it.
-        let values = match self.as_vector(match_range, cell) {
+        let (values, full) = match self.as_search_vector(match_range, cell) {
             Ok(values) => values,
             Err(error) => return error,
         };
@@ -461,6 +578,10 @@ impl<'a> Model<'a> {
                     if result_matches(value) {
                         return CalcResult::Number(l as f64 + 1.0);
                     }
+                }
+                // Cells past the populated extent are blank (Folio).
+                if values.len() < full && result_matches(&CalcResult::EmptyCell) {
+                    return CalcResult::Number(values.len() as f64 + 1.0);
                 }
                 CalcResult::Error {
                     error: Error::NA,
@@ -537,8 +658,8 @@ impl<'a> Model<'a> {
             };
         }
         // We look for `lookup_value` in the first row of the table
-        let search_vector = table.first_row(self, cell);
-        match lookup_index(&lookup_value, &search_vector, is_sorted) {
+        let (search_vector, full) = table.search_vector(self, false, cell);
+        match lookup_index_populated(&lookup_value, &search_vector, full, is_sorted) {
             Some(column) => table.get(self, row_index - 1, column as i32, cell),
             None => CalcResult::Error {
                 error: Error::NA,
@@ -601,8 +722,8 @@ impl<'a> Model<'a> {
             };
         }
         // We look for `lookup_value` in the first column of the table
-        let search_vector = table.first_column(self, cell);
-        match lookup_index(&lookup_value, &search_vector, is_sorted) {
+        let (search_vector, full) = table.search_vector(self, true, cell);
+        match lookup_index_populated(&lookup_value, &search_vector, full, is_sorted) {
             Some(row) => table.get(self, row as i32, column_index - 1, cell),
             None => CalcResult::Error {
                 error: Error::NA,
@@ -645,20 +766,25 @@ impl<'a> Model<'a> {
             // Vector form: search the lookup vector, return from the result
             // vector at the same position.
             let value = self.evaluate_node_in_context(&args[1], cell);
-            let lookup_vector = match self.as_vector(value, cell) {
+            let (lookup_vector, full) = match self.as_search_vector(value, cell) {
                 Ok(values) => values,
                 Err(error) => return error,
             };
-            let l = match lookup_index(&target, &lookup_vector, true) {
+            let l = match lookup_index_populated(&target, &lookup_vector, full, true) {
                 Some(l) => l,
                 None => return not_found,
             };
             let result = self.evaluate_node_in_context(&args[2], cell);
-            let result_vector = match self.as_vector(result, cell) {
+            let (result_vector, result_full) = match self.as_search_vector(result, cell) {
                 Ok(values) => values,
                 Err(error) => return error,
             };
-            return result_vector.into_iter().nth(l).unwrap_or(not_found);
+            // Past the result vector's populated extent every cell is blank.
+            return match result_vector.into_iter().nth(l) {
+                Some(value) => value,
+                None if l < result_full => CalcResult::EmptyCell,
+                None => not_found,
+            };
         }
 
         // Array form (also covers a plain vector, where the first and last
@@ -678,15 +804,15 @@ impl<'a> Model<'a> {
         };
         if table.columns() > table.rows() {
             // Search the first row, return from the last row.
-            let search_vector = table.first_row(self, cell);
-            match lookup_index(&target, &search_vector, true) {
+            let (search_vector, full) = table.search_vector(self, false, cell);
+            match lookup_index_populated(&target, &search_vector, full, true) {
                 Some(column) => table.get(self, table.rows() - 1, column as i32, cell),
                 None => not_found,
             }
         } else {
             // Search the first column, return from the last column.
-            let search_vector = table.first_column(self, cell);
-            match lookup_index(&target, &search_vector, true) {
+            let (search_vector, full) = table.search_vector(self, true, cell);
+            match lookup_index_populated(&target, &search_vector, full, true) {
                 Some(row) => table.get(self, row as i32, table.columns() - 1, cell),
                 None => not_found,
             }

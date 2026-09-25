@@ -2,6 +2,8 @@
 
 ROADMAP §2 requires a frozen, versioned comparison baseline before any requirement can be "Office compared". **Status: not recorded.** It needs the Microsoft 365 installs, which only the project owner has (program plan, "Dependencies that need you" 1). Until it is filled in, the register's highest reachable state is "Native verified".
 
+File-level evidence from real Office output comes from the [Office-created corpus](CORPUS.md#office-created-corpus-real-files) in the meantime. Each file records the Word/Excel build that saved it, and workbooks carry Excel's own calculated results. That covers opening, round trips and calculation. Interaction, layout and printing still need the installs below.
+
 ## What to record (once per milestone)
 
 Fill in one column per reference machine. The Windows column is the breadth reference; the macOS column is the native interaction reference.

@@ -20,6 +20,12 @@ pub struct WorkbookCalculator {
     rebuild: bool,
     pub changed: Changed,
     table_state: Vec<Value>,
+    /// Defined names formulas can use (from the workbook package), and the
+    /// ones the current model was built with.
+    pub(crate) names: Vec<crate::xlsx_names::Name>,
+    applied_names: Vec<crate::xlsx_names::Name>,
+    /// Defined names the engine refused, for the workbook warning.
+    pub(crate) name_errors: Vec<String>,
     pub values: Value,
     pub cell_errors: Value,
     pub display: crate::number_format::Display,
@@ -46,6 +52,9 @@ impl Default for WorkbookCalculator {
             rebuild: false,
             changed: Changed::All,
             table_state: vec![],
+            names: vec![],
+            applied_names: vec![],
+            name_errors: vec![],
             values: json!({}),
             cell_errors: json!({}),
             display: Default::default(),
@@ -240,6 +249,7 @@ impl WorkbookCalculator {
             || identity != self.identity
             || self.model.is_none()
             || table_state != self.table_state
+            || self.names != self.applied_names
             || date1904 != self.date1904;
         let input = |i: usize, a: &str| -> Option<&str> {
             sheets[i]["cells"].get(a).map(|v| v.as_str().unwrap_or(""))
@@ -301,6 +311,14 @@ impl WorkbookCalculator {
             model.workbook.tables = crate::tables::iron_tables(sheets)?;
             model = Model::from_workbook(model.workbook, "en")?;
             model.set_date1904(date1904);
+            // Names come before any cell input, so formulas parse against them.
+            self.name_errors.clear();
+            for (name, scope, formula) in &self.names {
+                if let Err(e) = model.new_defined_name(name, scope.map(|i| i as u32), formula) {
+                    self.name_errors.push(format!("{name}: {e}"));
+                }
+            }
+            self.applied_names = self.names.clone();
             for (i, sheet) in sheets.iter().enumerate() {
                 model.set_filtered_rows(
                     i as u32,

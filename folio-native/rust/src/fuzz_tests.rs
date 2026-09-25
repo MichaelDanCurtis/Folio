@@ -12,6 +12,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Once;
 use std::time::{Duration, Instant};
 
+/// How long one file operation may take before it counts as a hang. Debug
+/// builds are several times slower and share the machine with the rest of
+/// the suite, so they get more room; the limit exists to catch runaway work
+/// (minutes), not to measure speed.
+pub(crate) fn slow_limit() -> Duration {
+    Duration::from_secs(if cfg!(debug_assertions) { 60 } else { 10 })
+}
+
 struct Lcg(u64);
 impl Lcg {
     fn next(&mut self) -> u64 {
@@ -601,7 +609,7 @@ fn fuzz(seed: u64, cases: usize) -> BTreeMap<String, Vec<Case>> {
                 slow.truncate(5);
             });
             let failure = panic.map(|(op, panic)| (op, panic)).or_else(|| {
-                (elapsed > Duration::from_secs(10)).then(|| {
+                (elapsed > slow_limit()).then(|| {
                     (
                         open.to_string(),
                         format!("slow: {:.1}s", elapsed.as_secs_f64()),
@@ -792,7 +800,7 @@ fn full_sheet_ranges_stay_fast() {
         let (panic, elapsed) = session(&dir, &path, "importOffice");
         if let Some((op, panic)) = panic {
             failures.push(format!("{name}: {op}: {panic}"));
-        } else if elapsed > Duration::from_secs(10) {
+        } else if elapsed > slow_limit() {
             failures.push(format!("{name}: {:.1}s", elapsed.as_secs_f64()));
         }
     }
@@ -986,7 +994,7 @@ fn full_column_tables_stay_fast() {
         let (panic, elapsed) = session(&dir, &path, "importOffice");
         if let Some((op, panic)) = panic {
             failures.push(format!("{range}: {op}: {panic}"));
-        } else if elapsed > Duration::from_secs(10) {
+        } else if elapsed > slow_limit() {
             failures.push(format!("{range}: {:.1}s", elapsed.as_secs_f64()));
         }
     }

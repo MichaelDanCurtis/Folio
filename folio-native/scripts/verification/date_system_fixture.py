@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import json
 from openpyxl import Workbook
+from openpyxl.worksheet.formula import ArrayFormula
 from openpyxl.utils.datetime import CALENDAR_MAC_1904, CALENDAR_WINDOWS_1900, to_excel
 
 root = Path(__file__).resolve().parents[2] / 'test/fixtures'
@@ -61,7 +62,14 @@ for mac in (False, True):
     ]
     expected = {}
     for r, (formula, value) in enumerate(cases, 1):
-        a = f'F{r}'; s[a] = formula; expected[a] = value
+        a = f'F{r}'
+        # A range passed where one value is expected is intersected with the
+        # formula's row in a legacy formula (Excel's saved form without
+        # dynamic-array metadata). Formulas that compute over a whole range
+        # are array formulas, as Excel would save them.
+        array = formula.startswith('=INDEX(') and ':' in formula
+        s[a] = ArrayFormula(a, formula) if array else formula
+        expected[a] = value
         s[f'E{r}'] = formula[1:]
     comparisons = [
         '=PRICE(A5,DATE(2026,1,2),0.05,0.04,100,2,1)',

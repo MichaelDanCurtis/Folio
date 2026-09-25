@@ -23,6 +23,9 @@ import 'sheet_alignment_dialog.dart';
 import 'sheet_autofit.dart';
 import 'sheet_column_metrics.dart';
 import 'sheet_editing_keys.dart';
+import 'sheet_navigation.dart';
+import 'sheet_borders.dart';
+import 'sheet_go_to.dart';
 import 'sheet_clipboard.dart';
 import 'sheet_reviews.dart';
 import 'sheet_validation_dialog.dart';
@@ -77,6 +80,13 @@ class SheetView extends StatefulWidget {
   final Future<void> Function(Map<String, dynamic>)? onGeometry;
   final Future<void> Function(Map<String, dynamic>)? onView;
   final Future<void> Function(Map<String, dynamic>)? onFill;
+
+  /// Home > Clear: `range` and `what` (all, formats, contents, notes or
+  /// hyperlinks).
+  final Future<void> Function(Map<String, dynamic>)? onClear;
+
+  /// Borders: `range`, `preset`, `line` (style) and `color`.
+  final Future<void> Function(Map<String, dynamic>)? onBorders;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>)? onCopy;
   final Future<void> Function(Map<String, dynamic>)? onPaste;
   final Future<void> Function(Map<String, dynamic>)? onTable;
@@ -84,6 +94,12 @@ class SheetView extends StatefulWidget {
   final Future<void> Function(Map<String, dynamic>)? onAutoFilter;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
   onFilterChoices;
+
+  /// The workbook's defined names, for the name box and Go To.
+  final Future<List<Map>> Function()? onDefinedNames;
+
+  /// Go to a reference on another sheet; returns false if there is none.
+  final Future<bool> Function(SheetTarget target)? onGoToSheet;
   const SheetView({
     super.key,
     required this.sheet,
@@ -112,12 +128,16 @@ class SheetView extends StatefulWidget {
     this.onGeometry,
     this.onView,
     this.onFill,
+    this.onClear,
+    this.onBorders,
     this.onCopy,
     this.onPaste,
     this.onTable,
     this.onSortRange,
     this.onAutoFilter,
     this.onFilterChoices,
+    this.onDefinedNames,
+    this.onGoToSheet,
   });
   @override
   State<SheetView> createState() => SheetViewState();
@@ -369,9 +389,36 @@ class SheetViewState extends State<SheetView> {
 
   Map? get selectedTable => tableAt(row, col);
   int? rangeRow, rangeCol;
-  String get selectedRange => rangeRow == null
-      ? selected
-      : '${cellAddress(row < rangeRow! ? row : rangeRow!, col < rangeCol! ? col : rangeCol!)}:${cellAddress(row > rangeRow! ? row : rangeRow!, col > rangeCol! ? col : rangeCol!)}';
+
+  /// Whole rows (Shift+Space, a row heading) or whole columns (Ctrl+Space,
+  /// a column heading) spanned by the selection; both means the whole sheet.
+  bool wholeRows = false, wholeColumns = false;
+
+  /// A selected region that keeps the active cell inside it rather than at a
+  /// corner (Ctrl+A over data). Cleared by the next selection.
+  TableArea? regionSelection;
+  bool get hasRangeSelection =>
+      rangeRow != null || wholeRows || wholeColumns || regionSelection != null;
+
+  /// The selected rectangle: the active cell and the anchor, widened to
+  /// whole rows or columns when those are selected.
+  TableArea get selectionArea {
+    if (regionSelection != null) return regionSelection!;
+    final anchorRow = rangeRow ?? row, anchorCol = rangeCol ?? col;
+    return TableArea(
+      wholeColumns ? 0 : (row < anchorRow ? row : anchorRow),
+      wholeRows ? 0 : (col < anchorCol ? col : anchorCol),
+      wholeColumns ? 1048575 : (row > anchorRow ? row : anchorRow),
+      wholeRows ? 16383 : (col > anchorCol ? col : anchorCol),
+    );
+  }
+
+  String get selectedRange {
+    if (!hasRangeSelection) return selected;
+    final area = selectionArea;
+    return '${cellAddress(area.top, area.left)}:${cellAddress(area.bottom, area.right)}';
+  }
+
   bool editing = false, chart = false, formulaExpanded = false;
   bool extendSelectionMode = false;
   bool formulaDirty = false;
@@ -464,6 +511,8 @@ class SheetViewState extends State<SheetView> {
       );
       rangeRow = null;
       rangeCol = null;
+      wholeRows = wholeColumns = false;
+      regionSelection = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.onSelection(selectedRange);
       });
@@ -479,6 +528,8 @@ class SheetViewState extends State<SheetView> {
       );
       rangeRow = null;
       rangeCol = null;
+      wholeRows = wholeColumns = false;
+      regionSelection = null;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.onSelection(selectedRange);
       });
@@ -797,7 +848,9 @@ class SheetViewState extends State<SheetView> {
       } else {
         rangeRow = null;
         rangeCol = null;
+        wholeRows = wholeColumns = false;
       }
+      regionSelection = null;
       validationHintDismissed = false;
       row = r.clamp(0, 1048575);
       col = c.clamp(0, 16383);
@@ -1432,6 +1485,63 @@ class SheetViewState extends State<SheetView> {
     }
   }
 
+  // Four buttons fit the 120 px font group.
+  static const _compact = BoxConstraints.tightFor(width: 30, height: 32);
+  static final _compactStyle = IconButton.styleFrom(
+    minimumSize: const Size(30, 32),
+    fixedSize: const Size(30, 32),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
+
+  /// The line style and colour the Borders menu draws with.
+  String borderLine = 'thin', borderColor = '#000000';
+
+  /// A Borders menu choice: a preset is applied to the selection with the
+  /// current line; `line:` and `color:` choices change the line.
+  Future<void> applyBorders(String choice) async {
+    if (choice.startsWith('line:')) {
+      setState(() => borderLine = choice.substring(5));
+      return;
+    }
+    if (choice.startsWith('color:')) {
+      setState(() => borderColor = choice.substring(6));
+      return;
+    }
+    if (widget.onBorders == null) return;
+    final range = selectedRange;
+    final id = widget.sheet['id'];
+    try {
+      if (!await commit() || !await commitFormula()) return;
+      if (!mounted || widget.sheet['id'] != id) return;
+      await widget.onBorders!({
+        'sheetId': id,
+        'range': range,
+        'preset': choice,
+        'line': choice == 'thickBox' ? 'thick' : borderLine,
+        'color': borderColor,
+      });
+      if (mounted) gridFocus.requestFocus();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  /// Home > Clear on the selection. Only populated cells are touched, so
+  /// whole rows and columns are cheap.
+  Future<void> clearSelection(String what) async {
+    if (widget.onClear == null) return;
+    final range = selectedRange;
+    final id = widget.sheet['id'];
+    try {
+      if (!await commit() || !await commitFormula()) return;
+      if (!mounted || widget.sheet['id'] != id) return;
+      await widget.onClear!({'sheetId': id, 'range': range, 'what': what});
+      if (mounted) gridFocus.requestFocus();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
   KeyEventResult _capturePendingEntry(KeyEvent event) {
     if (!_finishingEdit && (_entryDrain == null || _entryPaused)) {
       return KeyEventResult.ignored;
@@ -1540,6 +1650,8 @@ class SheetViewState extends State<SheetView> {
       fillSelection(k == LogicalKeyboardKey.keyD ? 'down' : 'right');
       return KeyEventResult.handled;
     }
+    final navigation = _navigationKey(k, keyboard, replay);
+    if (navigation != null) return navigation;
     if (keyboard.isMetaPressed || keyboard.isControlPressed) {
       if (k == LogicalKeyboardKey.keyV) {
         if (keyboard.isShiftPressed) {
@@ -1591,9 +1703,16 @@ class SheetViewState extends State<SheetView> {
         finishEditing(0, 0);
         return KeyEventResult.handled;
       }
+      final List<String> addresses;
+      try {
+        addresses = clearableAddresses();
+      } catch (e) {
+        fail(e);
+        return KeyEventResult.handled;
+      }
       widget
           .onChanges([
-            for (final a in selectedAddresses())
+            for (final a in addresses)
               {'sheetId': widget.sheet['id'], 'address': a, 'value': ''},
           ])
           .catchError(fail);
@@ -1603,6 +1722,225 @@ class SheetViewState extends State<SheetView> {
       return KeyEventResult.ignored;
     }
     return KeyEventResult.handled;
+  }
+
+  /// Cells Delete clears: the whole selection when small, otherwise only
+  /// its populated cells, so clearing whole rows or columns stays cheap.
+  List<String> clearableAddresses() {
+    final area = selectionArea;
+    if ((area.bottom - area.top + 1) * (area.right - area.left + 1) <= 2000) {
+      return selectedAddresses();
+    }
+    return [
+      for (final entry in (widget.sheet['cells'] as Map).entries)
+        if ((entry.value?.toString() ?? '').isNotEmpty &&
+            (() {
+              final (r, c) = parseCell(entry.key as String);
+              return area.contains(r, c);
+            })())
+          entry.key as String,
+    ];
+  }
+
+  int get _firstUnfrozenRow => frozenRows > 0
+      ? visibleRows.next(frozenRows - 1, 1)
+      : visibleRows.toPhysical(0);
+  int get _firstUnfrozenColumn => frozenColumns > 0
+      ? visibleColumns.next(frozenColumns - 1, 1)
+      : visibleColumns.toPhysical(0);
+
+  /// Selects whole rows (a row heading, Shift+Space) or columns (a column
+  /// heading, Ctrl+Space), keeping any existing anchor when extending.
+  Future<void> selectWhole({
+    required bool rows,
+    required bool columns,
+    int? atRow,
+    int? atColumn,
+    bool extend = false,
+  }) async {
+    if (atRow != null || atColumn != null) {
+      final ok = await select(
+        atRow ?? row,
+        atColumn ?? col,
+        shiftPressed: extend,
+      );
+      if (!ok || !mounted) return;
+    }
+    setState(() {
+      wholeRows = rows || (extend && wholeRows);
+      wholeColumns = columns || (extend && wholeColumns);
+      regionSelection = null;
+    });
+    widget.onSelection(selectedRange);
+  }
+
+  final _recentTargets = <String>[];
+
+  /// Selects a target on this sheet: its range, keeping whole-row or
+  /// whole-column selections as such.
+  Future<void> selectTarget(SheetTarget target) async {
+    final ok = await select(target.top, target.left, shiftPressed: false);
+    if (!ok || !mounted) return;
+    setState(() {
+      final range = target.top != target.bottom || target.left != target.right;
+      rangeRow = range ? target.bottom : null;
+      rangeCol = range ? target.right : null;
+      wholeRows = target.wholeRows;
+      wholeColumns = target.wholeColumns;
+      regionSelection = null;
+    });
+    widget.onSelection(selectedRange);
+  }
+
+  /// Name box and Go To: a cell, range, whole rows or columns, a reference
+  /// on another sheet, or a defined name.
+  Future<void> goTo(String text) async {
+    try {
+      // A plain reference needs no names, so it is selected at once.
+      final target =
+          parseTarget(text) ??
+          parseTarget(
+            text,
+            names: await widget.onDefinedNames?.call() ?? const [],
+            currentSheetId: widget.sheet['id'] as String?,
+          );
+      if (target == null) {
+        throw FormatException('"$text" is not a cell, range or name.');
+      }
+      final elsewhere =
+          target.sheetName != null &&
+          target.sheetName!.toLowerCase() !=
+              (widget.sheet['name'] as String).toLowerCase();
+      if (!elsewhere) {
+        await selectTarget(target);
+      } else if (await widget.onGoToSheet?.call(target) != true) {
+        throw FormatException('There is no sheet named ${target.sheetName}.');
+      }
+      _recentTargets
+        ..remove(text.trim())
+        ..insert(0, text.trim());
+      if (_recentTargets.length > 4) _recentTargets.removeLast();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  /// Go To (F5, Ctrl+G): defined names, recent targets and a reference.
+  Future<void> openGoTo() async {
+    try {
+      final names = await widget.onDefinedNames?.call() ?? const [];
+      if (!mounted) return;
+      final text = await showDialog<String>(
+        context: context,
+        builder: (_) => SheetGoToDialog(
+          names: names,
+          recent: List.of(_recentTargets),
+          currentSheetId: widget.sheet['id'] as String?,
+        ),
+      );
+      if (text != null) await goTo(text);
+      if (mounted) gridFocus.requestFocus();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  /// Excel's data-aware navigation and selection keys (X01.03):
+  /// Ctrl/Command+arrow to data edges (Shift extends), Ctrl/Command+Home
+  /// and +End, Home, Shift+Space, Ctrl+Space and Ctrl/Command+A.
+  KeyEventResult? _navigationKey(
+    LogicalKeyboardKey k,
+    SheetEntryKey keyboard,
+    SheetEntryKey? replay,
+  ) {
+    if (keyboard.isAltPressed) return null;
+    final command = keyboard.isControlPressed || keyboard.isMetaPressed;
+    final shift = keyboard.isShiftPressed || extendSelectionMode;
+    if ((k == LogicalKeyboardKey.f5 && !command && !keyboard.isShiftPressed) ||
+        (command && !keyboard.isShiftPressed && k == LogicalKeyboardKey.keyG)) {
+      openGoTo();
+      return KeyEventResult.handled;
+    }
+    void go(int r, int c) {
+      _entryNavigation = replay != null
+          ? _select(r, c, shiftPressed: shift)
+          : select(r, c, shiftPressed: shift);
+    }
+
+    final cells = widget.sheet['cells'] as Map? ?? {};
+    final vertical =
+        k == LogicalKeyboardKey.arrowDown || k == LogicalKeyboardKey.arrowUp;
+    final horizontal =
+        k == LogicalKeyboardKey.arrowLeft || k == LogicalKeyboardKey.arrowRight;
+    if (command && (vertical || horizontal)) {
+      final forward =
+          k == LogicalKeyboardKey.arrowDown ||
+          k == LogicalKeyboardKey.arrowRight;
+      final direction = forward ? 1 : -1;
+      final axis = vertical ? visibleRows : visibleColumns;
+      final limit = vertical ? 1048575 : 16383;
+      final target = dataEdge(
+        from: vertical ? row : col,
+        direction: direction,
+        populated: vertical
+            ? populatedAlong(cells, column: col, hidden: axis.isHidden)
+            : populatedAlong(cells, row: row, hidden: axis.isHidden),
+        step: (p) => axis.next(p, direction),
+        edge: forward
+            ? axis.toPhysical(limit - axis.hidden.length)
+            : axis.toPhysical(0),
+      );
+      go(vertical ? target : row, vertical ? col : target);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.home) {
+      go(command ? _firstUnfrozenRow : row, _firstUnfrozenColumn);
+      return KeyEventResult.handled;
+    }
+    if (command && k == LogicalKeyboardKey.end) {
+      final (r, c) = lastUsedCell(cells);
+      go(r, c);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.space &&
+        (keyboard.isShiftPressed || keyboard.isControlPressed)) {
+      if (keyboard.isMetaPressed) return null;
+      selectWhole(
+        rows: keyboard.isShiftPressed && !keyboard.isControlPressed
+            ? true
+            : wholeRows,
+        columns: keyboard.isControlPressed ? true : wholeColumns,
+        extend: true,
+      );
+      return KeyEventResult.handled;
+    }
+    if (command && !keyboard.isShiftPressed && k == LogicalKeyboardKey.keyA) {
+      final region = currentRegion(cells, row, col);
+      final area = region == null
+          ? null
+          : TableArea(region.$1, region.$2, region.$3, region.$4);
+      final already =
+          area != null &&
+          !wholeRows &&
+          !wholeColumns &&
+          selectionArea.top == area.top &&
+          selectionArea.left == area.left &&
+          selectionArea.bottom == area.bottom &&
+          selectionArea.right == area.right;
+      if (area == null || already) {
+        selectWhole(rows: true, columns: true);
+      } else {
+        setState(() {
+          rangeRow = null;
+          rangeCol = null;
+          wholeRows = wholeColumns = false;
+          regionSelection = area;
+        });
+        widget.onSelection(selectedRange);
+      }
+      return KeyEventResult.handled;
+    }
+    return null;
   }
 
   List<String> selectedAddresses() {
@@ -2088,7 +2426,7 @@ class SheetViewState extends State<SheetView> {
   }
 
   String suggestedTableRange() {
-    if (rangeRow != null) return selectedRange;
+    if (hasRangeSelection) return selectedRange;
     var top = row, bottom = row, left = col, right = col;
     while (top > 0 && raw(cellAddress(top - 1, col)).isNotEmpty) {
       top--;
@@ -2134,13 +2472,13 @@ class SheetViewState extends State<SheetView> {
     await flush();
     if (!mounted) return;
     final table = selectedTable;
-    if (table != null && rangeRow == null) {
+    if (table != null && !hasRangeSelection) {
       await sortTable(table);
       return;
     }
     final last = widget.sheet['rangeSort'] as Map?;
     final reuse =
-        rangeRow == null &&
+        !hasRangeSelection &&
         last != null &&
         TableArea.parse(last['range']).contains(row, col);
     final initial = reuse ? last['range'] as String : suggestedTableRange();
@@ -2553,9 +2891,7 @@ class SheetViewState extends State<SheetView> {
       }
       if (fragments.isEmpty) continue;
       final active = r == row && c == col;
-      final selectedArea = rangeRow == null
-          ? null
-          : TableArea.parse(selectedRange);
+      final selectedArea = hasRangeSelection ? selectionArea : null;
       final style = numberDisplayStyle(
         cellStyle(widget.sheet, cellAddress(r, c)),
         displayAt(cellAddress(r, c)),
@@ -2799,6 +3135,9 @@ class SheetViewState extends State<SheetView> {
                             children: [
                               IconButton(
                                 tooltip: 'Bold',
+                                constraints: _compact,
+                                padding: EdgeInsets.zero,
+                                style: _compactStyle,
                                 onPressed: () => format({
                                   'bold': activeFont['bold'] != true,
                                 }),
@@ -2806,19 +3145,76 @@ class SheetViewState extends State<SheetView> {
                               ),
                               IconButton(
                                 tooltip: 'Italic',
+                                constraints: _compact,
+                                padding: EdgeInsets.zero,
+                                style: _compactStyle,
                                 onPressed: () => format({
                                   'italic': activeFont['italic'] != true,
                                 }),
                                 icon: const Icon(Icons.format_italic, size: 19),
                               ),
-                              IconButton(
-                                tooltip: 'Highlight cells',
-                                onPressed: () => format({'fill': '#FFF2CC'}),
+                              PopupMenuButton<String>(
+                                key: const Key('fill-color-menu'),
+                                tooltip: 'Fill color',
+                                padding: EdgeInsets.zero,
+                                style: _compactStyle,
                                 icon: const Icon(
                                   Icons.format_color_fill,
                                   size: 19,
                                 ),
+                                onSelected: (fill) => format({'fill': fill}),
+                                itemBuilder: (_) => [
+                                  const PopupMenuItem(
+                                    key: Key('fill-none'),
+                                    value: 'none',
+                                    child: Text('No Fill'),
+                                  ),
+                                  const SwatchGrid(
+                                    valuePrefix: '',
+                                    colors: [
+                                      ('#FFF2CC', 'Light Yellow'),
+                                      ...standardColors,
+                                    ],
+                                  ),
+                                ],
                               ),
+                              if (widget.onBorders != null)
+                                PopupMenuButton<String>(
+                                  key: const Key('borders-menu'),
+                                  tooltip: 'Borders',
+                                  padding: EdgeInsets.zero,
+                                  style: _compactStyle,
+                                  icon: const Icon(
+                                    Icons.border_all_outlined,
+                                    size: 19,
+                                  ),
+                                  onSelected: applyBorders,
+                                  itemBuilder: (_) => [
+                                    for (final (preset, label) in borderPresets)
+                                      PopupMenuItem(
+                                        key: Key('border-$preset'),
+                                        height: 30,
+                                        value: preset,
+                                        child: Text(label),
+                                      ),
+                                    const PopupMenuDivider(),
+                                    for (final (line, label)
+                                        in borderLineStyles)
+                                      CheckedPopupMenuItem(
+                                        key: Key('border-line-$line'),
+                                        height: 30,
+                                        value: 'line:$line',
+                                        checked: borderLine == line,
+                                        child: Text('Line: $label'),
+                                      ),
+                                    const PopupMenuDivider(),
+                                    SwatchGrid(
+                                      valuePrefix: 'color:',
+                                      colors: standardColors,
+                                      selected: borderColor,
+                                    ),
+                                  ],
+                                ),
                             ],
                           ),
                         ),
@@ -2956,7 +3352,7 @@ class SheetViewState extends State<SheetView> {
                       children: [
                         SizedBox(
                           width: 48,
-                          height: 32,
+                          height: 21,
                           child: IconButton(
                             tooltip: 'Chart',
                             padding: const EdgeInsets.all(4),
@@ -2997,10 +3393,53 @@ class SheetViewState extends State<SheetView> {
                             ],
                             child: const SizedBox(
                               width: 48,
-                              height: 32,
+                              height: 21,
                               child: Center(
                                 child: Text(
                                   'Fill ▾',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (widget.onClear != null)
+                          PopupMenuButton<String>(
+                            key: const Key('clear-cells-menu'),
+                            tooltip: 'Clear',
+                            onSelected: clearSelection,
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                key: Key('clear-all'),
+                                value: 'all',
+                                child: Text('Clear All'),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clear-formats'),
+                                value: 'formats',
+                                child: Text('Clear Formats'),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clear-contents'),
+                                value: 'contents',
+                                child: Text('Clear Contents  ·  Delete'),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clear-notes'),
+                                value: 'notes',
+                                child: Text('Clear Comments and Notes'),
+                              ),
+                              PopupMenuItem(
+                                key: Key('clear-hyperlinks'),
+                                value: 'hyperlinks',
+                                child: Text('Clear Hyperlinks'),
+                              ),
+                            ],
+                            child: const SizedBox(
+                              width: 48,
+                              height: 21,
+                              child: Center(
+                                child: Text(
+                                  'Clear ▾',
                                   style: TextStyle(fontSize: 12),
                                 ),
                               ),
@@ -3318,29 +3757,7 @@ class SheetViewState extends State<SheetView> {
                     isDense: true,
                     contentPadding: EdgeInsets.all(7),
                   ),
-                  onFieldSubmitted: (value) {
-                    try {
-                      final area = TableArea.parse(
-                        value.replaceAll(r'$', '').toUpperCase(),
-                      );
-                      select(area.top, area.left, extend: false).then((
-                        selected,
-                      ) {
-                        if (selected &&
-                            mounted &&
-                            (area.top != area.bottom ||
-                                area.left != area.right)) {
-                          setState(() {
-                            rangeRow = area.bottom;
-                            rangeCol = area.right;
-                          });
-                          widget.onSelection(selectedRange);
-                        }
-                      });
-                    } catch (e) {
-                      fail(e);
-                    }
-                  },
+                  onFieldSubmitted: goTo,
                 ),
               ),
               const SizedBox(width: 12),
@@ -3584,8 +4001,14 @@ class SheetViewState extends State<SheetView> {
                               key: Key(
                                 r < 0 ? 'column-header-$c' : 'row-header-$r',
                               ),
-                              onTap: () =>
-                                  select(r < 0 ? row : r, c < 0 ? col : c),
+                              onTap: () => selectWhole(
+                                rows: c < 0,
+                                columns: r < 0,
+                                atRow: r < 0 ? _firstUnfrozenRow : r,
+                                atColumn: c < 0 ? _firstUnfrozenColumn : c,
+                                extend:
+                                    HardwareKeyboard.instance.isShiftPressed,
+                              ),
                               onSecondaryTapDown:
                                   widget.onStructure == null || (r < 0 && c < 0)
                                   ? null
@@ -3720,11 +4143,7 @@ class SheetViewState extends State<SheetView> {
                         ? tableColor(table).withValues(alpha: 0.07)
                         : const Color(0xffffffff);
                     final inRange =
-                        rangeRow != null &&
-                        r >= (row < rangeRow! ? row : rangeRow!) &&
-                        r <= (row > rangeRow! ? row : rangeRow!) &&
-                        c >= (col < rangeCol! ? col : rangeCol!) &&
-                        c <= (col > rangeCol! ? col : rangeCol!);
+                        hasRangeSelection && selectionArea.contains(r, c);
                     return Semantics(
                       key: ValueKey('cell-semantics-$a'),
                       container: true,
@@ -3796,10 +4215,14 @@ class SheetViewState extends State<SheetView> {
                                       color: const Color(0xff107c41),
                                       width: 1.6,
                                     )
-                                  : const Border(
-                                      right: BorderSide(color: line),
-                                      bottom: BorderSide(color: line),
-                                    ),
+                                  : cellBorder(
+                                          style,
+                                          const BorderSide(color: line),
+                                        ) ??
+                                        const Border(
+                                          right: BorderSide(color: line),
+                                          bottom: BorderSide(color: line),
+                                        ),
                             ),
                             alignment: Alignment.centerLeft,
                             child: SheetReviewMarker(

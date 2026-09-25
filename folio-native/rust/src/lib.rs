@@ -19,6 +19,10 @@ mod fuzz_tests;
 mod goal_seek;
 #[cfg(test)]
 mod goal_seek_tests;
+#[cfg(test)]
+mod legacy_formula_tests;
+#[cfg(test)]
+mod office_corpus_tests;
 mod office_templates;
 #[cfg(test)]
 mod office_templates_tests;
@@ -145,6 +149,12 @@ mod xlsx_alignment_tests;
 mod xlsx_string_tests;
 mod xlsx_strings;
 
+mod sheet_borders;
+#[cfg(test)]
+mod sheet_borders_tests;
+mod sheet_clear;
+#[cfg(test)]
+mod sheet_clear_tests;
 mod sheet_clipboard;
 #[cfg(test)]
 mod sheet_clipboard_tests;
@@ -176,6 +186,10 @@ mod structure;
 mod structure_tests;
 mod table_refs;
 mod tables;
+mod xlsx_colors;
+mod xlsx_names;
+#[cfg(test)]
+mod xlsx_names_tests;
 mod xlsx_reviews;
 mod xlsx_structure;
 #[cfg(test)]

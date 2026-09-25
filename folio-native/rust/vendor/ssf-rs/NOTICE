@@ -30,3 +30,9 @@ Folio modifications (2026-09-19):
 Folio modifications (0.35):
   - Added bounded format-shape validation and TEXT numeric formatting shared
     by the formula engine and cell renderer.
+
+Folio modifications (Office corpus, 2026-09-25):
+  - `a/p` keeps the case of the format's letters ("a"/"p" or "A"/"P"), as
+    Excel does.
+  - A single `s` before a fractional-seconds token prints whole seconds;
+    the fraction was printed twice (`h:m:s.00` gave "4:5:6.01.01").
