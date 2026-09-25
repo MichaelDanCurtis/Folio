@@ -3382,7 +3382,12 @@ class SheetViewState extends State<SheetView> {
                               ),
                             ),
                           ),
-                        if (widget.onClear != null)
+                      ],
+                    ),
+                    if (widget.onClear != null)
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
                           PopupMenuButton<String>(
                             key: const Key('clear-cells-menu'),
                             tooltip: 'Clear',
@@ -3425,8 +3430,8 @@ class SheetViewState extends State<SheetView> {
                               ),
                             ),
                           ),
-                      ],
-                    ),
+                        ],
+                      ),
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
