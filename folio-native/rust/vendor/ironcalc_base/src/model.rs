@@ -241,6 +241,10 @@ pub struct Model<'a> {
 /// their own budgets.
 pub(crate) const MAX_FORMULA_READS: u64 = 1 << 24;
 
+/// The error from [`Model::evaluate_expression_cells`] when the expression
+/// went over [`MAX_FORMULA_READS`].
+pub const TOO_MANY_READS: &str = "The formula reads too many cells";
+
 /// Unwinds out of a formula that exceeded [`MAX_FORMULA_READS`]; caught
 /// where that formula's evaluation started.
 struct FormulaReadsExceeded;
@@ -566,7 +570,7 @@ impl<'a> Model<'a> {
             row: 1,
             column: 1,
         };
-        match self.evaluate_node_in_context(&node, context_index) {
+        match self.with_read_budget(|model| model.evaluate_node_in_context(&node, context_index))? {
             CalcResult::Number(n) => Some(n),
             _ => None,
         }
@@ -574,8 +578,23 @@ impl<'a> Model<'a> {
 
     /// Evaluate a host-supplied expression at a worksheet cell without writing
     /// a helper cell. Used for validation criteria and bounded list sources.
-    /// The workbook must have been evaluated before calling this method.
+    /// The workbook must have been evaluated before calling this method. The
+    /// expression has its own cell-read budget, like a formula cell.
     pub fn evaluate_expression_cells(
+        &mut self,
+        formula: &str,
+        sheet: u32,
+        row: i32,
+        column: i32,
+        limit: usize,
+    ) -> Result<Vec<Vec<crate::cell::CellValue>>, String> {
+        self.with_read_budget(|model| {
+            model.evaluate_expression_cells_unbudgeted(formula, sheet, row, column, limit)
+        })
+        .unwrap_or_else(|| Err(TOO_MANY_READS.into()))
+    }
+
+    fn evaluate_expression_cells_unbudgeted(
         &mut self,
         formula: &str,
         sheet: u32,
@@ -1551,6 +1570,19 @@ impl<'a> Model<'a> {
         )
     }
 
+    /// Runs `f` with its own cell-read budget (see [`MAX_FORMULA_READS`]).
+    /// `None` means it read too many cells and was abandoned.
+    pub(crate) fn with_read_budget<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> Option<T> {
+        self.formula_reads.push(0);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(self)));
+        self.formula_reads.pop();
+        match result {
+            Ok(value) => Some(value),
+            Err(payload) if payload.is::<FormulaReadsExceeded>() => None,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+
     pub(crate) fn evaluate_cell(&mut self, cell_reference: CellReferenceIndex) -> CalcResult {
         if let Some(reads) = self.formula_reads.last_mut() {
             *reads += 1;
@@ -1653,9 +1685,8 @@ impl<'a> Model<'a> {
                 let node = self.parsed_formulas[cell_reference.sheet as usize][f as usize]
                     .0
                     .clone();
-                self.formula_reads.push(0);
-                let evaluated = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    let result = self.evaluate_node_in_context(&node, cell_reference);
+                let evaluated = self.with_read_budget(|model| {
+                    let result = model.evaluate_node_in_context(&node, cell_reference);
 
                     // At this point a range needs to be transformed into an array
                     if let CalcResult::Range { left, right } = result {
@@ -1664,7 +1695,7 @@ impl<'a> Model<'a> {
                             && left.column == right.column
                         {
                             // it is a single cell range, we can just return the value of the cell
-                            self.evaluate_cell(left)
+                            model.evaluate_cell(left)
                         } else {
                             let array_height = right.row - left.row + 1;
                             let array_width = right.column - left.column + 1;
@@ -1677,7 +1708,7 @@ impl<'a> Model<'a> {
                                     "Spill would exceed worksheet bounds".to_string(),
                                 )
                             } else {
-                                let array = self.evaluate_range(left, right);
+                                let array = model.evaluate_range(left, right);
                                 CalcResult::Array(array)
                             }
                         }
@@ -1690,19 +1721,14 @@ impl<'a> Model<'a> {
                     } else {
                         result
                     }
-                }));
-                self.formula_reads.pop();
-                let result = match evaluated {
-                    Ok(result) => result,
-                    Err(payload) if payload.is::<FormulaReadsExceeded>() => {
-                        CalcResult::new_error(
-                            Error::NUM,
-                            cell_reference,
-                            "This formula reads too many cells".to_string(),
-                        )
-                    }
-                    Err(payload) => std::panic::resume_unwind(payload),
-                };
+                });
+                let result = evaluated.unwrap_or_else(|| {
+                    CalcResult::new_error(
+                        Error::NUM,
+                        cell_reference,
+                        "This formula reads too many cells".to_string(),
+                    )
+                });
 
                 if let Err(e) = self.set_cells_with_result(cell_reference, &original_cell, &result)
                 {

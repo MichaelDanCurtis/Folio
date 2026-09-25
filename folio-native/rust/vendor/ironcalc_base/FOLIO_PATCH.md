@@ -111,7 +111,12 @@ reads made by the formulas it depends on count against their own budgets.
 `evaluate_cell` counts reads on a per-formula stack, and a formula that goes
 over unwinds (with `resume_unwind`, so no panic hook runs) to where its own
 evaluation started, which stores `#NUM!` ("This formula reads too many
-cells"). Before this, one formula over a whole-sheet range could visit 17
+cells"). Host expressions (`evaluate_expression_cells`, used by Folio's
+conditional formats and data validation) and the conditional-format
+`evaluate_formula` get the same budget through `Model::with_read_budget`;
+an expression that goes over returns the exported `TOO_MANY_READS` error, and
+Folio drops such a conditional-format rule for the rest of its pass with a
+warning instead of paying the budget once per cell. Before this, one formula over a whole-sheet range could visit 17
 billion cells: `COUNTBLANK(A1:XFD1048576)` took over three minutes, and array
 arithmetic such as `SUM(A1:XFD1048576*1)` would have tried to allocate
 hundreds of gigabytes, which aborts the process. A real panic inside a
@@ -129,7 +134,7 @@ unchanged and rely on the read budget. Data spread to opposite corners of a
 sheet makes the extent the whole sheet, so whole-sheet aggregates over it hit
 the budget; iterating only populated cells would lift that and is not done.
 
-Modified upstream files: src/model.rs, src/new_empty.rs,
+Modified upstream files: src/model.rs, src/new_empty.rs, src/lib.rs,
 src/functions/statistical/count_and_average.rs,
 src/functions/statistical/mode_functions.rs,
 src/functions/statistical/percentile.rs,

@@ -139,3 +139,45 @@ fn whole_column_array_math_still_works() {
     assert_eq!(text(&formatted, "D2"), "23");
     assert_eq!(text(&formatted, "D3"), "1048574");
 }
+
+/// Conditional-format rules are evaluated per cell outside the formula
+/// cells, so they carry the same read budget: a rule that reads too much is
+/// false (Excel treats a formula error as false). It would go over for every
+/// cell, so it is dropped after the first and the edit stays quick.
+#[test]
+fn a_conditional_format_rule_that_reads_too_many_cells_is_false() {
+    let mut c = blank();
+    let sheet = c.workspace["sheets"][0]["id"].as_str().unwrap().to_string();
+    let rules = [
+        ("A1:A200", "SUMPRODUCT($C$1:$XFD$1048576*1)=0"),
+        ("B1:B3", "A1>0"),
+    ];
+    for (range, formula) in rules {
+        let rule = json!({"type":"expression","sqref":range,"formulas":[formula],
+            "style":{"fill":"#FFFF00"}});
+        c.dispatch(json!({"op":"conditionalFormat","sheetId":sheet,
+            "baseRevision":c.workspace["revision"],"action":"add","rule":rule}))
+            .unwrap();
+    }
+    let mut cells: Vec<Value> = (1..=200)
+        .map(|row| json!({"sheetId":sheet,"address":format!("A{row}"),"value":"1"}))
+        .collect();
+    cells.push(json!({"sheetId":sheet,"address":"B1","value":"x"}));
+    let started = Instant::now();
+    c.dispatch(json!({"op":"cells","cells":cells})).unwrap();
+    let elapsed = started.elapsed();
+    let snapshot = c.snapshot();
+    let formatted = &snapshot["formatted"][&sheet];
+    // One budget's worth of reads, not one per cell (200 would take minutes).
+    assert!(elapsed < Duration::from_secs(20), "took {elapsed:?}");
+    for row in [1, 200] {
+        let cell = &formatted[format!("A{row}")];
+        assert!(cell["conditionalStyle"]["fill"].is_null(), "{cell}");
+    }
+    assert_eq!(formatted["B1"]["conditionalStyle"]["fill"], "#FFFF00");
+    // Rules are numbered by priority, and the rule added last comes first.
+    assert_eq!(
+        snapshot["conditionalWarnings"][&sheet],
+        json!(["Rule 2 reads too many cells and is not displayed."])
+    );
+}

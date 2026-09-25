@@ -71,6 +71,7 @@ pub use locale::get_supported_locales;
 pub use model::get_milliseconds_since_epoch;
 pub use model::FmtSettings;
 pub use model::Model;
+pub use model::TOO_MANY_READS;
 pub use user_model::BorderArea;
 pub use user_model::ClipboardData;
 pub use user_model::UserModel;
