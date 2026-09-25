@@ -216,3 +216,59 @@ fn fill_formula_directions_boundaries_and_structured_rows() {
         .contains("table-column"));
     assert_eq!(c.workspace, old);
 }
+
+#[test]
+fn the_fill_handle_repeats_the_source_block() {
+    let mut c = Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    let id = c.workspace["sheets"][0]["id"].clone();
+    c.dispatch(json!({"op":"cells","cells":[
+        {"sheetId":id,"address":"A1","value":"1"},
+        {"sheetId":id,"address":"A2","value":"x"},
+        {"sheetId":id,"address":"B1","value":"=A1*2"},
+        {"sheetId":id,"address":"B2","value":"=A2&\"!\""},
+        {"sheetId":id,"address":"E5","value":"top"},
+        {"sheetId":id,"address":"E6","value":"=E5"}
+    ]}))
+    .unwrap();
+    let handle = |c: &mut Core, range: &str, source: &str, direction: &str| {
+        c.dispatch(
+            json!({"op":"fillCells","sheetId":id,"range":range,"source":source,
+            "direction":direction,"baseRevision":c.workspace["revision"]}),
+        )
+    };
+    handle(&mut c, "A1:B5", "A1:B2", "down").unwrap();
+    let cells = c.workspace["sheets"][0]["cells"].clone();
+    assert_eq!(cells["A3"], "1");
+    assert_eq!(cells["A4"], "x");
+    assert_eq!(cells["A5"], "1");
+    assert_eq!(cells["B3"], "=A3*2", "formulas move with each copy");
+    assert_eq!(cells["B4"], "=A4&\"!\"");
+
+    // Up: the block stays anchored at the source.
+    handle(&mut c, "E2:E6", "E5:E6", "up").unwrap();
+    let cells = c.workspace["sheets"][0]["cells"].clone();
+    assert_eq!(cells["E4"], "=E3");
+    assert_eq!(cells["E3"], "top");
+    assert_eq!(cells["E2"], "=E1");
+
+    // Right, across columns.
+    handle(&mut c, "A1:D1", "A1:B1", "right").unwrap();
+    let cells = c.workspace["sheets"][0]["cells"].clone();
+    assert_eq!(cells["C1"], "1");
+    assert_eq!(cells["D1"], "=C1*2");
+
+    let before = c.workspace.clone();
+    for (range, source, direction) in [
+        ("A1:B5", "A2:B3", "down"),
+        ("A1:C5", "A1:B2", "down"),
+        ("A1:B5", "A1:B2", "right"),
+        ("A1:B5", "not a range", "down"),
+    ] {
+        assert!(
+            handle(&mut c, range, source, direction).is_err(),
+            "{range} {source}"
+        );
+        assert_eq!(c.workspace, before);
+    }
+}

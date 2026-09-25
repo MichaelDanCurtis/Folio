@@ -11,14 +11,14 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | X01.03 | Select whole rows, columns and the sheet; Ctrl+arrow and Ctrl+Shift+arrow to data edges | M1 | Automated verified | Workbook essentials Task 1 ([plan](../../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)) | Native check; Excel comparison. Whole-row/column formatting is still limited to 2,000 cells |
 | X01.04 | Type into a cell, commit with Enter/Tab/Shift variants, cancel with Escape, and keep fast first keys | M1 | Native verified | 0.31, 0.42–0.43 ([VALIDATION](../../VALIDATION.md#0310-multiline-cell-and-formula-editing-2026-09-19)) | IME and dead keys |
 | X01.05 | Formula bar editing, expandable, with multiline text (Option/Alt+Enter) | M1 | Native verified | 0.31 | Excel comparison |
-| X01.06 | In-cell edit mode (F2) with caret movement and reference pointing by arrows | M1 | Specified | — | F2 exists; point mode not built |
+| X01.06 | In-cell edit mode (F2) with caret movement and reference pointing by arrows | M1 | Automated verified | Workbook essentials Task 8: in Enter mode, arrows and clicks put references into a formula where one can go, Shift extends to a range; F2 switches Enter/Edit; the status bar shows Enter, Edit or Point (`sheet_formula_point_test.dart`) | Clicking another sheet's tab to insert `Sheet!A1`; pointing from the formula bar; arrows ending a plain entry in Enter mode; native check |
 | X01.07 | Copy and paste inside Folio: values, formulas with reference adjustment, formats, transpose, skip blanks | M1 | Native verified | 0.33 ([VALIDATION](../../VALIDATION.md#033-clipboard-qualification--2026-09-19)) | Native skip-blanks check |
 | X01.08 | Paste Special property modes: number formats, validation, column widths | M2 | Automated verified | 0.51 ([PASTE_PROPERTIES](../PASTE_PROPERTIES.md)) | Native check |
 | X01.09 | Paste Special arithmetic (add, subtract, multiply, divide) and paste link | M2 | Specified | — | Not built |
 | X01.10 | Cut and paste (move) with reference updates | M1 | Specified | — | Cut/move not built |
 | X01.11 | Clipboard exchange with Excel and other apps (HTML, TSV, RTF) | M1 | Specified | — | TSV only (see D03.05) |
 | X01.12 | Fill Down/Right/Up/Left (Ctrl+D, Ctrl+R) with relative formula adjustment | M1 | Automated verified | 0.22 ([VALIDATION](../../VALIDATION.md#0220-worksheet-directional-fill-2026-09-19)) | Native package check |
-| X01.13 | Fill handle drag and double-click to extend | M1 | Specified | — | Not built |
+| X01.13 | Fill handle drag and double-click to extend | M1 | Automated verified | Workbook essentials Task 9: dragging the handle repeats the selected block down, up, right or left (formulas adjust per copy) and selects the result; dragging back inside clears the released cells; double-click fills down beside the adjacent column (`sheet_fill_tests.rs`, `sheet_fill_handle_test.dart`) | Series fill (X01.14) and the Auto Fill Options button; auto-scroll while dragging past the window edge; native check |
 | X01.14 | Series fill (linear, growth, dates) and custom lists | M2 | Specified | — | Not built |
 | X01.15 | Flash Fill equivalent | M3 | Specified | — | Not built |
 | X01.16 | Conditional formatting copied by paste and fill | M2 | Automated verified | 0.50 ([CONDITIONAL_COPY](../CONDITIONAL_COPY.md)) | Native check |
@@ -47,7 +47,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | X03.03 | AutoFit row height and column width (menu and boundary double-click) | M1 | Native verified | 0.29–0.30 ([VALIDATION](../../VALIDATION.md#0300-native-autofit-qualification-2026-09-19)) | Excel comparison |
 | X03.04 | Automatic row height after edits, keeping manual heights | M1 | Native verified | 0.32 ([VALIDATION](../../VALIDATION.md#0320-automatic-row-sizing-2026-09-19)) | Excel comparison |
 | X03.05 | Rename, reorder and delete sheets | M1 | Automated verified | 0.6 | Native check |
-| X03.06 | Duplicate a sheet; move or copy a sheet to another workbook | M1 | Specified | — | Not built |
+| X03.06 | Duplicate a sheet; move or copy a sheet to another workbook | M1 | Implemented | Workbook essentials Task 7: Duplicate sheet from the tab menu copies cells, formats, sizes, merges, rules, notes and view next to the source as "Name (2)", renames its tables and their references, one Undo step, XLSX round trip (`sheet_duplicate_tests.rs`, `sheet_zoom_duplicate_workspace_test.dart`) | Charts, pictures and sheet-scoped names aren't copied yet; copy to another workbook; native check |
 | X03.07 | Hide and unhide sheets; tab colours | M2 | Specified | — | Not built |
 | X03.08 | Move rows and columns by drag or cut/insert | M2 | Specified | — | Not built |
 | X03.09 | Group and outline rows and columns (collapse/expand) | M3 | Specified | — | Not built |
@@ -78,7 +78,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 |---|---|---|---|---|---|
 | X05.01 | Freeze panes, top row and first column; unfreeze | M1 | Native verified | 0.12 ([VALIDATION](../../VALIDATION.md#012-frozen-worksheet-panes-2026-09-18)) | Horizontal wheel input |
 | X05.02 | Split panes, draggable | M3 | Specified | — | Not built |
-| X05.03 | Zoom: percentage, zoom to selection | M1 | Specified | — | Not built |
+| X05.03 | Zoom: percentage, zoom to selection | M1 | Automated verified | Workbook essentials Task 6: 10–400% per sheet from the status bar (slider, −/+, presets, Zoom to Selection) and Command/Ctrl with + and −; clicks and selection land on the right cell when zoomed; `sheetView/@zoomScale` round trip (`sheet_view_tests.rs`, `sheet_zoom_test.dart`) | Zoom is an Undo step, which Excel's isn't; Ctrl+scroll-wheel zoom; native check |
 | X05.04 | Page Layout view and Page Break Preview | M3 | Specified | — | See X18 |
 | X05.05 | Show/hide gridlines, headings and formula bar | M2 | Specified | — | Not built |
 | X05.06 | Custom views and New Window for the same workbook | M4 | Specified | — | Not built |

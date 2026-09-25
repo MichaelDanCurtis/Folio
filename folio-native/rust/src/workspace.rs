@@ -3400,6 +3400,40 @@ impl Core {
                 sheets.push(json!({"id":id,"name":name,"cells":{}}));
                 self.commit(n)
             }
+            "duplicateSheet" => {
+                if r.get("baseRevision")
+                    .is_some_and(|v| *v != self.workspace["revision"])
+                {
+                    return Err("The workbook changed. Try the operation again.".into());
+                }
+                let before = self.workspace.clone();
+                let (next, position) = crate::sheet_duplicate::append_copy(&self.workspace, &r)?;
+                let last = next["sheets"].as_array().unwrap().len() - 1;
+                let id = next["sheets"][last]["id"].clone();
+                let result = self.commit(next)?;
+                if position == last {
+                    return Ok(result);
+                }
+                // Move the appended copy next to its source, as one Undo step.
+                match self.dispatch_op(
+                    json!({"op":"structure","sheetId":id,"action":"move","index":position}),
+                ) {
+                    Ok(result) => {
+                        self.history.pop_undo();
+                        self.history.pop_undo();
+                        let back = crate::json_patch::diff(&self.workspace, &before)
+                            .without_field("revision");
+                        self.history
+                            .record(crate::document_history::Entry::new(back, None));
+                        Ok(result)
+                    }
+                    Err(e) => {
+                        self.dispatch_op(json!({"op":"undo"}))?;
+                        self.history.pop_redo();
+                        Err(e)
+                    }
+                }
+            }
             "structure" => {
                 if let Some(revision) = r.get("baseRevision") {
                     if *revision != self.workspace["revision"] {

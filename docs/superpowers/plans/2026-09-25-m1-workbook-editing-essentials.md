@@ -87,37 +87,37 @@ Native qualification joins the rank 2 Mac sweep. The register rows and counts ar
 
 **Files:** `lib/src/sheet_zoom.dart` (new), grid scale plumbing, tests
 
-- [ ] **Zoom 10–400%:** a status-bar slider, Zoom to Selection, and Command/Ctrl with + and −.
-- [ ] Keep the zoom per sheet, read from and written to `sheetView/@zoomScale` in XLSX.
-- [ ] Hit testing, selection and editing stay correct at every zoom level.
+- [x] **Zoom 10–400%:** a status-bar slider, Zoom to Selection, and Command/Ctrl with + and −.
+- [x] Keep the zoom per sheet, read from and written to `sheetView/@zoomScale` in XLSX.
+- [x] Hit testing, selection and editing stay correct at every zoom level.
 
 ### Task 7: Duplicate sheet (X03.06)
 
 **Files:** engine op `duplicateSheet` (`rust/src/sheet_duplicate.rs`), tab context menu, tests
 
-- [ ] Copy the sheet's cells, styles, dimensions, merges, validation, conditional formats, notes and view.
-- [ ] Give copied tables new unique names and adjust their structured references.
+- [x] Copy the sheet's cells, styles, dimensions, merges, validation, conditional formats, notes and view.
+- [x] Give copied tables new unique names and adjust their structured references.
 - [ ] Copy sheet-scoped names, pointing at the copy.
-- [ ] Insert the copy after the source, with an Excel-style name ("Budget (2)").
-- [ ] One Undo step; round trip through XLSX.
+- [x] Insert the copy after the source, with an Excel-style name ("Budget (2)").
+- [x] One Undo step; round trip through XLSX.
 
 ### Task 8: Formula point mode (X01.06)
 
 **Files:** `lib/src/sheet_formula_point.dart` (new), editor wiring, tests
 
-- [ ] While a formula is being typed, and the caret is where a reference can go (after `=`, an operator, a comma or `(`), arrow keys and clicks insert or replace a reference; Shift extends it to a range.
-- [ ] F2 toggles between Edit and Point mode, and the status bar shows the mode.
+- [x] While a formula is being typed, and the caret is where a reference can go (after `=`, an operator, a comma or `(`), arrow keys and clicks insert or replace a reference; Shift extends it to a range.
+- [x] F2 toggles between Edit and Point mode, and the status bar shows the mode.
 - [ ] Clicking another sheet's tab inserts a `Sheet!A1` reference.
 
 ### Task 9: Fill handle (X01.13)
 
 **Files:** `lib/src/sheet_fill_handle.dart` (new), grid wiring, tests
 
-- [ ] **Dragging the fill handle** fills down, right, up or left using the existing fill op (X01.12). Series (X01.14) stays separate.
-- [ ] **Double-clicking the handle** fills down to the end of the adjacent data column.
-- [ ] **Dragging back inside the selection** clears the cells released.
+- [x] **Dragging the fill handle** fills down, right, up or left using the existing fill op (X01.12). Series (X01.14) stays separate.
+- [x] **Double-clicking the handle** fills down to the end of the adjacent data column.
+- [x] **Dragging back inside the selection** clears the cells released.
 
 ### Task 10: Close-out
 
-- [ ] Update the register rows, STATUS.md counts and the change log.
-- [ ] Run the local CI mirror. Compare with the Phase 2 baseline: 7 Flutter tests fail on Linux only.
+- [x] Update the register rows, STATUS.md counts and the change log.
+- [x] Run the local CI mirror. Compare with the Phase 2 baseline: 7 Flutter tests fail on Linux only.

@@ -183,3 +183,62 @@ fn new_and_prefixed_views_keep_schema_order_and_namespaces() {
         Some("topRight")
     );
 }
+
+fn sheet_xml(pkg: &Package, index: usize) -> String {
+    let path = crate::xlsx::import(pkg).unwrap().0[index]["officePath"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    pkg.text(&path).unwrap().to_string()
+}
+
+#[test]
+fn zoom_is_kept_per_sheet_and_round_trips_as_zoom_scale() {
+    let mut c = fixture();
+    let zoom = |c: &mut Core, id: &str, z: Value| {
+        c.dispatch(
+            json!({"op":"sheetView","sheetId":id,"action":"zoom","zoom":z,
+            "baseRevision":c.workspace["revision"]}),
+        )
+    };
+    zoom(&mut c, "office-1", json!(150)).unwrap();
+    zoom(&mut c, "office-2", json!(75)).unwrap();
+    assert_eq!(c.workspace["sheets"][0]["zoom"], 150);
+    let pkg = export(&mut c, "view-zoom.xlsx");
+    let first = sheet_xml(&pkg, 0);
+    assert!(first.contains("zoomScale=\"150\""), "{first}");
+    assert!(first.contains("<pane"), "the frozen pane stays: {first}");
+    assert!(sheet_xml(&pkg, 1).contains("zoomScale=\"75\""));
+    let (sheets, _) = crate::xlsx::import(&pkg).unwrap();
+    assert_eq!(sheets[0]["zoom"], 150);
+    assert_eq!(sheets[1]["zoom"], 75);
+
+    // 100% is the default: no attribute, no key.
+    zoom(&mut c, "office-1", json!(100)).unwrap();
+    assert!(c.workspace["sheets"][0].get("zoom").is_none());
+    let first = sheet_xml(&export(&mut c, "view-zoom-100.xlsx"), 0);
+    assert!(!first.contains("zoomScale=\"150\""), "{first}");
+    assert!(
+        first.contains("zoomScale=\"70\" workbookViewId=\"1\""),
+        "other windows keep their zoom: {first}"
+    );
+
+    c.dispatch(json!({"op":"undo"})).unwrap();
+    assert_eq!(c.workspace["sheets"][0]["zoom"], 150);
+    let before = c.workspace.clone();
+    for bad in [json!(9), json!(401), json!(1.5), json!("200"), Value::Null] {
+        assert!(zoom(&mut c, "office-1", bad.clone()).is_err(), "{bad}");
+        assert_eq!(c.workspace, before);
+    }
+}
+
+#[test]
+fn new_workbooks_write_zoom_too() {
+    let mut c = Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    let id = c.workspace["sheets"][0]["id"].clone();
+    c.dispatch(json!({"op":"sheetView","sheetId":id,"action":"zoom","zoom":200}))
+        .unwrap();
+    let pkg = export(&mut c, "view-zoom-new.xlsx");
+    assert_eq!(crate::xlsx::import(&pkg).unwrap().0[0]["zoom"], 200);
+}

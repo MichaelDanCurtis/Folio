@@ -8,7 +8,11 @@ import 'draft_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show defaultTargetPlatform, mapEquals;
 import 'package:flutter/gestures.dart'
-    show DragStartBehavior, kPrimaryMouseButton;
+    show
+        DragStartBehavior,
+        GestureDisposition,
+        PanGestureRecognizer,
+        kPrimaryMouseButton;
 import 'package:flutter/services.dart';
 import 'package:flutter/semantics.dart';
 import 'sparse_sheet_grid.dart';
@@ -25,7 +29,10 @@ import 'sheet_column_metrics.dart';
 import 'sheet_editing_keys.dart';
 import 'sheet_navigation.dart';
 import 'sheet_borders.dart';
+import 'sheet_fill_handle.dart';
+import 'sheet_formula_point.dart';
 import 'sheet_go_to.dart';
+import 'sheet_zoom.dart';
 import 'sheet_clipboard.dart';
 import 'sheet_reviews.dart';
 import 'sheet_validation_dialog.dart';
@@ -85,6 +92,9 @@ class SheetView extends StatefulWidget {
   /// hyperlinks).
   final Future<void> Function(Map<String, dynamic>)? onClear;
 
+  /// Changes the sheet's zoom, in percent (X05.03).
+  final Future<void> Function(int percent)? onZoom;
+
   /// Borders: `range`, `preset`, `line` (style) and `color`.
   final Future<void> Function(Map<String, dynamic>)? onBorders;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>)? onCopy;
@@ -130,6 +140,7 @@ class SheetView extends StatefulWidget {
     this.onFill,
     this.onClear,
     this.onBorders,
+    this.onZoom,
     this.onCopy,
     this.onPaste,
     this.onTable,
@@ -306,8 +317,13 @@ class SheetViewState extends State<SheetView> {
     }
   }
 
-  Widget frozenGrid(Widget Function() buildGrid) => LayoutBuilder(
-    builder: (context, constraints) {
+  Widget frozenGrid(Widget Function() buildGrid) => ZoomedViewport(
+    zoom: zoomPercent / 100,
+    builder: (constraints) {
+      _gridScreenSize = Size(
+        constraints.maxWidth * zoomPercent / 100,
+        constraints.maxHeight * zoomPercent / 100,
+      );
       // Retain the exact saved boundary even if this window cannot contain it.
       // Temporarily unpin an oversized axis rather than build millions of
       // pinned cells or conceal the entire editable viewport.
@@ -433,6 +449,7 @@ class SheetViewState extends State<SheetView> {
   @override
   void initState() {
     super.initState();
+    cellController.addListener(_syncEditMode);
     updateGeometry();
     if (visibleRows.isHidden(row) && visibleRows.hidden.length < 1048576) {
       row = visibleRows.toPhysical(
@@ -891,6 +908,10 @@ class SheetViewState extends State<SheetView> {
     setState(() {
       extendSelectionMode = false;
       editing = true;
+      // Typing starts Enter mode, where arrows point in formulas; F2 and a
+      // double-click start Edit mode, where they move the caret.
+      editMode = initial == null ? EditMode.edit : EditMode.enter;
+      _point = null;
       final text = initial ?? raw(selected);
       cellController.value = TextEditingValue(
         text: text,
@@ -1485,6 +1506,51 @@ class SheetViewState extends State<SheetView> {
     }
   }
 
+  /// A zoom shown while the slider moves, before it is committed.
+  int? _zoomPreview;
+  int get zoomPercent =>
+      _zoomPreview ?? clampZoom((widget.sheet['zoom'] as num?) ?? 100);
+
+  /// Shows [percent] at once and, when [commit] is true, saves it as the
+  /// sheet's zoom.
+  Future<void> setZoom(int percent, {bool commit = true}) async {
+    percent = clampZoom(percent);
+    setState(() => _zoomPreview = percent);
+    if (!commit) return;
+    try {
+      if (percent != clampZoom((widget.sheet['zoom'] as num?) ?? 100)) {
+        await widget.onZoom?.call(percent);
+      }
+    } catch (e) {
+      fail(e);
+    } finally {
+      if (mounted) setState(() => _zoomPreview = null);
+    }
+  }
+
+  /// The grid's size on screen, measured each layout.
+  Size? _gridScreenSize;
+
+  /// Zoom to Selection: the largest zoom at which the selected cells and
+  /// the headings fit the grid.
+  Future<void> zoomToSelection() async {
+    final screen = _gridScreenSize;
+    if (screen == null) return;
+    final area = selectionArea;
+    await setZoom(
+      zoomToFit(
+        selectionWidth:
+            columnLayout.offset(area.right + 1) -
+            columnLayout.offset(area.left) +
+            43,
+        selectionHeight:
+            rowLayout.offset(area.bottom + 1) - rowLayout.offset(area.top) + 32,
+        viewportWidth: screen.width,
+        viewportHeight: screen.height,
+      ),
+    );
+  }
+
   // Four buttons fit the 120 px font group.
   static const _compact = BoxConstraints.tightFor(width: 30, height: 32);
   static final _compactStyle = IconButton.styleFrom(
@@ -1540,6 +1606,277 @@ class SheetViewState extends State<SheetView> {
     } catch (e) {
       fail(e);
     }
+  }
+
+  /// Where the fill handle is being dragged, and what releasing it does.
+  FillHandlePlan? _fillPlan;
+  bool _handleMoved = false;
+  DateTime? _lastHandlePress;
+
+  /// The selection's bottom-right cell carries the fill handle (X01.13).
+  Widget _fillHandleFrame(int r, int c, Widget cell) {
+    final area = selectionArea;
+    final preview = _fillPlan?.range;
+    final inPreview =
+        preview != null &&
+        r >= preview.top &&
+        r <= preview.bottom &&
+        c >= preview.left &&
+        c <= preview.right;
+    final shaded = inPreview
+        ? Stack(
+            fit: StackFit.expand,
+            children: [
+              cell,
+              IgnorePointer(
+                child: ColoredBox(
+                  color: _fillPlan!.clears
+                      ? const Color(0x33808080)
+                      : const Color(0x22107c41),
+                ),
+              ),
+            ],
+          )
+        : cell;
+    if (widget.onFill == null ||
+        editing ||
+        wholeRows ||
+        wholeColumns ||
+        r != area.bottom ||
+        c != area.right) {
+      return shaded;
+    }
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.none,
+      children: [
+        shaded,
+        Positioned(
+          right: 0,
+          bottom: 0,
+          width: 8,
+          height: 8,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.precise,
+            child: RawGestureDetector(
+              key: const Key('fill-handle'),
+              behavior: HitTestBehavior.opaque,
+              gestures: {
+                // Claim the pointer at once, ahead of the grid's scrolling.
+                _HandlePan: GestureRecognizerFactoryWithHandlers<_HandlePan>(
+                  _HandlePan.new,
+                  (pan) => pan
+                    ..onStart = ((_) {
+                      _handleMoved = false;
+                      setState(() => _fillPlan = null);
+                    })
+                    ..onUpdate = (d) {
+                      _handleMoved = true;
+                      // The handle sits at the cell's bottom-right corner.
+                      final x =
+                          columnLayout.offset(c) +
+                          columnExtent(c) -
+                          8 +
+                          d.localPosition.dx;
+                      final y =
+                          rowLayout.offset(r) +
+                          rowExtent(r) -
+                          8 +
+                          d.localPosition.dy;
+                      final plan = planFillHandle(
+                        area,
+                        indexAt(rowLayout, y, 1048576),
+                        indexAt(columnLayout, x, 16384),
+                      );
+                      if (plan?.toString() != _fillPlan?.toString()) {
+                        setState(() => _fillPlan = plan);
+                      }
+                    }
+                    ..onCancel = (() => setState(() => _fillPlan = null))
+                    ..onEnd = (_) {
+                      final plan = _fillPlan;
+                      setState(() => _fillPlan = null);
+                      if (plan != null) {
+                        releaseFillHandle(plan);
+                      } else if (!_handleMoved) {
+                        // Two quick presses are a double-click.
+                        final now = DateTime.now();
+                        final last = _lastHandlePress;
+                        _lastHandlePress = now;
+                        if (last != null &&
+                            now.difference(last) <
+                                const Duration(milliseconds: 500)) {
+                          _lastHandlePress = null;
+                          fillHandleDoubleTap();
+                        }
+                      }
+                    },
+                ),
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xff107c41),
+                  border: Border.all(color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _rangeText(TableArea a) =>
+      '${cellAddress(a.top, a.left)}:${cellAddress(a.bottom, a.right)}';
+
+  /// Fills from the selection, or clears the cells released inside it, then
+  /// selects the result, as Excel does.
+  Future<void> releaseFillHandle(FillHandlePlan plan) async {
+    final id = widget.sheet['id'];
+    final source = selectionArea;
+    try {
+      if (!await commit() || !await commitFormula()) return;
+      if (!mounted || widget.sheet['id'] != id) return;
+      if (plan.clears) {
+        await widget.onClear?.call({
+          'sheetId': id,
+          'range': _rangeText(plan.range),
+          'what': 'contents',
+        });
+        return;
+      }
+      await widget.onFill!({
+        'sheetId': id,
+        'range': _rangeText(plan.range),
+        'source': _rangeText(source),
+        'direction': plan.direction,
+      });
+      if (!mounted) return;
+      final r = plan.range;
+      await selectTarget(SheetTarget(r.top, r.left, r.bottom, r.right));
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  /// Double-clicking the handle fills down as far as the adjacent data goes.
+  Future<void> fillHandleDoubleTap() async {
+    final s = selectionArea;
+    final end = fillDownEnd(widget.sheet['cells'] as Map? ?? {}, s);
+    if (end == null) return;
+    await releaseFillHandle(
+      FillHandlePlan.fill(TableArea(s.top, s.left, end, s.right), 'down'),
+    );
+  }
+
+  /// Enter or Edit mode for the cell being edited (X01.06).
+  EditMode editMode = EditMode.enter;
+
+  /// The reference being chosen in Point mode.
+  FormulaPoint? _point;
+
+  /// The status bar's mode: Enter, Edit or Point while editing, else null.
+  final editModeNotifier = ValueNotifier<EditMode?>(null);
+
+  EditMode? get shownEditMode =>
+      !editing ? null : (_livePoint != null ? EditMode.point : editMode);
+
+  /// The reference being chosen, while the caret still sits right after it
+  /// and the text still holds it; typing or moving the caret ends it.
+  FormulaPoint? get _livePoint {
+    final point = _point;
+    final value = cellController.value;
+    if (point == null ||
+        !value.selection.isCollapsed ||
+        value.selection.baseOffset != point.end ||
+        value.text.length < point.end ||
+        value.text.substring(point.start, point.end) != point.reference) {
+      return null;
+    }
+    return point;
+  }
+
+  void _syncEditMode() {
+    if (editModeNotifier.value == shownEditMode) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) editModeNotifier.value = shownEditMode;
+    });
+  }
+
+  /// Point mode: puts the reference to ([r], [c]) into the formula being
+  /// typed, or extends the current one to a range when [extend] is set.
+  /// Returns false, changing nothing, where no reference can go.
+  bool pointAt(int r, int c, {bool extend = false}) {
+    final value = cellController.value;
+    final point = _livePoint;
+    FormulaPoint next;
+    if (point != null) {
+      next = FormulaPoint(
+        start: point.start,
+        end: point.end,
+        anchorRow: extend ? point.anchorRow : r,
+        anchorColumn: extend ? point.anchorColumn : c,
+        row: r,
+        column: c,
+      );
+    } else {
+      final caret = value.selection.isCollapsed
+          ? value.selection.baseOffset
+          : -1;
+      if (!canPoint(value.text, caret)) return false;
+      next = FormulaPoint(
+        start: caret,
+        end: caret,
+        anchorRow: r,
+        anchorColumn: c,
+        row: r,
+        column: c,
+      );
+    }
+    final (updated, placed) = applyPoint(value, next);
+    setState(() {
+      cellController.value = updated;
+      _point = placed;
+    });
+    cellFocus.requestFocus();
+    return true;
+  }
+
+  KeyEventResult _pointKey(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final keyboard = HardwareKeyboard.instance;
+    if (key == LogicalKeyboardKey.f2 &&
+        !keyboard.isShiftPressed &&
+        !keyboard.isControlPressed &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed) {
+      setState(() {
+        editMode = editMode == EditMode.edit ? EditMode.enter : EditMode.edit;
+        _point = null;
+      });
+      return KeyEventResult.handled;
+    }
+    final step = arrowStep(key);
+    if (step == null) {
+      return KeyEventResult.ignored;
+    }
+    if (editMode == EditMode.edit ||
+        keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    final (dr, dc) = step;
+    final point = _livePoint;
+    final fromRow = point?.row ?? row, fromColumn = point?.column ?? col;
+    final r = dr == 0 ? fromRow : visibleRows.next(fromRow, dr);
+    final c = dc == 0 ? fromColumn : visibleColumns.next(fromColumn, dc);
+    return pointAt(r, c, extend: keyboard.isShiftPressed)
+        ? KeyEventResult.handled
+        : KeyEventResult.ignored;
   }
 
   KeyEventResult _capturePendingEntry(KeyEvent event) {
@@ -1859,6 +2196,17 @@ class SheetViewState extends State<SheetView> {
     if ((k == LogicalKeyboardKey.f5 && !command && !keyboard.isShiftPressed) ||
         (command && !keyboard.isShiftPressed && k == LogicalKeyboardKey.keyG)) {
       openGoTo();
+      return KeyEventResult.handled;
+    }
+    // Command/Ctrl with + and − step the zoom.
+    final zoomIn =
+        k == LogicalKeyboardKey.equal ||
+        k == LogicalKeyboardKey.add ||
+        k == LogicalKeyboardKey.numpadAdd;
+    final zoomOut =
+        k == LogicalKeyboardKey.minus || k == LogicalKeyboardKey.numpadSubtract;
+    if (command && widget.onZoom != null && (zoomIn || zoomOut)) {
+      setZoom(stepZoom(zoomPercent, up: zoomIn));
       return KeyEventResult.handled;
     }
     void go(int r, int c) {
@@ -2934,6 +3282,7 @@ class SheetViewState extends State<SheetView> {
 
   @override
   Widget build(BuildContext context) {
+    _syncEditMode();
     _clearOverflowPainters();
     _overflowScaler = MediaQuery.textScalerOf(context);
     _overflowDirection = Directionality.of(context);
@@ -4185,6 +4534,26 @@ class SheetViewState extends State<SheetView> {
                             // the filter button before the pointer is released.
                             return;
                           }
+                          // The fill handle keeps the selection it extends.
+                          if (widget.onFill != null &&
+                              !editing &&
+                              r == selectionArea.bottom &&
+                              c == selectionArea.right &&
+                              event.localPosition.dx >= columnExtent(c) - 8 &&
+                              event.localPosition.dy >= rowExtent(r) - 8) {
+                            return;
+                          }
+                          if (event.buttons == kPrimaryMouseButton &&
+                              editing &&
+                              !active &&
+                              pointAt(
+                                r,
+                                c,
+                                extend:
+                                    HardwareKeyboard.instance.isShiftPressed,
+                              )) {
+                            return;
+                          }
                           if (event.buttons == kPrimaryMouseButton &&
                               !(active && editing)) {
                             select(r, c);
@@ -4202,216 +4571,233 @@ class SheetViewState extends State<SheetView> {
                             await select(r, c);
                             edit();
                           },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: active || inRange
-                                  ? Color.alphaBlend(
-                                      const Color(0x18107c41),
-                                      color(style['fill']) ?? fill,
-                                    )
-                                  : color(style['fill']) ?? fill,
-                              border: active
-                                  ? Border.all(
-                                      color: const Color(0xff107c41),
-                                      width: 1.6,
-                                    )
-                                  : cellBorder(
-                                          style,
-                                          const BorderSide(color: line),
-                                        ) ??
-                                        const Border(
-                                          right: BorderSide(color: line),
-                                          bottom: BorderSide(color: line),
-                                        ),
-                            ),
-                            alignment: Alignment.centerLeft,
-                            child: SheetReviewMarker(
-                              key: Key('review-marker-$a'),
-                              review: cellReview(widget.sheet, a),
-                              child: SheetDataBar(
-                                key: Key('data-bar-$a'),
-                                bar: active && editing
-                                    ? null
-                                    : style['_dataBar'] as Map?,
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: columnExtent(c) < 42 ? 0 : 9,
-                                    vertical: 2,
-                                  ),
-                                  child: active && editing
-                                      ? SheetEditingKeys(
-                                          intercept: _capturePendingEntry,
-                                          controller: cellController,
-                                          focus: cellFocus,
-                                          onCommit: (r, c) =>
-                                              finishEditing(r, c),
-                                          onCancel: cancelEditing,
-                                          child: draftTextField(
-                                            key: const Key('cell-editor'),
-                                            controller: cellController,
-                                            focusNode: cellFocus,
-                                            maxLines: null,
-                                            keyboardType:
-                                                TextInputType.multiline,
-                                            textInputAction:
-                                                TextInputAction.done,
-                                            maxLength: 10000,
-                                            style: sheetTextStyle(style),
-                                            decoration: const InputDecoration(
-                                              isDense: true,
-                                              border: InputBorder.none,
-                                              counterText: '',
-                                              contentPadding: EdgeInsets.zero,
-                                            ),
-                                            onSubmitted: (_) =>
-                                                finishEditing(1, 0),
+                          child: _fillHandleFrame(
+                            r,
+                            c,
+                            Container(
+                              decoration: BoxDecoration(
+                                color: active || inRange
+                                    ? Color.alphaBlend(
+                                        const Color(0x18107c41),
+                                        color(style['fill']) ?? fill,
+                                      )
+                                    : color(style['fill']) ?? fill,
+                                border: active
+                                    ? Border.all(
+                                        color: const Color(0xff107c41),
+                                        width: 1.6,
+                                      )
+                                    : cellBorder(
+                                            style,
+                                            const BorderSide(color: line),
+                                          ) ??
+                                          const Border(
+                                            right: BorderSide(color: line),
+                                            bottom: BorderSide(color: line),
                                           ),
-                                        )
-                                      : Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            Expanded(
-                                              child: Tooltip(
-                                                message:
-                                                    [
-                                                          if (cellReview(
-                                                                widget.sheet,
-                                                                a,
-                                                              ) !=
-                                                              null)
-                                                            reviewTooltip(
-                                                              cellReview(
-                                                                widget.sheet,
-                                                                a,
-                                                              ),
-                                                            ),
-                                                          widget.formattedCells[a]?['warning']
-                                                                  as String? ??
-                                                              formatted(a),
-                                                        ]
-                                                        .where(
-                                                          (text) =>
-                                                              text.isNotEmpty,
-                                                        )
-                                                        .join('\n\n'),
-                                                child: SheetIconValue(
-                                                  address: a,
-                                                  style: style,
-                                                  child: SheetFontText(
-                                                    formatted(a),
-                                                    key: Key('sheet-font-$a'),
-                                                    font: style,
-                                                    layout: CellTextLayout(
-                                                      style,
-                                                      value: value,
-                                                      normalFont:
-                                                          normalSheetFont(
-                                                            widget.sheet,
-                                                          ),
-                                                    ),
-                                                    bold:
-                                                        (style['bold']
-                                                            as bool?) ??
-                                                        (tableHeader ||
-                                                            tableTotal),
-                                                    color:
-                                                        color(style['color']) ??
-                                                        (tableHeader
-                                                            ? Colors.white
-                                                            : const Color(
-                                                                0xff242424,
-                                                              )),
-                                                  ),
-                                                ),
+                              ),
+                              alignment: Alignment.centerLeft,
+                              child: SheetReviewMarker(
+                                key: Key('review-marker-$a'),
+                                review: cellReview(widget.sheet, a),
+                                child: SheetDataBar(
+                                  key: Key('data-bar-$a'),
+                                  bar: active && editing
+                                      ? null
+                                      : style['_dataBar'] as Map?,
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: columnExtent(c) < 42 ? 0 : 9,
+                                      vertical: 2,
+                                    ),
+                                    child: active && editing
+                                        ? SheetEditingKeys(
+                                            intercept: (event) {
+                                              final pointed = _pointKey(event);
+                                              return pointed !=
+                                                      KeyEventResult.ignored
+                                                  ? pointed
+                                                  : _capturePendingEntry(event);
+                                            },
+                                            controller: cellController,
+                                            focus: cellFocus,
+                                            onCommit: (r, c) =>
+                                                finishEditing(r, c),
+                                            onCancel: cancelEditing,
+                                            child: draftTextField(
+                                              key: const Key('cell-editor'),
+                                              controller: cellController,
+                                              focusNode: cellFocus,
+                                              maxLines: null,
+                                              keyboardType:
+                                                  TextInputType.multiline,
+                                              textInputAction:
+                                                  TextInputAction.done,
+                                              maxLength: 10000,
+                                              style: sheetTextStyle(style),
+                                              decoration: const InputDecoration(
+                                                isDense: true,
+                                                border: InputBorder.none,
+                                                counterText: '',
+                                                contentPadding: EdgeInsets.zero,
                                               ),
+                                              onSubmitted: (_) =>
+                                                  finishEditing(1, 0),
                                             ),
-                                            if (active &&
-                                                hasValidationDropdown &&
-                                                columnExtent(c) >= 42)
-                                              SizedBox(
-                                                width: 24,
-                                                child: IconButton(
-                                                  key: const Key(
-                                                    'validation-dropdown',
-                                                  ),
-                                                  tooltip:
-                                                      'Choose a valid value (Alt+↓)',
-                                                  padding: EdgeInsets.zero,
-                                                  icon: const Icon(
-                                                    Icons.arrow_drop_down,
-                                                    size: 18,
-                                                  ),
-                                                  onPressed:
-                                                      chooseValidationValue,
-                                                ),
-                                              ),
-                                            if (filterHeader &&
-                                                widget.onAutoFilter != null &&
-                                                columnExtent(c) >= 42)
-                                              SizedBox(
-                                                width: 24,
-                                                height: 28,
-                                                child: IconButton(
-                                                  key: Key(
-                                                    'range-filter-${c - filterArea.left}',
-                                                  ),
-                                                  tooltip:
-                                                      'Filter ${worksheetFilter!['columns'][c - filterArea.left]['name']}',
-                                                  padding: EdgeInsets.zero,
-                                                  icon: Icon(
-                                                    (worksheetFilter['filters']
-                                                                as Map)
-                                                            .containsKey(
-                                                              '${c - filterArea.left}',
-                                                            )
-                                                        ? Icons.filter_alt
-                                                        : Icons.arrow_drop_down,
-                                                    size: 17,
-                                                    color: const Color(
-                                                      0xff217346,
+                                          )
+                                        : Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              Expanded(
+                                                child: Tooltip(
+                                                  message:
+                                                      [
+                                                            if (cellReview(
+                                                                  widget.sheet,
+                                                                  a,
+                                                                ) !=
+                                                                null)
+                                                              reviewTooltip(
+                                                                cellReview(
+                                                                  widget.sheet,
+                                                                  a,
+                                                                ),
+                                                              ),
+                                                            widget.formattedCells[a]?['warning']
+                                                                    as String? ??
+                                                                formatted(a),
+                                                          ]
+                                                          .where(
+                                                            (text) =>
+                                                                text.isNotEmpty,
+                                                          )
+                                                          .join('\n\n'),
+                                                  child: SheetIconValue(
+                                                    address: a,
+                                                    style: style,
+                                                    child: SheetFontText(
+                                                      formatted(a),
+                                                      key: Key('sheet-font-$a'),
+                                                      font: style,
+                                                      layout: CellTextLayout(
+                                                        style,
+                                                        value: value,
+                                                        normalFont:
+                                                            normalSheetFont(
+                                                              widget.sheet,
+                                                            ),
+                                                      ),
+                                                      bold:
+                                                          (style['bold']
+                                                              as bool?) ??
+                                                          (tableHeader ||
+                                                              tableTotal),
+                                                      color:
+                                                          color(
+                                                            style['color'],
+                                                          ) ??
+                                                          (tableHeader
+                                                              ? Colors.white
+                                                              : const Color(
+                                                                  0xff242424,
+                                                                )),
                                                     ),
                                                   ),
-                                                  onPressed: () => filterTable(
-                                                    worksheetFilter,
-                                                    c - filterArea.left,
-                                                  ),
                                                 ),
                                               ),
-                                            if (tableHeader &&
-                                                widget.onTable != null &&
-                                                columnExtent(c) >= 42)
-                                              SizedBox(
-                                                width: 24,
-                                                height: 28,
-                                                child: IconButton(
-                                                  key: Key(
-                                                    'table-filter-${table['id']}-${c - area.left}',
-                                                  ),
-                                                  tooltip:
-                                                      'Filter ${table['columns'][c - area.left]['name']}',
-                                                  padding: EdgeInsets.zero,
-                                                  icon: Icon(
-                                                    (table['filters'] as Map? ??
-                                                                {})
-                                                            .containsKey(
-                                                              '${c - area.left}',
-                                                            )
-                                                        ? Icons.filter_alt
-                                                        : Icons.arrow_drop_down,
-                                                    size: 17,
-                                                    color: active || inRange
-                                                        ? tableColor(table)
-                                                        : Colors.white,
-                                                  ),
-                                                  onPressed: () => filterTable(
-                                                    table,
-                                                    c - area.left,
+                                              if (active &&
+                                                  hasValidationDropdown &&
+                                                  columnExtent(c) >= 42)
+                                                SizedBox(
+                                                  width: 24,
+                                                  child: IconButton(
+                                                    key: const Key(
+                                                      'validation-dropdown',
+                                                    ),
+                                                    tooltip:
+                                                        'Choose a valid value (Alt+↓)',
+                                                    padding: EdgeInsets.zero,
+                                                    icon: const Icon(
+                                                      Icons.arrow_drop_down,
+                                                      size: 18,
+                                                    ),
+                                                    onPressed:
+                                                        chooseValidationValue,
                                                   ),
                                                 ),
-                                              ),
-                                          ],
-                                        ),
+                                              if (filterHeader &&
+                                                  widget.onAutoFilter != null &&
+                                                  columnExtent(c) >= 42)
+                                                SizedBox(
+                                                  width: 24,
+                                                  height: 28,
+                                                  child: IconButton(
+                                                    key: Key(
+                                                      'range-filter-${c - filterArea.left}',
+                                                    ),
+                                                    tooltip:
+                                                        'Filter ${worksheetFilter!['columns'][c - filterArea.left]['name']}',
+                                                    padding: EdgeInsets.zero,
+                                                    icon: Icon(
+                                                      (worksheetFilter['filters']
+                                                                  as Map)
+                                                              .containsKey(
+                                                                '${c - filterArea.left}',
+                                                              )
+                                                          ? Icons.filter_alt
+                                                          : Icons
+                                                                .arrow_drop_down,
+                                                      size: 17,
+                                                      color: const Color(
+                                                        0xff217346,
+                                                      ),
+                                                    ),
+                                                    onPressed: () =>
+                                                        filterTable(
+                                                          worksheetFilter,
+                                                          c - filterArea.left,
+                                                        ),
+                                                  ),
+                                                ),
+                                              if (tableHeader &&
+                                                  widget.onTable != null &&
+                                                  columnExtent(c) >= 42)
+                                                SizedBox(
+                                                  width: 24,
+                                                  height: 28,
+                                                  child: IconButton(
+                                                    key: Key(
+                                                      'table-filter-${table['id']}-${c - area.left}',
+                                                    ),
+                                                    tooltip:
+                                                        'Filter ${table['columns'][c - area.left]['name']}',
+                                                    padding: EdgeInsets.zero,
+                                                    icon: Icon(
+                                                      (table['filters']
+                                                                      as Map? ??
+                                                                  {})
+                                                              .containsKey(
+                                                                '${c - area.left}',
+                                                              )
+                                                          ? Icons.filter_alt
+                                                          : Icons
+                                                                .arrow_drop_down,
+                                                      size: 17,
+                                                      color: active || inRange
+                                                          ? tableColor(table)
+                                                          : Colors.white,
+                                                    ),
+                                                    onPressed: () =>
+                                                        filterTable(
+                                                          table,
+                                                          c - area.left,
+                                                        ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -4537,6 +4923,7 @@ class SheetViewState extends State<SheetView> {
 
   @override
   void dispose() {
+    editModeNotifier.dispose();
     _clearOverflowPainters();
     gridFocus.removeListener(_gridFocusChanged);
     _syncDesktopGridFocus(false);
@@ -4550,5 +4937,17 @@ class SheetViewState extends State<SheetView> {
     vertical.dispose();
     horizontal.dispose();
     super.dispose();
+  }
+}
+
+/// A pan that wins the gesture arena on pointer down, so dragging the fill
+/// handle never scrolls the grid.
+class _HandlePan extends PanGestureRecognizer {
+  _HandlePan() : super(debugOwner: null);
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
   }
 }

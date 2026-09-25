@@ -160,6 +160,9 @@ mod sheet_clipboard;
 mod sheet_clipboard_tests;
 #[cfg(test)]
 mod sheet_column_fit_tests;
+mod sheet_duplicate;
+#[cfg(test)]
+mod sheet_duplicate_tests;
 mod sheet_fill;
 #[cfg(test)]
 mod sheet_fill_tests;
