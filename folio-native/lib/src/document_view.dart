@@ -1,4 +1,11 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'document_case.dart' show documentText;
 import 'document_fields.dart';
+import 'document_formatting_marks.dart';
+import 'document_links.dart';
+import 'format_painter.dart';
+import 'sheet_zoom.dart';
 import 'document_page_setup.dart';
 import 'document_revisions.dart';
 import 'document_named_styles.dart';
@@ -28,6 +35,42 @@ import 'workbook_block.dart';
 import 'proofreading.dart';
 import 'search.dart';
 
+/// Command/Ctrl with + and − zoom the document (W17.02).
+class ZoomDocumentIntent extends Intent {
+  final bool up;
+  const ZoomDocumentIntent(this.up);
+}
+
+const documentZoomSteps = [10, 25, 50, 75, 100, 125, 150, 200, 300, 400, 500];
+
+const documentZoomShortcuts = <ShortcutActivator, Intent>{
+  SingleActivator(LogicalKeyboardKey.equal, meta: true): ZoomDocumentIntent(
+    true,
+  ),
+  SingleActivator(LogicalKeyboardKey.equal, control: true): ZoomDocumentIntent(
+    true,
+  ),
+  SingleActivator(LogicalKeyboardKey.equal, meta: true, shift: true):
+      ZoomDocumentIntent(true),
+  SingleActivator(LogicalKeyboardKey.equal, control: true, shift: true):
+      ZoomDocumentIntent(true),
+  SingleActivator(LogicalKeyboardKey.numpadAdd, meta: true): ZoomDocumentIntent(
+    true,
+  ),
+  SingleActivator(LogicalKeyboardKey.numpadAdd, control: true):
+      ZoomDocumentIntent(true),
+  SingleActivator(LogicalKeyboardKey.minus, meta: true): ZoomDocumentIntent(
+    false,
+  ),
+  SingleActivator(LogicalKeyboardKey.minus, control: true): ZoomDocumentIntent(
+    false,
+  ),
+  SingleActivator(LogicalKeyboardKey.numpadSubtract, meta: true):
+      ZoomDocumentIntent(false),
+  SingleActivator(LogicalKeyboardKey.numpadSubtract, control: true):
+      ZoomDocumentIntent(false),
+};
+
 class UndoWorkspace extends Intent {
   final bool redo;
   const UndoWorkspace([this.redo = false]);
@@ -43,6 +86,9 @@ class DocumentView extends StatefulWidget {
   final String ribbon;
   final ProofreadingController? proofreading;
   final void Function(WritingIssue, String)? onWritingFix;
+
+  /// The zoom percentage, shared with the status bar.
+  final ValueNotifier<int>? zoom;
   const DocumentView({
     super.key,
     required this.controller,
@@ -55,6 +101,7 @@ class DocumentView extends StatefulWidget {
     this.ribbon = 'Home',
     this.proofreading,
     this.onWritingFix,
+    this.zoom,
   });
   @override
   State<DocumentView> createState() => DocumentViewState();
@@ -63,6 +110,98 @@ class DocumentView extends StatefulWidget {
 class DocumentViewState extends State<DocumentView> {
   final _focus = FocusNode(), _scroll = ScrollController();
   final _editorKey = GlobalKey<q.EditorState>();
+
+  // Zoom is kept per document for the session; Word doesn't save it.
+  static final _zooms = <Object?, int>{};
+  final _ownZoom = ValueNotifier<int>(100);
+  ValueNotifier<int> get zoom => widget.zoom ?? _ownZoom;
+  Object? _zoomDocument = const Object();
+  Size? _viewport;
+
+  void _restoreZoom() {
+    final id = model?.workspace['id'];
+    if (id == _zoomDocument) return;
+    _zoomDocument = id;
+    final saved = _zooms[id] ?? 100;
+    if (zoom.value == saved) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) zoom.value = saved;
+    });
+  }
+
+  void setZoom(int percent) {
+    final value = clampZoom(percent, max: documentZoomSteps.last);
+    _zooms[_zoomDocument] = value;
+    zoom.value = value;
+  }
+
+  DocumentPageGeometry get _geometry =>
+      DocumentPageGeometry.fromDocument(model?.workspace['document'] as Map?);
+
+  /// Page Width: the page fills the view's width.
+  void zoomToPageWidth() {
+    final view = _viewport;
+    if (view == null) return;
+    setZoom(((view.width - 48) / _geometry.width * 100).floor());
+  }
+
+  /// Whole Page: one page fits the view.
+  void zoomToWholePage() {
+    final view = _viewport;
+    if (view == null) return;
+    final g = _geometry;
+    setZoom(
+      (math.min((view.width - 48) / g.width, (view.height - 64) / g.height) *
+              100)
+          .floor(),
+    );
+  }
+
+  /// Format Painter: the copied formatting, and whether it stays on for
+  /// more than one selection (a double-click) until Esc.
+  PaintedFormat? painter;
+  bool painterSticky = false;
+
+  void startPainter({bool sticky = false}) {
+    setState(() {
+      painter = captureFormat(
+        controller.document.toDelta(),
+        controller.selection,
+      );
+      painterSticky = sticky;
+    });
+    _focus.requestFocus();
+  }
+
+  void stopPainter() => setState(() => painter = null);
+
+  /// Paints onto the selection the pointer just made, or the word clicked.
+  void _paintSelection() {
+    final format = painter;
+    if (format == null || !mounted) return;
+    var target = controller.selection;
+    if (target.isCollapsed) {
+      final text = documentText(controller.document.toDelta());
+      var s = target.start, e = target.start;
+      bool word(int i) =>
+          RegExp(r"[\p{L}\p{N}'’]", unicode: true).hasMatch(text[i]);
+      while (s > 0 && word(s - 1)) {
+        s--;
+      }
+      while (e < text.length && word(e)) {
+        e++;
+      }
+      target = TextSelection(baseOffset: s, extentOffset: e);
+    }
+    final change = paintFormat(controller.document.toDelta(), target, format);
+    if (!painterSticky) setState(() => painter = null);
+    if (change.isEmpty) return;
+    controller.compose(change, controller.selection, q.ChangeSource.local);
+  }
+
+  /// Show/Hide ¶, for the session.
+  bool showMarks = false;
+  void toggleMarks() => setState(() => showMarks = !showMarks);
 
   Map<int, String> _listLabels = {};
   q.Document? _configuredDocument;
@@ -343,6 +482,144 @@ class DocumentViewState extends State<DocumentView> {
     }
   }
 
+  /// Insert or edit the hyperlink at the selection (Ctrl/Cmd+K).
+  Future<void> editLink() async {
+    try {
+      await model?.flush();
+      if (!mounted) return;
+      final before = controller.document.toDelta();
+      final revision = model?.revision;
+      var selection = controller.selection;
+      final existing = selection.isCollapsed
+          ? linkRangeAt(before, selection.start)
+          : null;
+      if (existing != null) {
+        selection = TextSelection(
+          baseOffset: existing.start,
+          extentOffset: existing.end,
+        );
+      }
+      final slice = before.slice(selection.start, selection.end).toList();
+      final plain = slice.every((op) => op.data is String);
+      final text = slice.map((op) => op.data is String ? op.data : '').join();
+      if (!plain || text.contains('\n')) {
+        throw const FormatException(
+          'Select text within one paragraph to link it.',
+        );
+      }
+      final document = model?.workspace['document'] as Map?;
+      final result = await showDialog<LinkResult>(
+        context: context,
+        builder: (_) => DocumentLinkDialog(
+          text: text,
+          address: selection.isCollapsed
+              ? ''
+              : linkAt(before, selection.start) ?? '',
+          existing: existing != null || linkAt(before, selection.start) != null,
+          places: document == null ? const [] : linkPlaces(document),
+        ),
+      );
+      if (result == null || !mounted) return;
+      if (before != controller.document.toDelta() ||
+          revision != model?.revision) {
+        throw const FormatException(
+          'The document changed. Select the text and try again.',
+        );
+      }
+      if (result.remove) {
+        final range = selection.isCollapsed
+            ? null
+            : TextRange(start: selection.start, end: selection.end);
+        if (range != null) {
+          controller.compose(
+            removeLinkDelta(range),
+            selection,
+            q.ChangeSource.local,
+          );
+        }
+        _focus.requestFocus();
+        return;
+      }
+      var href = result.href;
+      final place = result.place;
+      if (place != null && place.bookmark == null) {
+        // A heading gets Word's hidden bookmark the first time it is linked.
+        final name = headingBookmarkName(
+          place.label,
+          documentBookmarks(document!).map((b) => b['name'] as String),
+        );
+        await model!.mutate({
+          'op': 'bookmark',
+          'action': 'set',
+          'name': name,
+          'hidden': true,
+          'start': place.start,
+          'end': place.end,
+          'workspaceId': model!.workspace['id'],
+          'baseRevision': revision,
+        }, refreshDocument: true);
+        if (!mounted) return;
+        href = '#$name';
+      }
+      final change = setLinkDelta(
+        controller.document.toDelta(),
+        selection.start,
+        selection.end,
+        result.text,
+        href,
+      );
+      final end = selection.start + result.text.length;
+      controller.compose(
+        change,
+        TextSelection.collapsed(offset: end),
+        q.ChangeSource.local,
+      );
+      controller.updateSelection(
+        TextSelection.collapsed(offset: end),
+        q.ChangeSource.local,
+      );
+      _focus.requestFocus();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e is FormatException ? e.message : '$e')),
+        );
+      }
+    }
+  }
+
+  /// Follows [href]: web and mail links open outside Folio, and a link to a
+  /// bookmark moves the caret there.
+  Future<void> followLink(String href) async {
+    void say(String message) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+    }
+
+    switch (linkKind(href)) {
+      case LinkKind.internal:
+        final document = model?.workspace['document'] as Map?;
+        final name = href.substring(1).toLowerCase();
+        final bookmark = document == null
+            ? null
+            : documentBookmarks(document)
+                  .where((b) => (b['name'] as String).toLowerCase() == name)
+                  .firstOrNull;
+        if (bookmark == null) {
+          say('This link\'s destination is no longer in the document.');
+          return;
+        }
+        await revealBookmark(document!, bookmark);
+      case LinkKind.web || LinkKind.mail:
+        await openExternalLink(Uri.parse(href));
+      case LinkKind.blocked:
+        say('Folio only follows web, email and in-document links.');
+    }
+  }
+
   void reveal(int start, int end, {bool requestFocus = false}) {
     if (requestFocus) _focus.requestFocus();
     final limit = controller.document.length - 1;
@@ -420,6 +697,7 @@ class DocumentViewState extends State<DocumentView> {
   @override
   void dispose() {
     controller.removeListener(_listsChanged);
+    _ownZoom.dispose();
     _focus.dispose();
     _scroll.dispose();
     super.dispose();
@@ -449,8 +727,35 @@ class DocumentViewState extends State<DocumentView> {
             onContextAction?.call(name);
           },
         );
+    final link = linkAt(controller.document.toDelta(), selection.start);
+    ContextMenuButtonItem run(String label, VoidCallback onPressed) =>
+        ContextMenuButtonItem(
+          label: label,
+          onPressed: () {
+            raw.hideToolbar();
+            onPressed();
+          },
+        );
     final actions = <ContextMenuButtonItem>[
       ...raw.contextMenuButtonItems,
+      if (link != null) ...[
+        run('Open link', () => followLink(link)),
+        run('Edit link…', editLink),
+        run('Remove link', () {
+          final range = linkRangeAt(
+            controller.document.toDelta(),
+            selection.start,
+          );
+          if (range != null) {
+            controller.compose(
+              removeLinkDelta(range),
+              selection,
+              q.ChangeSource.local,
+            );
+          }
+        }),
+      ] else
+        run('Link…', editLink),
       action('New comment', 'comment'),
       action('Spelling & grammar', 'proofread'),
       action('Check grammar with AI', 'grammar'),
@@ -560,6 +865,7 @@ class DocumentViewState extends State<DocumentView> {
 
   @override
   Widget build(BuildContext context) {
+    _restoreZoom();
     final page = DocumentPageGeometry.fromDocument(
       model?.workspace['document'] as Map?,
     );
@@ -573,7 +879,13 @@ class DocumentViewState extends State<DocumentView> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (ribbon == 'Home')
-                DocumentTextToolbar(controller: controller, focus: _focus),
+                DocumentTextToolbar(
+                  controller: controller,
+                  focus: _focus,
+                  styles: () =>
+                      model?.workspace['document']?['attrs']?['wordStyles']
+                          as Map?,
+                ),
               Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 spacing: 4,
@@ -582,6 +894,42 @@ class DocumentViewState extends State<DocumentView> {
                     key: const Key('document-styles'),
                     onPressed: model == null ? null : editStyles,
                     child: const Text('Styles…'),
+                  ),
+                  Tooltip(
+                    message: 'Format Painter (double-click to keep it on)',
+                    child: InkWell(
+                      key: const Key('document-format-painter'),
+                      customBorder: const CircleBorder(),
+                      onTap: () =>
+                          painter == null ? startPainter() : stopPainter(),
+                      onDoubleTap: () => startPainter(sticky: true),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Icon(
+                          Icons.format_paint,
+                          size: 19,
+                          color: painter == null
+                              ? null
+                              : Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('document-formatting-marks'),
+                    tooltip: 'Show/Hide ¶ (Ctrl+Shift+8)',
+                    isSelected: showMarks,
+                    onPressed: toggleMarks,
+                    icon: const Icon(
+                      Icons.format_textdirection_l_to_r,
+                      size: 19,
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('document-link'),
+                    tooltip: 'Link (Ctrl+K)',
+                    onPressed: editLink,
+                    icon: const Icon(Icons.link, size: 19),
                   ),
                   IconButton(
                     key: const Key('insert-table'),
@@ -652,8 +1000,35 @@ class DocumentViewState extends State<DocumentView> {
           ),
         ),
         Expanded(
-          child: DocumentPageFrame(
-            geometry: page,
+          child: ValueListenableBuilder<int>(
+            valueListenable: zoom,
+            builder: (context, percent, editor) => DocumentPageFrame(
+              geometry: page,
+              zoom: percent / 100,
+              onViewport: (size) => _viewport = size,
+              child: Stack(
+                children: [
+                  Listener(
+                    // The editor sets the selection as this pointer is
+                    // released; paint once it has.
+                    onPointerUp: (_) {
+                      if (painter != null) Timer.run(_paintSelection);
+                    },
+                    child: editor!,
+                  ),
+                  if (showMarks)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: FormattingMarksOverlay(
+                          key: const Key('formatting-marks'),
+                          controller: controller,
+                          editorKey: _editorKey,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             child: q.QuillEditor.basic(
               key: const Key('document-editor'),
               focusNode: _focus,
@@ -666,6 +1041,8 @@ class DocumentViewState extends State<DocumentView> {
                 textSpanBuilder:
                     proofreading?.spanBuilder ?? q.defaultSpanBuilder,
                 placeholder: 'Start writing…',
+                onLaunchUrl: followLink,
+                transformLink: (link) => link,
                 // Pinned Quill 11.6.0; the callback has widget coverage.
                 // ignore: experimental_member_use
                 customLeadingBlockBuilder: (node, config) {
@@ -702,6 +1079,15 @@ class DocumentViewState extends State<DocumentView> {
                   ...searchShortcuts,
                   ...bookmarkShortcuts,
                   ...documentMarkShortcuts,
+                  ...linkShortcuts,
+                  ...documentZoomShortcuts,
+                  ...formattingMarkShortcuts,
+                  // Not Quill's own const Escape activator, which would
+                  // replace this entry when the shortcut maps merge.
+                  const SingleActivator(
+                    LogicalKeyboardKey.escape,
+                    includeRepeats: false,
+                  ): const CancelFormatPainter(),
                   const SingleActivator(LogicalKeyboardKey.keyZ, meta: true):
                       const UndoWorkspace(),
                   const SingleActivator(
@@ -714,6 +1100,31 @@ class DocumentViewState extends State<DocumentView> {
                 },
                 customActions: {
                   ...documentMarkActions(controller, _focus),
+                  CancelFormatPainter: _CancelPainterAction(this),
+                  ToggleFormattingMarks: CallbackAction<ToggleFormattingMarks>(
+                    onInvoke: (_) {
+                      toggleMarks();
+                      return null;
+                    },
+                  ),
+                  ZoomDocumentIntent: CallbackAction<ZoomDocumentIntent>(
+                    onInvoke: (intent) {
+                      setZoom(
+                        stepZoom(
+                          zoom.value,
+                          up: intent.up,
+                          steps: documentZoomSteps,
+                        ),
+                      );
+                      return null;
+                    },
+                  ),
+                  EditLinkIntent: CallbackAction<EditLinkIntent>(
+                    onInvoke: (_) {
+                      editLink();
+                      return null;
+                    },
+                  ),
                   UndoWorkspace: CallbackAction<UndoWorkspace>(
                     onInvoke: (intent) {
                       intent.redo ? redo() : undo();
@@ -727,6 +1138,21 @@ class DocumentViewState extends State<DocumentView> {
         ),
       ],
     );
+  }
+}
+
+/// Esc turns the painter off; otherwise it passes through.
+class _CancelPainterAction extends Action<CancelFormatPainter> {
+  final DocumentViewState view;
+  _CancelPainterAction(this.view);
+  @override
+  bool isEnabled(CancelFormatPainter intent) => view.painter != null;
+  @override
+  bool consumesKey(CancelFormatPainter intent) => view.painter != null;
+  @override
+  Object? invoke(CancelFormatPainter intent) {
+    view.stopPainter();
+    return null;
   }
 }
 
@@ -761,6 +1187,7 @@ class FolioEmbedBuilder extends q.EmbedBuilder {
               node: node,
               onCell: (row, col) =>
                   _editTable(context, embedContext, node, row, col),
+              onResize: (next) => _resizeTable(embedContext, node, next),
             ),
             Wrap(
               children: [
@@ -908,6 +1335,29 @@ class FolioEmbedBuilder extends q.EmbedBuilder {
         1,
         q.BlockEmbed('folioNode', jsonEncode(result)),
         TextSelection.collapsed(offset: index + 1),
+      ),
+    );
+  }
+
+  /// A dragged border replaces the table in one Undo step.
+  void _resizeTable(q.EmbedContext embed, Map original, Map next) {
+    final controller = embed.controller;
+    final index = embed.node.documentOffset;
+    final leaf = controller.document.querySegmentLeafNode(index).leaf;
+    if (leaf is! q.Embed ||
+        leaf.value.type != 'folioNode' ||
+        leaf.value.data != jsonEncode(original)) {
+      return;
+    }
+    final selection = controller.selection;
+    DocumentEditCapture.apply(
+      controller,
+      null,
+      () => controller.replaceText(
+        index,
+        1,
+        q.BlockEmbed('folioNode', jsonEncode(next)),
+        selection,
       ),
     );
   }

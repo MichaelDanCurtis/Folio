@@ -7,14 +7,15 @@ const minZoom = 10, maxZoom = 400;
 /// The steps Command/Ctrl with + and − move through.
 const zoomSteps = [10, 25, 50, 75, 100, 125, 150, 200, 300, 400];
 
-int clampZoom(num percent) => percent.round().clamp(minZoom, maxZoom);
+int clampZoom(num percent, {int max = maxZoom}) =>
+    percent.round().clamp(minZoom, max);
 
 /// The next step above (or below, with [up] false) [percent].
-int stepZoom(int percent, {required bool up}) {
+int stepZoom(int percent, {required bool up, List<int> steps = zoomSteps}) {
   if (up) {
-    return zoomSteps.firstWhere((s) => s > percent, orElse: () => maxZoom);
+    return steps.firstWhere((s) => s > percent, orElse: () => steps.last);
   }
-  return zoomSteps.lastWhere((s) => s < percent, orElse: () => minZoom);
+  return steps.lastWhere((s) => s < percent, orElse: () => steps.first);
 }
 
 /// Zoom to Selection: the largest zoom at which a selection of the given
@@ -74,11 +75,19 @@ class SheetZoomControl extends StatefulWidget {
   /// is chosen.
   final void Function(int percent, {required bool commit}) onZoom;
   final VoidCallback? onZoomToSelection;
+
+  /// The zoom steps, the last being the largest zoom.
+  final List<int> steps;
+
+  /// Named zooms the percentage menu adds, such as Page Width.
+  final List<(String key, String label, VoidCallback onSelected)> presets;
   const SheetZoomControl({
     super.key,
     required this.zoom,
     required this.onZoom,
     this.onZoomToSelection,
+    this.steps = zoomSteps,
+    this.presets = const [],
   });
 
   @override
@@ -96,7 +105,10 @@ class _SheetZoomControlState extends State<SheetZoomControl> {
       mainAxisSize: MainAxisSize.min,
       children: [
         _button('zoom-out', Icons.remove, 'Zoom out', () {
-          widget.onZoom(stepZoom(widget.zoom, up: false), commit: true);
+          widget.onZoom(
+            stepZoom(widget.zoom, up: false, steps: widget.steps),
+            commit: true,
+          );
         }),
         SizedBox(
           width: 110,
@@ -110,33 +122,52 @@ class _SheetZoomControlState extends State<SheetZoomControl> {
             child: Slider(
               key: const Key('zoom-slider'),
               min: minZoom.toDouble(),
-              max: maxZoom.toDouble(),
+              max: widget.steps.last.toDouble(),
               value: shown.toDouble().clamp(
                 minZoom.toDouble(),
-                maxZoom.toDouble(),
+                widget.steps.last.toDouble(),
               ),
               onChanged: (v) {
                 setState(() => dragging = v);
-                widget.onZoom(clampZoom(v), commit: false);
+                widget.onZoom(
+                  clampZoom(v, max: widget.steps.last),
+                  commit: false,
+                );
               },
               onChangeEnd: (v) {
                 setState(() => dragging = null);
-                widget.onZoom(clampZoom(v), commit: true);
+                widget.onZoom(
+                  clampZoom(v, max: widget.steps.last),
+                  commit: true,
+                );
               },
             ),
           ),
         ),
         _button('zoom-in', Icons.add, 'Zoom in', () {
-          widget.onZoom(stepZoom(widget.zoom, up: true), commit: true);
+          widget.onZoom(
+            stepZoom(widget.zoom, up: true, steps: widget.steps),
+            commit: true,
+          );
         }),
         PopupMenuButton<int>(
           key: const Key('zoom-percent'),
           tooltip: 'Zoom',
           onSelected: (v) => v == 0
               ? widget.onZoomToSelection?.call()
+              : v < 0
+              ? widget.presets[-v - 1].$3()
               : widget.onZoom(v, commit: true),
           itemBuilder: (_) => [
-            for (final step in zoomSteps.reversed)
+            for (final (i, preset) in widget.presets.indexed)
+              PopupMenuItem(
+                key: Key(preset.$1),
+                height: 30,
+                value: -i - 1,
+                child: Text(preset.$2),
+              ),
+            if (widget.presets.isNotEmpty) const PopupMenuDivider(),
+            for (final step in widget.steps.reversed)
               PopupMenuItem(
                 key: Key('zoom-$step'),
                 height: 30,

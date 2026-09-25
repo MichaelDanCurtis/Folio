@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'scaled_box.dart';
 import 'package:flutter/material.dart';
 import 'draft_text_field.dart';
 import 'document_codec.dart';
@@ -104,10 +105,16 @@ class DocumentPageGeometry {
 class DocumentPageFrame extends StatefulWidget {
   final DocumentPageGeometry geometry;
   final Widget child;
+
+  /// The zoom (1 is 100%), and the viewport size for fitting zooms.
+  final double zoom;
+  final ValueChanged<Size>? onViewport;
   const DocumentPageFrame({
     super.key,
     required this.geometry,
     required this.child,
+    this.zoom = 1,
+    this.onViewport,
   });
   @override
   State<DocumentPageFrame> createState() => _DocumentPageFrameState();
@@ -125,46 +132,54 @@ class _DocumentPageFrameState extends State<DocumentPageFrame> {
   Widget build(BuildContext context) => ColoredBox(
     color: const Color(0xffe8ebef),
     child: LayoutBuilder(
-      builder: (context, viewport) => Scrollbar(
-        controller: horizontal,
-        thumbVisibility: widget.geometry.width + 48 > viewport.maxWidth,
-        notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
-        child: SingleChildScrollView(
+      builder: (context, viewport) {
+        widget.onViewport?.call(viewport.biggest);
+        final width = widget.geometry.width * widget.zoom;
+        return Scrollbar(
           controller: horizontal,
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: math.max(viewport.maxWidth, widget.geometry.width + 48),
-            height: viewport.maxHeight,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
-              child: Center(
-                child: Container(
-                  key: const Key('document-paper'),
-                  width: widget.geometry.width,
-                  constraints: BoxConstraints(
-                    minHeight: widget.geometry.height,
-                  ),
-                  padding: widget.geometry.margins,
-                  foregroundDecoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xffd1d5da)),
-                  ),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Color(0x14000000),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
+          thumbVisibility: width + 48 > viewport.maxWidth,
+          notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+          child: SingleChildScrollView(
+            controller: horizontal,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: math.max(viewport.maxWidth, width + 48),
+              height: viewport.maxHeight,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                child: Center(
+                  child: ScaledBox(
+                    key: const Key('document-zoom'),
+                    scale: widget.zoom,
+                    child: Container(
+                      key: const Key('document-paper'),
+                      width: widget.geometry.width,
+                      constraints: BoxConstraints(
+                        minHeight: widget.geometry.height,
                       ),
-                    ],
+                      padding: widget.geometry.margins,
+                      foregroundDecoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xffd1d5da)),
+                      ),
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0x14000000),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: widget.child,
+                    ),
                   ),
-                  child: widget.child,
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     ),
   );
 }

@@ -1,6 +1,6 @@
 # Folio status register
 
-Current state of Word and Excel parity, as of 2026-09-25 (after the Office corpus and the M1 workbook essentials plan). The detailed register is in [status/](status/README.md): 46 families, each split into bounded child requirements with a state and evidence. [PARITY.md](../PARITY.md) keeps the family map and release history; [VALIDATION.md](../VALIDATION.md) keeps the evidence.
+Current state of Word and Excel parity, as of 2026-09-26 (after the Excel-correct results and document editing essentials plans). The detailed register is in [status/](status/README.md): 46 families, each split into bounded child requirements with a state and evidence. [PARITY.md](../PARITY.md) keeps the family map and release history; [VALIDATION.md](../VALIDATION.md) keeps the evidence.
 
 **Outcome so far: 0 of 46 families accepted, and 0 of 20 additional AI features accepted.** No child requirement is "Office compared" yet, because the Office reference baseline has not been recorded ([OFFICE_BASELINE](status/OFFICE_BASELINE.md)).
 
@@ -12,7 +12,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | D01 | [Desktop application, windows and Office-like interaction](status/desktop.md#d01-desktop-application-windows-and-office-like-interaction) | 7 | 0 | 2 | 4 | 0 | 0 | 13 |
 | D02 | [Files: new, open, save, recent, templates, autosave and recovery](status/desktop.md#d02-files-new-open-save-recent-templates-autosave-and-recovery) | 4 | 1 | 8 | 4 | 0 | 0 | 17 |
-| D03 | [Clipboard, drag and drop, undo/redo and shortcuts](status/desktop.md#d03-clipboard-drag-and-drop-undoredo-and-shortcuts) | 4 | 0 | 2 | 4 | 0 | 0 | 10 |
+| D03 | [Clipboard, drag and drop, undo/redo and shortcuts](status/desktop.md#d03-clipboard-drag-and-drop-undoredo-and-shortcuts) | 3 | 0 | 3 | 4 | 0 | 0 | 10 |
 | D04 | [Accessibility, zoom and localization](status/desktop.md#d04-accessibility-zoom-and-localization) | 9 | 0 | 2 | 0 | 0 | 0 | 11 |
 | D05 | [Printing, page setup and PDF](status/desktop.md#d05-printing-page-setup-and-pdf) | 5 | 0 | 0 | 1 | 0 | 0 | 6 |
 | D06 | [Security, protection, encryption and trusted automation](status/desktop.md#d06-security-protection-encryption-and-trusted-automation) | 5 | 0 | 2 | 0 | 0 | 0 | 7 |
@@ -20,27 +20,27 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | D08 | [Packaging, updates and distribution](status/desktop.md#d08-packaging-updates-and-distribution) | 4 | 1 | 1 | 1 | 0 | 0 | 7 |
 | D09 | [Performance, resources, lifecycle and cancellation](status/desktop.md#d09-performance-resources-lifecycle-and-cancellation) | 5 | 0 | 3 | 2 | 0 | 0 | 10 |
 | D10 | [Extensibility, automation and assistant integration](status/desktop.md#d10-extensibility-automation-and-assistant-integration) | 4 | 0 | 4 | 0 | 0 | 0 | 8 |
-| W01 | [Rich text, fonts, symbols and paragraph formatting](status/word.md#w01-rich-text-fonts-symbols-and-paragraph-formatting) | 9 | 1 | 1 | 4 | 0 | 0 | 15 |
+| W01 | [Rich text, fonts, symbols and paragraph formatting](status/word.md#w01-rich-text-fonts-symbols-and-paragraph-formatting) | 8 | 0 | 3 | 4 | 0 | 0 | 15 |
 | W02 | [Styles, themes and templates](status/word.md#w02-styles-themes-and-templates) | 5 | 0 | 1 | 4 | 0 | 0 | 10 |
 | W03 | [Lists and outline numbering](status/word.md#w03-lists-and-outline-numbering) | 3 | 0 | 1 | 3 | 0 | 0 | 7 |
 | W04 | [Find, replace, navigation and bookmarks](status/word.md#w04-find-replace-navigation-and-bookmarks) | 5 | 0 | 1 | 2 | 0 | 0 | 8 |
 | W05 | [Page layout: sections, margins, columns and breaking](status/word.md#w05-page-layout-sections-margins-columns-and-breaking) | 5 | 0 | 2 | 4 | 0 | 0 | 11 |
 | W06 | [Headers, footers, page numbers and backgrounds](status/word.md#w06-headers-footers-page-numbers-and-backgrounds) | 3 | 0 | 0 | 4 | 0 | 0 | 7 |
-| W07 | [Tables](status/word.md#w07-tables) | 5 | 0 | 1 | 9 | 0 | 0 | 15 |
+| W07 | [Tables](status/word.md#w07-tables) | 4 | 0 | 2 | 9 | 0 | 0 | 15 |
 | W08 | [Pictures, shapes, text boxes, SmartArt and charts](status/word.md#w08-pictures-shapes-text-boxes-smartart-and-charts) | 7 | 0 | 1 | 0 | 0 | 0 | 8 |
 | W09 | [Equations, embedded objects, media and content controls](status/word.md#w09-equations-embedded-objects-media-and-content-controls) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | W10 | [Fields, captions, cross-references, TOC and indexes](status/word.md#w10-fields-captions-cross-references-toc-and-indexes) | 7 | 0 | 1 | 0 | 0 | 0 | 8 |
 | W11 | [Footnotes, endnotes, citations and bibliography](status/word.md#w11-footnotes-endnotes-citations-and-bibliography) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
-| W12 | [Proofing](status/word.md#w12-proofing) | 5 | 0 | 3 | 2 | 0 | 0 | 10 |
+| W12 | [Proofing](status/word.md#w12-proofing) | 4 | 0 | 4 | 2 | 0 | 0 | 10 |
 | W13 | [Comments, track changes, compare and merge](status/word.md#w13-comments-track-changes-compare-and-merge) | 3 | 0 | 4 | 2 | 0 | 0 | 9 |
 | W14 | [Mail merge, labels and envelopes](status/word.md#w14-mail-merge-labels-and-envelopes) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
 | W15 | [Forms, restricted editing, protection and macros](status/word.md#w15-forms-restricted-editing-protection-and-macros) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
 | W16 | [Document format fidelity](status/word.md#w16-document-format-fidelity) | 7 | 0 | 3 | 0 | 0 | 0 | 10 |
-| W17 | [Views, zoom and accessibility checking](status/word.md#w17-views-zoom-and-accessibility-checking) | 6 | 0 | 0 | 1 | 0 | 0 | 7 |
+| W17 | [Views, zoom and accessibility checking](status/word.md#w17-views-zoom-and-accessibility-checking) | 4 | 0 | 2 | 1 | 0 | 0 | 7 |
 | X01 | [Selection, editing, clipboard and fill](status/excel.md#x01-selection-editing-clipboard-and-fill) | 6 | 0 | 8 | 4 | 0 | 0 | 18 |
 | X02 | [Find, replace, Go To and navigation](status/excel.md#x02-find-replace-go-to-and-navigation) | 4 | 0 | 3 | 1 | 0 | 0 | 8 |
 | X03 | [Rows, columns and sheets](status/excel.md#x03-rows-columns-and-sheets) | 4 | 2 | 2 | 3 | 0 | 0 | 11 |
-| X04 | [Cell formatting and styles](status/excel.md#x04-cell-formatting-and-styles) | 5 | 0 | 6 | 2 | 0 | 0 | 13 |
+| X04 | [Cell formatting and styles](status/excel.md#x04-cell-formatting-and-styles) | 4 | 0 | 7 | 2 | 0 | 0 | 13 |
 | X05 | [Views, panes and zoom](status/excel.md#x05-views-panes-and-zoom) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
 | X06 | [Sort, filter and tables](status/excel.md#x06-sort-filter-and-tables) | 5 | 0 | 1 | 4 | 0 | 0 | 10 |
 | X07 | [Data validation and conditional formatting](status/excel.md#x07-data-validation-and-conditional-formatting) | 3 | 0 | 2 | 5 | 0 | 0 | 10 |
@@ -56,14 +56,14 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 5 | 1 | 6 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **225** | **8** | **88** | **80** | **0** | **0** | **401** |
+| **All** | | **218** | **7** | **96** | **80** | **0** | **0** | **401** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
 - 52 native verified;
-- 60 automated verified only;
-- 5 implemented without dedicated tests;
-- 19 not built.
+- 68 automated verified only;
+- 4 implemented without dedicated tests;
+- 12 not built.
 
 ## Ranked gap list
 
@@ -76,10 +76,10 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 |---:|---|---|---|---|---|
 | 1 | Record the Office baseline and create the daily-workflow comparison files in Word/Excel. The real-world corpus (387 Office-saved files) now covers much of the file-compatibility evidence; the baseline is still needed for interaction and layout comparisons. | [OFFICE_BASELINE](status/OFFICE_BASELINE.md), [CORPUS](status/CORPUS.md) | S | High | Owner, with Office installs |
 | 2 | **Wrong results on real Excel files** (from the corpus): 656 of 23,120 corpus formulas still differ, mostly POI's `TEXT` format tests; also MINA/MAXA and LOOKUP edge cases, the intersection and union operators, iterative calculation; 3 shared-string files and one export still fail. Names, implicit intersection, array formulas, 3-D references, coercion, tolerant reading and Strict Open XML are fixed | X04.04, X08.08, X17.12 | S | High | — |
-| 3 | Native qualification sweep: raise the 42 M1 children that are only automated-verified; resolve the 7 Flutter tests that fail on Linux (Save/Save As, external writes, leave-file prompts, native menus) | D02.03–D02.09, D03.04, X01.12, X04.01–X04.04, W13.01, X15.01 and others | M | High | The Mac (packaged build) |
+| 3 | Native qualification sweep: raise the 68 M1 children that are only automated-verified; resolve the 7 Flutter tests that fail on Linux (Save/Save As, external writes, leave-file prompts, native menus) | D02.03–D02.09, D03.04, X01.12, X04.01–X04.04, W13.01, X15.01 and others | M | High | The Mac (packaged build) |
 | 4 | Workbook editing essentials: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)). Left: copying charts, pictures and sheet-scoped names with a duplicated sheet, pointing from another sheet's tab, borders on whole rows/columns, native checks | X03.06, X01.06, X04.07 | S | High | The Mac for native checks |
 | 5 | Clipboard exchange with Office and other apps, and cut/move | D03.05, X01.10, X01.11 | L | Medium | Mac clipboard testing |
-| 6 | Document editing essentials: Home-tab text commands, hyperlink UI, word-count dialog, editor zoom, formatting marks, table drag-resize, Format Painter | W01.13, W01.14, W12.09, W17.02, W17.07, W07.06, D03.10, X04.12 | L | High | — |
+| 6 | Document editing essentials: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-document-editing-essentials.md)). Left: the rest of the Home-tab text commands, a Draft view, native checks | W01.13, W01.14, W12.09, W17.02, W17.07, W07.06, D03.10, X04.12 | S | High | The Mac for native checks |
 | 7 | Pictures in documents: render inline images, insert from file | W08.01–W08.02 | L | Medium | Depends on risk R1 |
 | 8 | Measure the ROADMAP §7 budgets on the reference Mac: launch, typing latency, app-level open/save, memory | D09.01–D09.03, D09.05–D09.07 | S | High | The Mac |
 | 9 | Keyboard and VoiceOver audit of the daily workflow | D04.01–D04.03 | M | Medium | The Mac |
@@ -101,6 +101,8 @@ The M4/M5 breadth (formats beyond DOCX/XLSX, macros, data connectors, co-authori
 ### First delivery package
 
 **Rank 4, workbook editing essentials, is built.** Its [plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md) moved X01.03, X01.06, X01.13, X01.17, X01.18, X02.04, X02.05, X04.07, X04.08, X05.03 and D01.06 to Automated verified, and X03.06 to Implemented. Its native qualification joins the rank 3 sweep on the Mac.
+
+**Rank 6, document editing essentials, is built.** Its [plan](../../docs/superpowers/plans/2026-09-26-document-editing-essentials.md) moved W01.13, W01.14, W07.06, W12.09, W17.02, W17.07, D03.10 and X04.12 to Automated verified. Its native checks join the rank 3 sweep.
 
 **Rank 2 comes before the rest of it.** The corpus showed wrong calculated values on real Excel files, which is worse than a missing command. Ranks 1, 3, 8 and 9 need the owner's Office installs or the Mac, and can run alongside.
 
@@ -124,6 +126,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-26 | Document editing essentials (rank 6): Change Case and Clear All Formatting (W01.13), the hyperlink UI (W01.14), the Word Count dialog with a new `documentNotesText` op (W12.09), editor zoom (W17.02), formatting marks (W17.07), table drag-resize (W07.06) and Format Painter (D03.10, X04.12), all Automated verified. The plan is closed. |
 | 2026-09-26 | Excel-correct results (rank 2): 3-D references (X08.15), array (CSE) formulas, XLOOKUP rows, unary-plus intersection, backslash names, Excel's coercion rules (X08.08, Implemented), tolerant reading (X17.12) and Strict Open XML (X17.11). Corpus: 279 of 291 XLSX open (272 before); 656 of 23,120 formulas differ (744). |
 | 2026-09-25 | Workbook essentials Tasks 6–10: zoom (X05.03), duplicate sheet (X03.06, Implemented), formula point mode (X01.06) and the fill handle (X01.13). Rank 4 is built; the plan is closed. |
 | 2026-09-25 | Corpus-driven fixes: defined names reach the calculation (X09.08), legacy formulas get Excel's implicit intersection (X08.14), range-taking arguments keep their ranges, two TEXT format fixes; 744 of 23,116 corpus formulas differ (from 947). Workbook essentials Tasks 3–5: name box and Go To (X02.04, X02.05), Clear menu (X01.17), borders and fill colour with theme colours (X04.07, X04.08). |

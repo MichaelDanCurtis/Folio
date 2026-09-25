@@ -98,6 +98,7 @@ mod docx_line_break_tests;
 mod docx_moves;
 #[cfg(test)]
 mod docx_moves_tests;
+mod docx_note_text;
 mod docx_numbering;
 #[cfg(test)]
 mod docx_numbering_tests;

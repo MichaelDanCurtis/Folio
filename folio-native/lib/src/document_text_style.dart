@@ -1,3 +1,4 @@
+import 'document_case.dart';
 import 'document_fields.dart';
 import 'document_line_breaks.dart';
 import 'package:flutter/material.dart';
@@ -98,6 +99,11 @@ TextAlign paragraphAlignment(
   _ => fallback,
 };
 
+/// Shift+F3 cycles the case of the selection (W01.13).
+class CycleTextCase extends Intent {
+  const CycleTextCase();
+}
+
 class ToggleDocumentMark extends Intent {
   final String mark;
   const ToggleDocumentMark(this.mark);
@@ -123,6 +129,7 @@ const documentMarkShortcuts = <ShortcutActivator, Intent>{
   SingleActivator(LogicalKeyboardKey.keyU, control: true): ToggleDocumentMark(
     'underline',
   ),
+  SingleActivator(LogicalKeyboardKey.f3, shift: true): CycleTextCase(),
 };
 bool _inheritedMark(Map run, String key) => key == 'underline'
     ? run['u'] != null && run['u'] != 'none'
@@ -184,14 +191,25 @@ Map<Type, Action<Intent>> documentMarkActions(
       return null;
     },
   ),
+  CycleTextCase: CallbackAction<CycleTextCase>(
+    onInvoke: (_) {
+      applyTextCase(controller);
+      focus.requestFocus();
+      return null;
+    },
+  ),
 };
 
 class DocumentTextToolbar extends StatelessWidget {
   final q.QuillController controller;
   final FocusNode focus;
+
+  /// The document's style catalog, for Clear All Formatting's Normal style.
+  final Map? Function()? styles;
   const DocumentTextToolbar({
     required this.controller,
     required this.focus,
+    this.styles,
     super.key,
   });
   @override
@@ -219,6 +237,33 @@ class DocumentTextToolbar extends StatelessWidget {
                   focus.requestFocus();
                 },
               ),
+            PopupMenuButton<TextCase>(
+              key: const Key('document-change-case'),
+              tooltip: 'Change case (Shift+F3)',
+              icon: const Icon(Icons.text_fields, size: 19),
+              onSelected: (mode) {
+                applyTextCase(controller, mode);
+                focus.requestFocus();
+              },
+              itemBuilder: (_) => [
+                for (final entry in textCaseLabels.entries)
+                  PopupMenuItem(
+                    key: ValueKey('change-case-${entry.key.name}'),
+                    value: entry.key,
+                    child: Text(entry.value),
+                  ),
+              ],
+            ),
+            IconButton(
+              key: const Key('document-clear-formatting'),
+              tooltip: 'Clear all formatting',
+              icon: const Icon(Icons.format_clear, size: 19),
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                applyClearFormatting(controller, styles: styles?.call());
+                focus.requestFocus();
+              },
+            ),
           ],
         ),
       ),
@@ -241,6 +286,8 @@ class DocumentTextToolbar extends StatelessWidget {
             showQuote: false,
             showSubscript: false,
             showSuperscript: false,
+            showClearFormat: false,
+            showLink: false,
           ),
         ),
       ),

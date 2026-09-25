@@ -1198,6 +1198,62 @@ class SheetViewState extends State<SheetView> {
     }
   }
 
+  /// Format Painter (X04.12): the copied cells' token, and whether it stays
+  /// on for more than one paint (a double-click) until Esc.
+  String? painterToken;
+  bool painterSticky = false;
+
+  Future<void> startFormatPainter({bool sticky = false}) async {
+    if (widget.onCopy == null) return;
+    final id = widget.sheet['id'], range = selectedRange;
+    try {
+      await flush();
+      if (!mounted || widget.sheet['id'] != id) return;
+      final copied = await widget.onCopy!({
+        'sheetId': id,
+        'range': range,
+        'sourceDefaultColumnWidth':
+            widget.sheet['defaultColumnWidth'] ??
+            columnMetrics.fitPixels(columnLayout.defaultExtent),
+      });
+      if (!mounted) return;
+      setState(() {
+        painterToken = copied['token'] as String?;
+        painterSticky = sticky;
+      });
+      gridFocus.requestFocus();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  void stopFormatPainter() {
+    if (painterToken != null) setState(() => painterToken = null);
+  }
+
+  /// Paints the copied cell formats from the cell just clicked, over the
+  /// copied range's size.
+  Future<void> _paintFormats() async {
+    final token = painterToken;
+    if (token == null || widget.onPaste == null) return;
+    if (!painterSticky) setState(() => painterToken = null);
+    try {
+      await widget.onPaste!({
+        'sheetId': widget.sheet['id'],
+        'workspaceId': ?widget.workspaceId,
+        'baseRevision': ?widget.revision,
+        'range': selectedRange,
+        'mode': 'formats',
+        'transpose': false,
+        'skipBlanks': false,
+        'token': token,
+      });
+      if (mounted) gridFocus.requestFocus();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
   Future<void> paste({
     String mode = 'all',
     bool transpose = false,
@@ -1923,6 +1979,10 @@ class SheetViewState extends State<SheetView> {
         !keyboard.isMetaPressed &&
         !keyboard.isAltPressed) {
       setExtendSelection(!extendSelectionMode);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.escape && painterToken != null) {
+      stopFormatPainter();
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.escape && extendSelectionMode) {
@@ -3702,11 +3762,45 @@ class SheetViewState extends State<SheetView> {
                         SizedBox(
                           width: 48,
                           height: 21,
-                          child: IconButton(
-                            tooltip: 'Chart',
-                            padding: const EdgeInsets.all(4),
-                            onPressed: () => setState(() => chart = !chart),
-                            icon: const Icon(Icons.bar_chart, size: 19),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 24,
+                                child: IconButton(
+                                  tooltip: 'Chart',
+                                  padding: const EdgeInsets.all(2),
+                                  onPressed: () =>
+                                      setState(() => chart = !chart),
+                                  icon: const Icon(Icons.bar_chart, size: 17),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 24,
+                                child: Tooltip(
+                                  message:
+                                      'Format Painter (double-click to keep it on)',
+                                  child: InkWell(
+                                    key: const Key('sheet-format-painter'),
+                                    onTap: widget.onCopy == null
+                                        ? null
+                                        : () => painterToken == null
+                                              ? startFormatPainter()
+                                              : stopFormatPainter(),
+                                    onDoubleTap: widget.onCopy == null
+                                        ? null
+                                        : () =>
+                                              startFormatPainter(sticky: true),
+                                    child: Icon(
+                                      Icons.format_paint,
+                                      size: 16,
+                                      color: painterToken == null
+                                          ? null
+                                          : const Color(0xff107c41),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         if (widget.onFill != null)
@@ -4556,7 +4650,13 @@ class SheetViewState extends State<SheetView> {
                           }
                           if (event.buttons == kPrimaryMouseButton &&
                               !(active && editing)) {
-                            select(r, c);
+                            if (painterToken != null) {
+                              select(r, c, extend: false).then((selected) {
+                                if (selected) _paintFormats();
+                              });
+                            } else {
+                              select(r, c);
+                            }
                           }
                         },
                         child: GestureDetector(

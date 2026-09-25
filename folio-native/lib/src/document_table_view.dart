@@ -7,6 +7,7 @@ import 'document_paragraph_format.dart';
 import 'document_paragraph_dialog.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'document_table_resize.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as q;
@@ -28,6 +29,9 @@ class DocumentTableView extends StatelessWidget {
   final void Function(int, int)? onCell;
   final void Function(int, int)? onAccessibleCell, onExtendCell;
   final TableArea? selection;
+
+  /// Called with the table after a border is dragged (W07.06).
+  final void Function(Map<String, dynamic> next)? onResize;
   const DocumentTableView({
     super.key,
     required this.node,
@@ -35,6 +39,7 @@ class DocumentTableView extends StatelessWidget {
     this.onAccessibleCell,
     this.onExtendCell,
     this.selection,
+    this.onResize,
   });
   @override
   Widget build(BuildContext context) {
@@ -42,7 +47,9 @@ class DocumentTableView extends StatelessWidget {
     final widths = List<num>.from(
       node['attrs']?['columnWidths'] ?? List.filled(table.columns, 2400),
     );
-    final grid = _SpanTableLayout(
+    final geometry = onResize == null ? null : TableGridGeometry();
+    final Widget cells = _SpanTableLayout(
+      geometry: geometry,
       positions: table.cells,
       rowHeights: [
         for (final row in table.rows) row['attrs']?['height'] as Map?,
@@ -102,6 +109,30 @@ class DocumentTableView extends StatelessWidget {
           ),
       ],
     );
+    final grid = geometry == null
+        ? cells
+        : Stack(
+            children: [
+              cells,
+              Positioned.fill(
+                child: TableResizeLayer(
+                  key: const Key('table-resize'),
+                  geometry: geometry,
+                  onColumn: (column, dx) => onResize!(
+                    resizeTableColumns(
+                      node,
+                      widths,
+                      column,
+                      dx,
+                      geometry.xs.last,
+                    ),
+                  ),
+                  onRow: (row, height) =>
+                      onResize!(resizeTableRow(node, row, height)),
+                ),
+              ),
+            ],
+          );
     return LayoutBuilder(
       builder: (context, constraints) {
         final available = constraints.hasBoundedWidth
@@ -333,15 +364,17 @@ class _SpanTableLayout extends MultiChildRenderObjectWidget {
   final List<TablePosition> positions;
   final List<Map?> rowHeights;
   final List<num> widths;
+  final TableGridGeometry? geometry;
   const _SpanTableLayout({
     required this.positions,
     required this.rowHeights,
     required this.widths,
     required super.children,
+    this.geometry,
   });
   @override
   RenderObject createRenderObject(BuildContext context) =>
-      _RenderSpanTable(positions, rowHeights, widths);
+      _RenderSpanTable(positions, rowHeights, widths)..geometry = geometry;
   @override
   void updateRenderObject(
     BuildContext context,
@@ -350,6 +383,7 @@ class _SpanTableLayout extends MultiChildRenderObjectWidget {
     renderObject.positions = positions;
     renderObject.rowHeights = rowHeights;
     renderObject.widths = widths;
+    renderObject.geometry = geometry;
     renderObject.markNeedsLayout();
   }
 }
@@ -363,6 +397,7 @@ class _RenderSpanTable extends RenderBox
   List<TablePosition> positions;
   List<Map?> rowHeights;
   List<num> widths;
+  TableGridGeometry? geometry;
   int get rowCount => rowHeights.length;
   _RenderSpanTable(this.positions, this.rowHeights, this.widths);
   @override
@@ -412,6 +447,13 @@ class _RenderSpanTable extends RenderBox
       child = data.nextSibling;
     }
     size = constraints.constrain(Size(width, ys.last));
+    geometry
+      ?..xs = xs
+      ..ys = ys
+      ..cells = [
+        for (final p in positions)
+          (row: p.row, col: p.col, rows: p.rows, cols: p.cols),
+      ];
   }
 
   @override
