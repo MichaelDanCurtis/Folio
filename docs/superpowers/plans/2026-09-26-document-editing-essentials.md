@@ -56,11 +56,11 @@
 
 ### Task 7: Format Painter (D03.10, X04.12)
 
-- [ ] **Documents:**
+- [x] **Documents:**
   - copy the character and paragraph formatting at the selection;
   - the next selection receives it;
   - a double-click keeps the painter on until Esc.
-- [ ] **Workbooks:** the copied cell formats (font, fill, borders, number format, alignment) apply to the next selected range.
+- [x] **Workbooks:** the copied cell formats (font, fill, borders, number format, alignment) apply from the next clicked cell over the copied range's size, as Paste Formatting does; a double-click keeps the painter on until Esc.
 
 ### Task 8: Close-out
 

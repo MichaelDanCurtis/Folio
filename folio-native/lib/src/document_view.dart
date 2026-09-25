@@ -1,7 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
+import 'document_case.dart' show documentText;
 import 'document_fields.dart';
 import 'document_formatting_marks.dart';
 import 'document_links.dart';
+import 'format_painter.dart';
 import 'sheet_zoom.dart';
 import 'document_page_setup.dart';
 import 'document_revisions.dart';
@@ -152,6 +155,48 @@ class DocumentViewState extends State<DocumentView> {
               100)
           .floor(),
     );
+  }
+
+  /// Format Painter: the copied formatting, and whether it stays on for
+  /// more than one selection (a double-click) until Esc.
+  PaintedFormat? painter;
+  bool painterSticky = false;
+
+  void startPainter({bool sticky = false}) {
+    setState(() {
+      painter = captureFormat(
+        controller.document.toDelta(),
+        controller.selection,
+      );
+      painterSticky = sticky;
+    });
+    _focus.requestFocus();
+  }
+
+  void stopPainter() => setState(() => painter = null);
+
+  /// Paints onto the selection the pointer just made, or the word clicked.
+  void _paintSelection() {
+    final format = painter;
+    if (format == null || !mounted) return;
+    var target = controller.selection;
+    if (target.isCollapsed) {
+      final text = documentText(controller.document.toDelta());
+      var s = target.start, e = target.start;
+      bool word(int i) =>
+          RegExp(r"[\p{L}\p{N}'’]", unicode: true).hasMatch(text[i]);
+      while (s > 0 && word(s - 1)) {
+        s--;
+      }
+      while (e < text.length && word(e)) {
+        e++;
+      }
+      target = TextSelection(baseOffset: s, extentOffset: e);
+    }
+    final change = paintFormat(controller.document.toDelta(), target, format);
+    if (!painterSticky) setState(() => painter = null);
+    if (change.isEmpty) return;
+    controller.compose(change, controller.selection, q.ChangeSource.local);
   }
 
   /// Show/Hide ¶, for the session.
@@ -850,6 +895,26 @@ class DocumentViewState extends State<DocumentView> {
                     onPressed: model == null ? null : editStyles,
                     child: const Text('Styles…'),
                   ),
+                  Tooltip(
+                    message: 'Format Painter (double-click to keep it on)',
+                    child: InkWell(
+                      key: const Key('document-format-painter'),
+                      customBorder: const CircleBorder(),
+                      onTap: () =>
+                          painter == null ? startPainter() : stopPainter(),
+                      onDoubleTap: () => startPainter(sticky: true),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Icon(
+                          Icons.format_paint,
+                          size: 19,
+                          color: painter == null
+                              ? null
+                              : Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
                   IconButton(
                     key: const Key('document-formatting-marks'),
                     tooltip: 'Show/Hide ¶ (Ctrl+Shift+8)',
@@ -943,7 +1008,14 @@ class DocumentViewState extends State<DocumentView> {
               onViewport: (size) => _viewport = size,
               child: Stack(
                 children: [
-                  editor!,
+                  Listener(
+                    // The editor sets the selection as this pointer is
+                    // released; paint once it has.
+                    onPointerUp: (_) {
+                      if (painter != null) Timer.run(_paintSelection);
+                    },
+                    child: editor!,
+                  ),
                   if (showMarks)
                     Positioned.fill(
                       child: IgnorePointer(
@@ -1010,6 +1082,12 @@ class DocumentViewState extends State<DocumentView> {
                   ...linkShortcuts,
                   ...documentZoomShortcuts,
                   ...formattingMarkShortcuts,
+                  // Not Quill's own const Escape activator, which would
+                  // replace this entry when the shortcut maps merge.
+                  const SingleActivator(
+                    LogicalKeyboardKey.escape,
+                    includeRepeats: false,
+                  ): const CancelFormatPainter(),
                   const SingleActivator(LogicalKeyboardKey.keyZ, meta: true):
                       const UndoWorkspace(),
                   const SingleActivator(
@@ -1022,6 +1100,7 @@ class DocumentViewState extends State<DocumentView> {
                 },
                 customActions: {
                   ...documentMarkActions(controller, _focus),
+                  CancelFormatPainter: _CancelPainterAction(this),
                   ToggleFormattingMarks: CallbackAction<ToggleFormattingMarks>(
                     onInvoke: (_) {
                       toggleMarks();
@@ -1059,6 +1138,21 @@ class DocumentViewState extends State<DocumentView> {
         ),
       ],
     );
+  }
+}
+
+/// Esc turns the painter off; otherwise it passes through.
+class _CancelPainterAction extends Action<CancelFormatPainter> {
+  final DocumentViewState view;
+  _CancelPainterAction(this.view);
+  @override
+  bool isEnabled(CancelFormatPainter intent) => view.painter != null;
+  @override
+  bool consumesKey(CancelFormatPainter intent) => view.painter != null;
+  @override
+  Object? invoke(CancelFormatPainter intent) {
+    view.stopPainter();
+    return null;
   }
 }
 
