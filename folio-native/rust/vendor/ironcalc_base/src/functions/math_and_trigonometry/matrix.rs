@@ -13,8 +13,8 @@ fn coerce_to_f64(node: &ArrayNode, cell: CellReferenceIndex) -> Result<f64, Calc
     match node {
         ArrayNode::Number(v) => Ok(*v),
         ArrayNode::Boolean(b) => Ok(if *b { 1.0 } else { 0.0 }),
-        ArrayNode::Empty => Ok(0.0),
-        ArrayNode::String(_) => Err(CalcResult::new_error(
+        // Folio: an empty cell is #VALUE!, as in Excel, not 0.
+        ArrayNode::Empty | ArrayNode::String(_) => Err(CalcResult::new_error(
             Error::VALUE,
             cell,
             "matrix requires numeric values".to_string(),

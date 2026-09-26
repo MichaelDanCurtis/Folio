@@ -1288,8 +1288,10 @@ pub(crate) fn rename_defined_name_in_node(
     match node {
         // Rename
         Node::DefinedNameKind((n, s, _)) => {
-            if name.to_lowercase() == n.to_lowercase() && *s == scope {
-                *n = new_name.to_string();
+            let bare = super::bare_name(n);
+            if name.to_lowercase() == bare.to_lowercase() && *s == scope {
+                // Keep a `Sheet!` qualifier.
+                *n = format!("{}{new_name}", &n[..n.len() - bare.len()]);
             }
         }
         // Go next level

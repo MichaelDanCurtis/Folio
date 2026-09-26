@@ -32,8 +32,8 @@
 
 ### Task 5: Tolerant reading and export
 
-- [ ] The 3 files with shared strings Folio calls invalid or missing.
-- [ ] The bug66675 export that doesn't reimport.
+- [x] The 3 files with shared strings Folio calls invalid or missing.
+- [x] The bug66675 export that doesn't reimport.
 
 ### Task 6: Close-out
 

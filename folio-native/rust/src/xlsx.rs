@@ -129,6 +129,9 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
             let t = attr(c, "t").unwrap_or("");
             let content = if child(c, "f").is_some() {
                 None
+            } else if t == "s" && value.trim().is_empty() {
+                // A shared-string cell without an index is empty, as in Excel.
+                None
             } else if t == "s" {
                 Some(
                     strings

@@ -130,6 +130,10 @@ impl<'a> Model<'a> {
                         ));
                     }
                 }
+                // Folio: a referenced cell counts as in a range: TRUE is 1,
+                // FALSE and text are 0 (MINA(B16,...) with B16 TRUE is 1).
+                CalcResult::Boolean(value) => f(if value { 1.0 } else { 0.0 }),
+                CalcResult::String(_) => f(0.0),
                 CalcResult::Array(array) => {
                     for row in array {
                         for value in row {
@@ -688,11 +692,8 @@ impl<'a> Model<'a> {
         if let Some(mina) = mina {
             CalcResult::Number(mina)
         } else {
-            CalcResult::Error {
-                error: Error::VALUE,
-                origin: cell,
-                message: "No numeric values for MINA".to_string(),
-            }
+            // Folio: no values give 0, as in Excel.
+            CalcResult::Number(0.0)
         }
     }
 
@@ -713,11 +714,8 @@ impl<'a> Model<'a> {
         if let Some(maxa) = maxa {
             CalcResult::Number(maxa)
         } else {
-            CalcResult::Error {
-                error: Error::VALUE,
-                origin: cell,
-                message: "No numeric values for MAXA".to_string(),
-            }
+            // Folio: no values give 0, as in Excel.
+            CalcResult::Number(0.0)
         }
     }
 

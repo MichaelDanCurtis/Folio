@@ -88,6 +88,21 @@ fn get_table_column_by_name(table_column_name: &str, table: &Table) -> Option<i3
     None
 }
 
+/// Folio: `Sheet!Name` or `'My Sheet'!Name` as the sheet and the bare name.
+pub(crate) fn split_qualified_name(name: &str) -> Option<(String, &str)> {
+    let (sheet, bare) = name.rsplit_once('!')?;
+    let sheet = match sheet.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+        Some(quoted) => quoted.replace("''", "'"),
+        None => sheet.to_string(),
+    };
+    Some((sheet, bare))
+}
+
+/// Folio: a defined name without its sheet qualifier.
+pub(crate) fn bare_name(name: &str) -> &str {
+    name.rsplit_once('!').map_or(name, |(_, bare)| bare)
+}
+
 // DefinedNameS is a tuple with the name of the defined name, the index of the sheet and the formula
 pub type DefinedNameS = (String, Option<u32>, String);
 
@@ -999,6 +1014,17 @@ impl<'a> Parser<'a> {
                     }
                 };
 
+                // Folio: `Sheet!Name`, a name scoped to that sheet (or a global
+                // one). The node keeps the qualified text for display.
+                if let Some((sheet, bare)) = split_qualified_name(&name) {
+                    return match self
+                        .get_sheet_index_by_name(&sheet)
+                        .and_then(|index| self.get_defined_name(bare, index))
+                    {
+                        Some((scope, formula)) => Node::DefinedNameKind((name, scope, formula)),
+                        None => Node::ErrorKind(crate::expressions::token::Error::NAME),
+                    };
+                }
                 // Could be a defined name or a table
                 if let Some((scope, formula)) = self.get_defined_name(&name, context_sheet_index) {
                     return Node::DefinedNameKind((name, scope, formula));

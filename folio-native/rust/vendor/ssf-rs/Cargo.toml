@@ -45,7 +45,3 @@ version = "1"
 [[test]]
 name = "text_format_cases"
 path = "tests/text_format_cases.rs"
-
-[[example]]
-name = "probe"
-path = "examples/probe.rs"

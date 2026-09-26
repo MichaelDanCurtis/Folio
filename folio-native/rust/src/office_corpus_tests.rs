@@ -128,7 +128,9 @@ fn formula_refs(formula: &str, sheet: &str) -> (Vec<(String, String)>, Vec<Strin
             continue;
         }
         let bare = token.replace('$', "").to_uppercase();
-        let split = bare.find(|c: char| c.is_ascii_digit()).unwrap_or(bare.len());
+        let split = bare
+            .find(|c: char| c.is_ascii_digit())
+            .unwrap_or(bare.len());
         let (col, row) = bare.split_at(split);
         let target_sheet = if start > 0 && chars[start - 1] == '!' {
             let mut j = start - 1;
