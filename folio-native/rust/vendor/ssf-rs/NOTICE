@@ -36,3 +36,18 @@ Folio modifications (Office corpus, 2026-09-25):
     Excel does.
   - A single `s` before a fractional-seconds token prints whole seconds;
     the fraction was printed twice (`h:m:s.00` gave "4:5:6.01.01").
+
+Folio modifications (Excel-correct results part 2, 2026-09-26):
+  - Number sections are rendered by `excelnum.rs` from their placeholders
+    (digit placeholders, grouping and scaling commas, percent, fractions and
+    scientific notation with literal text anywhere) instead of `ssf`'s list
+    of recognized shapes. `000.00` keeps its leading zero.
+  - Any character outside the format syntax is shown as itself.
+  - A single conditional section applies only when its condition holds;
+    other values show as General. Conditions may contain spaces.
+  - `@` inside quotes doesn't make a section the text section.
+  - `[h]` or `[s]` makes a plain `h` or `s` show the elapsed total; negative
+    elapsed times show as `-` and their length; `m` after seconds is minutes.
+  - `checked::text` formats text (and TRUE/FALSE) through the text section.
+  - tests/text_format_cases.rs: 832 TEXT rows from Apache POI's format test
+    workbooks with Excel's results, all matching.

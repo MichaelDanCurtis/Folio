@@ -93,12 +93,20 @@ pub fn as_transitional(mut pkg: Package) -> (Package, bool) {
             rest = &tail[end..];
         }
         out.push_str(rest);
-        let out = out
+        let beta = out.contains(BETA);
+        let mut out = out
             .replace(
                 BETA,
                 "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
             )
             .replace(" conformance=\"strict\"", "");
+        if beta && name == "xl/sharedStrings.xml" {
+            // The beta format named shared-string items `sstItem`.
+            out = out
+                .replace("<sstItem>", "<si>")
+                .replace("<sstItem ", "<si ")
+                .replace("</sstItem>", "</si>");
+        }
         pkg.set(&name, out);
         converted = true;
     }
@@ -146,6 +154,21 @@ mod tests {
             .text("xl/_rels/workbook.xml.rels")
             .unwrap()
             .contains(r#"Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet""#));
+    }
+
+    #[test]
+    fn beta_shared_string_items_read_as_si() {
+        let mut pkg = Package::default();
+        pkg.set(
+            "xl/sharedStrings.xml",
+            r#"<sst xmlns="http://schemas.microsoft.com/office/excel/2006/2" count="1"><sstItem><t>Lorem</t></sstItem></sst>"#.into(),
+        );
+        let (pkg, converted) = as_transitional(pkg);
+        assert!(converted);
+        assert_eq!(
+            pkg.text("xl/sharedStrings.xml").unwrap(),
+            r#"<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="1"><si><t>Lorem</t></si></sst>"#
+        );
     }
 
     #[test]

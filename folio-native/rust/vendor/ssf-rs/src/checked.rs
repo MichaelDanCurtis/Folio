@@ -55,11 +55,26 @@ pub fn number(code: &str, value: f64, date1904: bool) -> Result<String, String> 
     let input = Value::Num(value);
     let (_, section) = choose_fmt(code, &input)?;
     if crate::is_date(&section)
+        && !crate::format::scientific(&section)
+        && !(value < 0.0 && crate::format::elapsed(&section))
         && (value < 0.0 || value >= 2958466.0 - if date1904 { 1462.0 } else { 0.0 })
     {
         return Err("Date is outside the workbook's date system.".into());
     }
     match std::panic::catch_unwind(|| crate::format(code, &input, date1904)) {
+        Ok(Ok(text)) if text.encode_utf16().count() <= 32767 => Ok(text),
+        Ok(Ok(_)) => Err("Formatted text exceeds the cell text limit.".into()),
+        Ok(Err(e)) => Err(e),
+        Err(_) => Err("This number format is not supported yet.".into()),
+    }
+}
+
+/// TEXT of a string: the code's text section (or `@`) applies; a code with
+/// no text section returns the string unchanged, as Excel does.
+pub fn text(code: &str, value: &str) -> Result<String, String> {
+    validate_shape(code)?;
+    let input = Value::Text(value.to_string());
+    match std::panic::catch_unwind(|| crate::format(code, &input, false)) {
         Ok(Ok(text)) if text.encode_utf16().count() <= 32767 => Ok(text),
         Ok(Ok(_)) => Err("Formatted text exceeds the cell text limit.".into()),
         Ok(Err(e)) => Err(e),

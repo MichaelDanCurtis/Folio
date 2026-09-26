@@ -18,6 +18,7 @@
 pub mod checked;
 pub mod datecode;
 pub mod evalfmt;
+pub mod excelnum;
 pub mod format;
 pub mod general;
 pub mod helpers;

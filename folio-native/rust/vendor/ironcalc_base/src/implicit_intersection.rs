@@ -11,9 +11,10 @@ pub(crate) fn implicit_intersection(
 ) -> Option<CellReferenceIndex> {
     let left = &range.left;
     let right = &range.right;
-    let sheet = cell_reference.sheet;
-    // If they are not all in the same sheet there is no intersection
-    if sheet != left.sheet && sheet != right.sheet {
+    // Folio: a range on another sheet intersects the formula's row or column
+    // there, as in Excel (`=@Other!A1:A10` in row 5 is Other!A5).
+    let sheet = left.sheet;
+    if left.sheet != right.sheet {
         return None;
     }
     let row = cell_reference.row;

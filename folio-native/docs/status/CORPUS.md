@@ -61,54 +61,38 @@ What `office_corpus_tests.rs` checks for each file:
 
 The cached-value comparison is real Excel output. It counts as differential evidence for the calculation children, per file and Excel build.
 
-### Results (2026-09-26, Excel-correct results phase)
+### Results (2026-09-26, Excel-correct results part 2)
 
 | | DOCX | XLSX |
 |---|---:|---:|
 | Files | 96 | 291 |
-| Imported | 92 | 279 |
-| Round trip unchanged | 92 of 92 | 278 of 279 |
+| Imported | 92 | 282 |
+| Round trip unchanged | 92 of 92 | 282 of 282 |
 
-- **Formulas:** 23,120 compared with Excel's cached results, and 656 differ (2.8%), in 16 files. The first run had 947 differences in 30 files.
+- **Formulas:** 23,120 compared with Excel's cached results, and 31 differ (0.13%), in 6 files. The first run had 947 differences in 30 files; part 1 of the plan left 656.
 - **Documents:** 14 of the 92 have below 99% word overlap with Word's text.
 
 What closed the gap:
-- defined names reach the calculation (X09.08), including names with backslashes;
-- legacy formulas get Excel's implicit intersection (X08.14), with a leading unary plus and range-taking arguments handled;
-- array (CSE) formulas fill their declared range;
-- 3-D references calculate (X08.15);
-- XLOOKUP returns whole rows;
-- Excel's coercion rules for typed arguments (X08.08);
-- two TEXT format fixes;
-- tolerant reading and Strict Open XML (X17.11, X17.12).
+- part 1: defined names (X09.08), implicit intersection (X08.14), array formulas, 3-D references (X08.15), XLOOKUP rows, coercion (X08.08), tolerant reading and Strict Open XML (X17.11, X17.12);
+- part 2: number formats rendered from their placeholders, so TEXT and cell display match Excel on all 832 rows of POI's format test workbooks (X04.04, [the cases](../../rust/vendor/ssf-rs/tests/data/text_format_cases.tsv)); names and references on other sheets; MINA/MAXA and MDETERM/MINVERSE edge cases; text starting with `+` or `-` stays text; three more files read (shared strings, the Excel 2007 beta format); the bug66675 export reimports;
+- the comparison skips formulas that depend on volatile functions through references or names (a date from TODAY()).
 
-**Rejections now:** 12 XLSX files.
+**Rejections now:** 9 XLSX files.
 - 4 are correct refusals: two XXE/DTD attack files, and two clusterfuzz files with corrupt checksums.
 - 5 exceed the 32 MB workspace limit (X19.03).
-- 3 have shared-string problems not yet handled (X17.12).
 
-**Rejections (before this phase; now 12, see below).** Four are correct: two XXE/DTD attack files, and two clusterfuzz files with corrupt checksums. The gaps at the start of the phase were:
-- **Strict Open XML** workbooks (3 files): "no supported worksheets". See X17.11.
-- **Cells without an `r` address**, which OOXML allows: 1 file. See X17.12.
-- **Too-strict readers** (X17.12):
-  - shared strings: 3 files;
-  - worksheet dimensions: 2 files;
-  - a sheet relationship target: 1 file;
-  - beta or unusual workbook structures: 2 files.
-- **The 32 MB workspace limit** (X19.03): 3 files.
-- **DOCX:** a paragraph spacing value, and a bookmark range (W16.10).
-- **Export:** one workbook's content type doesn't reimport (X17.12).
+DOCX: 4 rejected. Two are correct refusals (an XXE/DTD file and a corrupt checksum); a paragraph spacing value and a bookmark range remain (W16.10).
 
 **Remaining formula differences, by cause:**
 
 | Cause | Cells | Child |
 |---|---:|---|
-| `TEXT` with unusual format codes, mostly POI's format torture tests: codes the formatter rejects (`#VALUE!`), elapsed-time text in brackets, conditions with literal text, `;;;` text sections | ~615 | X04.04, X08.01 |
-| Names that aren't valid in Folio (`HSI\10_1…`) give `#ERROR!` where Excel gives `#NAME?` | 26 | X09.08 |
-| `=+F9:H9` and similar unary-plus ranges aren't intersected (`#SPILL!`) | 25 | X08.14 |
-| 3-D references (`SUM(Sheet1:Sheet4!C1)`) give `#VALUE!` | 16 | X08.15 |
-| Coercion and error-precedence cases (`RIGHT("a string","6")`, SUMX2MY2 size mismatch, MODE with text, AVEDEV of nothing) | ~50 | X08.08 |
-| GETPIVOTDATA and HYPERLINK aren't implemented | 2 | X08.01 |
+| `clone_sheet.xlsx` stores `L10-(-4,3)`, a comma decimal Excel's file syntax doesn't allow; its cached values came from the program that wrote it | 16 | — |
+| The intersection operator (`C2:D3 D3:E4`) | 3 | X08.08 |
+| POI's test data depending on Excel quirks: T of a range, MODE with a blank reference, SUMPRODUCT of text in single-cell ranges, SUMIF with a range criterion, LOOKUP on an unsorted row | 7 | X08.08 |
+| Iterative calculation (the workbook allows circular references) | 2 | X08.11 |
+| The union operator in RANK's reference (`(B1,B2,B3)`) | 1 | X08.08 |
+| GETPIVOTDATA and HYPERLINK aren't implemented | 2 | X08.03 |
 
 **Documents below 99% text overlap:**
 - text in shapes and text boxes that isn't shown (W08.05);

@@ -10,7 +10,8 @@
 //! - export and reimport: whether the projected content survives unchanged;
 //! - XLSX: each formula's recomputed value against Excel's cached result.
 //!   That is a differential calculation check against real Excel output;
-//!   volatile and external-reference formulas are skipped.
+//!   volatile formulas (and those depending on them through references or
+//!   names) and external-reference formulas are skipped.
 //! - DOCX: the document's words against the words in Word's own XML.
 //!
 //! The summary goes to stdout, and the per-file results to
@@ -96,9 +97,129 @@ const VOLATILE: [&str; 9] = [
     "INDIRECT(",
 ];
 
+/// Cell references (`Sheet!A1`, `A1`) and bare names in a formula, as
+/// `(sheet, ADDRESS)` pairs and upper-cased names. Enough to follow a
+/// volatile value through references and defined names.
+fn formula_refs(formula: &str, sheet: &str) -> (Vec<(String, String)>, Vec<String>) {
+    let chars: Vec<char> = formula.chars().collect();
+    let (mut refs, mut names) = (vec![], vec![]);
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '"' {
+            i += 1;
+            while i < chars.len() && chars[i] != '"' {
+                i += 1;
+            }
+            i += 1;
+            continue;
+        }
+        let word = |c: char| c.is_alphanumeric() || c == '_' || c == '.' || c == '$';
+        if !(c.is_alphabetic() || c == '$' || c == '_') || (i > 0 && word(chars[i - 1])) {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < chars.len() && word(chars[i]) {
+            i += 1;
+        }
+        let token: String = chars[start..i].iter().collect();
+        if chars.get(i) == Some(&'!') || chars.get(i) == Some(&'(') {
+            continue;
+        }
+        let bare = token.replace('$', "").to_uppercase();
+        let split = bare
+            .find(|c: char| c.is_ascii_digit())
+            .unwrap_or(bare.len());
+        let (col, row) = bare.split_at(split);
+        let target_sheet = if start > 0 && chars[start - 1] == '!' {
+            let mut j = start - 1;
+            if j > 0 && chars[j - 1] == '\'' {
+                let end = j - 1;
+                j -= 1;
+                while j > 0 && chars[j - 1] != '\'' {
+                    j -= 1;
+                }
+                chars[j..end].iter().collect::<String>()
+            } else {
+                while j > 0 && word(chars[j - 1]) {
+                    j -= 1;
+                }
+                chars[j..start - 1].iter().collect::<String>()
+            }
+        } else {
+            sheet.to_string()
+        };
+        if (1..=3).contains(&col.len())
+            && col.chars().all(|c| c.is_ascii_alphabetic())
+            && !row.is_empty()
+            && row.chars().all(|c| c.is_ascii_digit())
+        {
+            refs.push((target_sheet, bare));
+        } else {
+            names.push(bare);
+        }
+    }
+    (refs, names)
+}
+
+/// Formula cells whose values depend on a volatile function, directly or
+/// through other cells and defined names (a date computed from TODAY()).
+fn volatile_cells(core: &mut Core) -> std::collections::HashSet<(String, String)> {
+    let names: HashMap<String, String> = core
+        .dispatch(json!({"op":"definedNames"}))
+        .ok()
+        .and_then(|v| v["names"].as_array().cloned())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|n| {
+            Some((
+                n["name"].as_str()?.to_uppercase(),
+                n["refersTo"].as_str()?.to_string(),
+            ))
+        })
+        .collect();
+    let mut formulas = vec![];
+    for sheet in core.workspace["sheets"].as_array().into_iter().flatten() {
+        let name = sheet["name"].as_str().unwrap_or("").to_string();
+        for (address, formula) in sheet["cells"].as_object().into_iter().flatten() {
+            if let Some(f) = formula.as_str().filter(|f| f.starts_with('=')) {
+                formulas.push((name.clone(), address.to_uppercase(), f.to_string()));
+            }
+        }
+    }
+    let mut volatile = std::collections::HashSet::new();
+    loop {
+        let before = volatile.len();
+        for (sheet, address, formula) in &formulas {
+            if volatile.contains(&(sheet.clone(), address.clone())) {
+                continue;
+            }
+            let upper = formula.to_uppercase();
+            let (refs, used) = formula_refs(formula, sheet);
+            let through_names = used.iter().filter_map(|n| names.get(n)).any(|target| {
+                formula_refs(&format!("={target}"), sheet)
+                    .0
+                    .iter()
+                    .any(|r| volatile.contains(r))
+            });
+            if VOLATILE.iter().any(|v| upper.contains(v))
+                || refs.iter().any(|r| volatile.contains(r))
+                || through_names
+            {
+                volatile.insert((sheet.clone(), address.clone()));
+            }
+        }
+        if volatile.len() == before {
+            return volatile;
+        }
+    }
+}
+
 /// Formula cells whose recomputed value differs from Excel's cache, and the
 /// number compared.
 fn formula_differences(core: &mut Core) -> (usize, Vec<String>) {
+    let volatile = volatile_cells(core);
     let snapshot = core.snapshot();
     let mut compared = 0;
     let mut differences = vec![];
@@ -110,8 +231,8 @@ fn formula_differences(core: &mut Core) -> (usize, Vec<String>) {
             let Some(formula) = formula.as_str().filter(|f| f.starts_with('=')) else {
                 continue;
             };
-            let upper = formula.to_uppercase();
-            if VOLATILE.iter().any(|v| upper.contains(v)) || formula.contains('[') {
+            let sheet_name = sheet["name"].as_str().unwrap_or("").to_string();
+            if volatile.contains(&(sheet_name, address.to_uppercase())) || formula.contains('[') {
                 continue;
             }
             let Some(excel) = cached.get(address) else {

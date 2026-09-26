@@ -272,3 +272,45 @@ is intersected in a legacy one. `xlookup_result` builds that range. XLOOKUP's st
 (may spill) when its return array has more than one row and column.
 Found by the Office corpus (xlookup.xlsx). Modified: src/functions/xlookup.rs,
 src/expressions/parser/static_analysis.rs.
+
+## TEXT of text and logical values
+
+`TEXT("jello","-@-")` returned "jello" and `TEXT(TRUE,";;;@-")` returned
+"TRUE": text and logical values skipped the format. Excel puts them through
+the format's text section, so they give "-jello-" and "TRUE-". Found by the
+Office corpus (TextFormatTests.xlsx). Modified: src/functions/text/common.rs.
+
+## References and names on other sheets
+
+- `'1'!#REF!` (a reference to deleted cells on another sheet) failed to
+  parse; it is now the #REF! error.
+- `Defines!NR_To_A1`, a defined name scoped to another sheet, failed to
+  parse. The lexer reads `Sheet!Name` as a qualified name, and the parser
+  resolves it in that sheet's scope (or the workbook's). The node keeps the
+  qualified text for display; lookups and renames use the bare name.
+- Implicit intersection with a range on another sheet returned no cell.
+  Excel intersects the formula's row or column on that sheet.
+
+Found by the Office corpus (customIndexedColors.xlsx, 56737.xlsx,
+FormulaEvalTestData_Copy.xlsx). Modified: src/expressions/lexer/mod.rs,
+src/expressions/parser/mod.rs, src/expressions/parser/stringify.rs,
+src/model.rs, src/functions/information/mod.rs, src/implicit_intersection.rs.
+
+## MINA, MAXA, MDETERM and MINVERSE edge cases
+
+- MINA and MAXA skipped a referenced cell holding TRUE or text; they count
+  it as a range cell would (TRUE 1, FALSE and text 0). With no values they
+  return 0, as Excel does, not #VALUE!.
+- MDETERM and MINVERSE read empty cells as 0; Excel returns #VALUE!.
+
+Found by the Office corpus (FormulaEvalTestData_Copy.xlsx,
+MatrixFormulaEvalTestData.xlsx). Modified:
+src/functions/statistical/count_and_average.rs,
+src/functions/math_and_trigonometry/matrix.rs.
+
+## Long words in a column position
+
+`column_to_number` multiplied past `i32` for a word of seven or more
+letters (`Sheet!Missing`), which panics in debug builds. It stops once the
+number passes the last column. Modified: src/expressions/utils/mod.rs; tests
+in src/test/test_folio_corpus_fixes.rs.

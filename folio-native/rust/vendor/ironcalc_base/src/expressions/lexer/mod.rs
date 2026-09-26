@@ -799,6 +799,16 @@ impl<'a> Lexer<'a> {
     }
 
     fn consume_range(&mut self, sheet: Option<String>) -> TokenType {
+        // Folio: `Sheet!#REF!` is the #REF! error, as Excel writes a reference
+        // to deleted cells on another sheet.
+        let start = self.position;
+        if sheet.is_some() {
+            let rest: String = self.chars[self.position..].iter().take(5).collect();
+            if rest.eq_ignore_ascii_case("#REF!") {
+                self.position += 5;
+                return TokenType::Error(Error::REF);
+            }
+        }
         let m = if self.mode == LexerMode::A1 {
             self.consume_range_a1()
         } else {
@@ -818,7 +828,35 @@ impl<'a> Lexer<'a> {
                     }
                 }
             }
-            Err(error) => TokenType::Illegal(error),
+            Err(error) => {
+                // Folio: `Sheet!Name` is a defined name scoped to that sheet.
+                let starts_name = self
+                    .chars
+                    .get(start)
+                    .is_some_and(|c| c.is_alphabetic() || *c == '_' || *c == '\\');
+                if let (Some(sheet), true) = (sheet, starts_name) {
+                    let failed_at = self.position;
+                    self.position = start;
+                    let name = self.consume_identifier();
+                    if name.is_empty() || self.peek_char() == Some('(') {
+                        self.position = failed_at;
+                        return TokenType::Illegal(error);
+                    }
+                    {
+                        let quoted = if sheet
+                            .chars()
+                            .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
+                            && !sheet.starts_with(|c: char| c.is_ascii_digit())
+                        {
+                            sheet
+                        } else {
+                            format!("'{}'", sheet.replace('\'', "''"))
+                        };
+                        return TokenType::Ident(format!("{quoted}!{name}"));
+                    }
+                }
+                TokenType::Illegal(error)
+            }
         }
     }
 }

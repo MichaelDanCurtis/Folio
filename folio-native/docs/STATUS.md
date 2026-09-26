@@ -44,7 +44,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X05 | [Views, panes and zoom](status/excel.md#x05-views-panes-and-zoom) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
 | X06 | [Sort, filter and tables](status/excel.md#x06-sort-filter-and-tables) | 5 | 0 | 1 | 4 | 0 | 0 | 10 |
 | X07 | [Data validation and conditional formatting](status/excel.md#x07-data-validation-and-conditional-formatting) | 3 | 0 | 2 | 5 | 0 | 0 | 10 |
-| X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 5 | 1 | 8 | 2 | 0 | 0 | 16 |
+| X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 5 | 0 | 9 | 2 | 0 | 0 | 16 |
 | X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
 | X10 | [Auditing](status/excel.md#x10-auditing) | 4 | 0 | 0 | 2 | 0 | 0 | 6 |
 | X11 | [Charts, sparklines and drawings](status/excel.md#x11-charts-sparklines-and-drawings) | 6 | 1 | 1 | 0 | 0 | 0 | 8 |
@@ -56,7 +56,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 5 | 1 | 6 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **218** | **7** | **96** | **80** | **0** | **0** | **401** |
+| **All** | | **218** | **6** | **97** | **80** | **0** | **0** | **401** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
@@ -75,7 +75,7 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 | Rank | Gap | Children | Effort | Confidence | Needs |
 |---:|---|---|---|---|---|
 | 1 | Record the Office baseline and create the daily-workflow comparison files in Word/Excel. The real-world corpus (387 Office-saved files) now covers much of the file-compatibility evidence; the baseline is still needed for interaction and layout comparisons. | [OFFICE_BASELINE](status/OFFICE_BASELINE.md), [CORPUS](status/CORPUS.md) | S | High | Owner, with Office installs |
-| 2 | **Wrong results on real Excel files** (from the corpus): 656 of 23,120 corpus formulas still differ, mostly POI's `TEXT` format tests; also MINA/MAXA and LOOKUP edge cases, the intersection and union operators, iterative calculation; 3 shared-string files and one export still fail. Names, implicit intersection, array formulas, 3-D references, coercion, tolerant reading and Strict Open XML are fixed | X04.04, X08.08, X17.12 | S | High | — |
+| 2 | Excel-correct results: 31 of 23,120 corpus formulas differ ([part 1](../../docs/superpowers/plans/2026-09-26-excel-correct-results.md), [part 2](../../docs/superpowers/plans/2026-09-26-excel-correct-results-2.md)). Left: the intersection and union operators, iterative calculation, GETPIVOTDATA and HYPERLINK | X08.08, X08.11, X08.03 | S | Medium | — |
 | 3 | Native qualification sweep: raise the 68 M1 children that are only automated-verified; resolve the 7 Flutter tests that fail on Linux (Save/Save As, external writes, leave-file prompts, native menus) | D02.03–D02.09, D03.04, X01.12, X04.01–X04.04, W13.01, X15.01 and others | M | High | The Mac (packaged build) |
 | 4 | Workbook editing essentials: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)). Left: copying charts, pictures and sheet-scoped names with a duplicated sheet, pointing from another sheet's tab, borders on whole rows/columns, native checks | X03.06, X01.06, X04.07 | S | High | The Mac for native checks |
 | 5 | Clipboard exchange with Office and other apps, and cut/move | D03.05, X01.10, X01.11 | L | Medium | Mac clipboard testing |
@@ -104,7 +104,7 @@ The M4/M5 breadth (formats beyond DOCX/XLSX, macros, data connectors, co-authori
 
 **Rank 6, document editing essentials, is built.** Its [plan](../../docs/superpowers/plans/2026-09-26-document-editing-essentials.md) moved W01.13, W01.14, W07.06, W12.09, W17.02, W17.07, D03.10 and X04.12 to Automated verified. Its native checks join the rank 3 sweep.
 
-**Rank 2 comes before the rest of it.** The corpus showed wrong calculated values on real Excel files, which is worse than a missing command. Ranks 1, 3, 8 and 9 need the owner's Office installs or the Mac, and can run alongside.
+**Rank 2, Excel-correct results, is built** in two plans. 99.87% of the corpus formulas now match Excel's own results, and every corpus workbook under the size limit opens and round-trips. TEXT and number display match Excel on all 832 rows of POI's format tests. Ranks 1, 3, 8 and 9 need the owner's Office installs or the Mac, and can run alongside.
 
 ## Risk register
 
@@ -126,6 +126,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-26 | Excel-correct results part 2 (rank 2): number formats rendered from their placeholders (all 832 POI TEXT rows match, and `000.00` keeps its leading zero in cells), names and references on other sheets, MINA/MAXA and matrix edge cases, text starting with `+`/`-` kept as text, three more corpus files read and the bug66675 export fixed. Corpus differences: 656 → 31; X08.08 to Automated verified. |
 | 2026-09-26 | Document editing essentials (rank 6): Change Case and Clear All Formatting (W01.13), the hyperlink UI (W01.14), the Word Count dialog with a new `documentNotesText` op (W12.09), editor zoom (W17.02), formatting marks (W17.07), table drag-resize (W07.06) and Format Painter (D03.10, X04.12), all Automated verified. The plan is closed. |
 | 2026-09-26 | Excel-correct results (rank 2): 3-D references (X08.15), array (CSE) formulas, XLOOKUP rows, unary-plus intersection, backslash names, Excel's coercion rules (X08.08, Implemented), tolerant reading (X17.12) and Strict Open XML (X17.11). Corpus: 279 of 291 XLSX open (272 before); 656 of 23,120 formulas differ (744). |
 | 2026-09-25 | Workbook essentials Tasks 6–10: zoom (X05.03), duplicate sheet (X03.06, Implemented), formula point mode (X01.06) and the fill handle (X01.13). Rank 4 is built; the plan is closed. |

@@ -251,7 +251,8 @@ impl Ev {
             self.i += 1;
         }
         let mut cc = c;
-        if cc == 'm' && self.lst.to_ascii_lowercase() == 'h' {
+        // Folio: `m` after hours, or after seconds (`s:m`), is minutes.
+        if cc == 'm' && matches!(self.lst.to_ascii_lowercase(), 'h' | 's') {
             cc = 'M';
         }
         if cc == 'h' {
@@ -272,8 +273,6 @@ impl Ev {
         self.out.push(Tok { t: 'n', v: o });
     }
 }
-
-const ALLOWED: &str = ",$-+/():!^&'~{}<>=€acfijklopqrtuvwxzP";
 
 /// `ssf.eval_fmt(fmt, v, opts, flen)`.
 pub fn eval_fmt(fmt: &str, v: &Value, date1904: bool, flen: usize) -> Result<String, String> {
@@ -486,12 +485,31 @@ pub fn eval_fmt(fmt: &str, v: &Value, date1904: bool, flen: usize) -> Result<Str
                 ev.i += 1;
             }
             _ => {
-                if !ALLOWED.contains(c) {
-                    return Err(format!("unrecognized character {} in {}", c, fmt));
-                }
+                // Folio: Excel's TEXT shows any other character as itself
+                // (`|`, `£`, `¥`, `=`), where ssf rejected those it didn't list.
                 ev.out.push(Tok { t: 't', v: c.to_string() });
                 ev.i += 1;
             }
+        }
+    }
+
+    // Folio: with `[h]` or `[s]` in the section, a plain `h` or `s` shows the
+    // same elapsed total, as Excel does ("[h] hours, h" shows 75 twice).
+    let elapsed: Vec<char> = ev
+        .out
+        .iter()
+        .filter(|t| t.t == 'Z')
+        .filter_map(|t| t.v.chars().nth(1))
+        .collect();
+    for tok in ev.out.iter_mut() {
+        let unit = match tok.t {
+            'h' | 'H' => 'h',
+            's' if !tok.v.contains('.') => 's',
+            _ => continue,
+        };
+        if elapsed.contains(&unit) {
+            tok.v = format!("[{}]", unit.to_string().repeat(tok.v.len().min(2)));
+            tok.t = 'Z';
         }
     }
 

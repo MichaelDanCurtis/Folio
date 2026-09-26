@@ -31,6 +31,42 @@ pub fn document_format(format: &str) -> Result<&str, String> {
     }
 }
 
+/// The content types with an Override for `part` when it has none but the
+/// Default for its extension is the regular or template type. None when no
+/// change is needed.
+fn with_main_override(
+    xml: &str,
+    part: &str,
+    regular: &str,
+    template: &str,
+) -> Result<Option<String>, String> {
+    let dom = parse(xml)?;
+    if dom
+        .descendants()
+        .any(|n| n.has_tag_name((CT, "Override")) && n.attribute("PartName") == Some(part))
+    {
+        return Ok(None);
+    }
+    let extension = part.rsplit('.').next().unwrap_or("");
+    let Some(default) = dom.descendants().find(|n| {
+        n.has_tag_name((CT, "Default"))
+            && n.attribute("Extension")
+                .is_some_and(|e| e.eq_ignore_ascii_case(extension))
+    }) else {
+        return Ok(None);
+    };
+    let kind = default.attribute("ContentType").unwrap_or("");
+    if kind != regular && kind != template {
+        return Ok(None);
+    }
+    let end = xml.rfind("</Types>").ok_or("Invalid content types")?;
+    Ok(Some(format!(
+        "{}<Override PartName=\"{part}\" ContentType=\"{kind}\"/>{}",
+        &xml[..end],
+        &xml[end..]
+    )))
+}
+
 /// Change only the main-part content type. Unknown relationships and package
 /// parts stay byte-for-byte intact. Never relabel macro-bearing content as a
 /// macro-free document/template.
@@ -42,6 +78,13 @@ pub fn convert(mut package: Package, format: &str) -> Result<Package, String> {
         "xltx" => ("/xl/workbook.xml", XLS, XLT, XLT),
         _ => return Err("Unsupported Office format".into()),
     };
+    // Folio: a main part typed only by its extension's Default (bug66675) gets
+    // an explicit Override, which the conversion below then checks.
+    let xml = package.text("[Content_Types].xml")?.to_string();
+    if let Some(added) = with_main_override(&xml, part, regular, template)? {
+        package.set("[Content_Types].xml", added);
+        package.original = package.bytes()?;
+    }
     let xml = package.text("[Content_Types].xml")?;
     let dom = parse(xml)?;
     if package
@@ -79,4 +122,33 @@ pub fn convert(mut package: Package, format: &str) -> Result<Package, String> {
         package.original = package.bytes()?;
     }
     Ok(package)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_main_part_typed_by_its_default_gets_an_override() {
+        let xml = format!(
+            r#"<Types xmlns="{CT}"><Default Extension="xml" ContentType="{XLS}"/></Types>"#
+        );
+        let added = with_main_override(&xml, "/xl/workbook.xml", XLS, XLT)
+            .unwrap()
+            .unwrap();
+        assert!(added.ends_with(&format!(
+            r#"<Override PartName="/xl/workbook.xml" ContentType="{XLS}"/></Types>"#
+        )));
+        assert_eq!(
+            with_main_override(&added, "/xl/workbook.xml", XLS, XLT).unwrap(),
+            None
+        );
+        let other = format!(
+            r#"<Types xmlns="{CT}"><Default Extension="xml" ContentType="application/xml"/></Types>"#
+        );
+        assert_eq!(
+            with_main_override(&other, "/xl/workbook.xml", XLS, XLT).unwrap(),
+            None
+        );
+    }
 }
