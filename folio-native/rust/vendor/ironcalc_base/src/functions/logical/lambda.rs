@@ -10,6 +10,34 @@ use crate::{
 
 use super::r#let::assign_variable_ids;
 
+/// FOLIO PATCH: an evaluated value as an argument node.
+fn value_node(value: &CalcResult, cell: CellReferenceIndex) -> Node {
+    match value {
+        CalcResult::Number(n) => Node::NumberKind(*n),
+        CalcResult::String(s) => Node::StringKind(s.clone()),
+        CalcResult::Boolean(b) => Node::BooleanKind(*b),
+        CalcResult::Array(a) => Node::ArrayKind(a.clone()),
+        CalcResult::Error { error, .. } => Node::ErrorKind(error.clone()),
+        CalcResult::EmptyCell | CalcResult::EmptyArg => Node::EmptyArgKind,
+        CalcResult::Range { left, right } => Node::RangeKind {
+            sheet_name: None,
+            sheet_index: left.sheet,
+            absolute_row1: true,
+            absolute_column1: true,
+            row1: left.row,
+            column1: left.column,
+            absolute_row2: true,
+            absolute_column2: true,
+            row2: right.row,
+            column2: right.column,
+        },
+        CalcResult::Lambda(_) => {
+            let _ = cell;
+            Node::ErrorKind(Error::VALUE)
+        }
+    }
+}
+
 impl<'a> Model<'a> {
     /// Evaluates the body of a named lambda with the given call-site argument nodes.
     /// Optional parameters not covered by call_args receive EmptyArg.
@@ -19,6 +47,12 @@ impl<'a> Model<'a> {
         call_args: &[Node],
         cell: CellReferenceIndex,
     ) -> CalcResult {
+        // FOLIO PATCH: a function named as a value.
+        if let CalcResult::Lambda(id) = &lambda_result {
+            if let Some(kind) = self.eta_functions.get(id).cloned() {
+                return self.evaluate_function(&kind, call_args, cell);
+            }
+        }
         let (parameters, body) = match lambda_result {
             CalcResult::Lambda(id) => match self.lambdas.get(&id) {
                 Some(l) => l.clone(),
@@ -73,6 +107,13 @@ impl<'a> Model<'a> {
         values: Vec<CalcResult>,
         cell: CellReferenceIndex,
     ) -> CalcResult {
+        // FOLIO PATCH: a function named as a value.
+        if let CalcResult::Lambda(id) = &lambda_result {
+            if let Some(kind) = self.eta_functions.get(id).cloned() {
+                let args: Vec<Node> = values.iter().map(|v| value_node(v, cell)).collect();
+                return self.evaluate_function(&kind, &args, cell);
+            }
+        }
         let (parameters, body) = match lambda_result {
             CalcResult::Lambda(id) => match self.lambdas.get(&id) {
                 Some(l) => l.clone(),

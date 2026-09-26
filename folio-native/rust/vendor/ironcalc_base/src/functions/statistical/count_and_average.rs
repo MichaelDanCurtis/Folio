@@ -370,6 +370,14 @@ impl<'a> Model<'a> {
                         }
                     }
                 }
+                // FOLIO PATCH: the numbers in an array (`COUNT({1,"a",2})` is 2).
+                CalcResult::Array(a) => {
+                    result += a
+                        .iter()
+                        .flatten()
+                        .filter(|n| matches!(n, crate::expressions::parser::ArrayNode::Number(_)))
+                        .count() as f64;
+                }
                 _ => {
                     // Ignore everything else
                 }

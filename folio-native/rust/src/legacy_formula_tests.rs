@@ -66,6 +66,19 @@ fn formulas_are_written_in_worksheet_form() {
         "_xlfn.XLOOKUP(1,A1:A3,B1:B3)"
     );
     assert_eq!(stored("=Sales[@Qty]*2", "D2"), "Sales[@Qty]*2");
+    // Functions Folio added, and function names used as values.
+    assert_eq!(
+        stored("=GROUPBY(A1:A3,B1:B3,SUM)", "D1"),
+        "_xlfn.GROUPBY(A1:A3,B1:B3,_xleta.SUM)"
+    );
+    assert_eq!(
+        stored("=AGGREGATE(9,6,A1:A3)", "D1"),
+        "_xlfn.AGGREGATE(9,6,A1:A3)"
+    );
+    assert_eq!(
+        stored("=BYROW(A1:B3,LAMBDA(sum,sum*2))", "D1"),
+        "_xlfn.BYROW(A1:B3,_xlfn.LAMBDA(_xlpm.sum,_xlpm.sum*2))"
+    );
 }
 
 /// `source.xlsx` with extra cells in the Inputs sheet (sheet2.xml).

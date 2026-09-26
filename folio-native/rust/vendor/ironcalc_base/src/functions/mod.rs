@@ -12,6 +12,7 @@ mod database;
 pub(crate) mod date_and_time;
 mod engineering;
 mod financial;
+mod folio;
 mod information;
 mod logical;
 mod lookup_and_reference;
@@ -537,6 +538,18 @@ pub enum Function {
     Delta,
     Gestep,
     Subtotal,
+    // FOLIO PATCH: functions IronCalc lacks (functions/folio).
+    Aggregate,
+    Bahttext,
+    Dbcs,
+    Jis,
+    Phonetic,
+    Encodeurl,
+    Hyperlink,
+    Euroconvert,
+    Filterxml,
+    Groupby,
+    Pivotby,
 
     // Database
     Daverage,
@@ -569,7 +582,8 @@ macro_rules! impl_function_lookup {
                         return Some(Function::$variant);
                     }
                 )*
-                None
+                // FOLIO PATCH: functions outside the language tables.
+                Function::folio_lookup(&key)
             }
         }
     }
@@ -1108,6 +1122,24 @@ impl_function_lookup! {
 }
 
 impl Function {
+    /// FOLIO PATCH: the functions added in `functions/folio`, by name.
+    pub fn folio_lookup(name: &str) -> Option<Function> {
+        Some(match name {
+            "AGGREGATE" => Function::Aggregate,
+            "BAHTTEXT" => Function::Bahttext,
+            "DBCS" => Function::Dbcs,
+            "JIS" => Function::Jis,
+            "PHONETIC" => Function::Phonetic,
+            "ENCODEURL" => Function::Encodeurl,
+            "HYPERLINK" => Function::Hyperlink,
+            "EUROCONVERT" => Function::Euroconvert,
+            "FILTERXML" => Function::Filterxml,
+            "GROUPBY" => Function::Groupby,
+            "PIVOTBY" => Function::Pivotby,
+            _ => return None,
+        })
+    }
+
     pub fn to_localized_name(&self, language: &Language) -> String {
         let functions = &language.functions;
         match self {
@@ -1565,6 +1597,17 @@ impl Function {
             Function::Delta => functions.delta.clone(),
             Function::Gestep => functions.gestep.clone(),
             Function::Subtotal => functions.subtotal.clone(),
+            Function::Aggregate => "AGGREGATE".to_string(),
+            Function::Bahttext => "BAHTTEXT".to_string(),
+            Function::Dbcs => "DBCS".to_string(),
+            Function::Jis => "JIS".to_string(),
+            Function::Phonetic => "PHONETIC".to_string(),
+            Function::Encodeurl => "ENCODEURL".to_string(),
+            Function::Hyperlink => "HYPERLINK".to_string(),
+            Function::Euroconvert => "EUROCONVERT".to_string(),
+            Function::Filterxml => "FILTERXML".to_string(),
+            Function::Groupby => "GROUPBY".to_string(),
+            Function::Pivotby => "PIVOTBY".to_string(),
             Function::Daverage => functions.daverage.clone(),
             Function::Dcount => functions.dcount.clone(),
             Function::Dget => functions.dget.clone(),
@@ -1608,7 +1651,7 @@ impl Function {
         }
     }
 
-    pub fn into_iter() -> IntoIter<Function, 494> {
+    pub fn into_iter() -> IntoIter<Function, 505> {
         [
             Function::And,
             Function::False,
@@ -1942,6 +1985,17 @@ impl Function {
             Function::Delta,
             Function::Gestep,
             Function::Subtotal,
+            Function::Aggregate,
+            Function::Bahttext,
+            Function::Dbcs,
+            Function::Jis,
+            Function::Phonetic,
+            Function::Encodeurl,
+            Function::Hyperlink,
+            Function::Euroconvert,
+            Function::Filterxml,
+            Function::Groupby,
+            Function::Pivotby,
             Function::Roman,
             Function::Arabic,
             Function::Combin,
@@ -2116,6 +2170,11 @@ impl Function {
     pub fn to_xlsx_string(&self) -> String {
         match self {
             Function::Concat => "_xlfn.CONCAT".to_string(),
+            Function::Aggregate => "_xlfn.AGGREGATE".to_string(),
+            Function::Encodeurl => "_xlfn.ENCODEURL".to_string(),
+            Function::Filterxml => "_xlfn.FILTERXML".to_string(),
+            Function::Groupby => "_xlfn.GROUPBY".to_string(),
+            Function::Pivotby => "_xlfn.PIVOTBY".to_string(),
             Function::Ifna => "_xlfn.IFNA".to_string(),
             Function::Ifs => "_xlfn.IFS".to_string(),
             Function::Lambda => "_xlfn.LAMBDA".to_string(),
@@ -2698,6 +2757,17 @@ impl<'a> Model<'a> {
             Function::Delta => self.fn_delta(args, cell),
             Function::Gestep => self.fn_gestep(args, cell),
             Function::Subtotal => self.fn_subtotal(args, cell),
+            Function::Aggregate => self.fn_aggregate(args, cell),
+            Function::Bahttext => self.fn_bahttext(args, cell),
+            Function::Dbcs => self.fn_dbcs(args, cell),
+            Function::Jis => self.fn_dbcs(args, cell),
+            Function::Phonetic => self.fn_phonetic(args, cell),
+            Function::Encodeurl => self.fn_encodeurl(args, cell),
+            Function::Hyperlink => self.fn_hyperlink(args, cell),
+            Function::Euroconvert => self.fn_euroconvert(args, cell),
+            Function::Filterxml => self.fn_filterxml(args, cell),
+            Function::Groupby => self.fn_groupby(args, cell),
+            Function::Pivotby => self.fn_pivotby(args, cell),
             Function::Acot => self.fn_acot(args, cell),
             Function::Acoth => self.fn_acoth(args, cell),
             Function::Cot => self.fn_cot(args, cell),

@@ -123,6 +123,12 @@ fn prefix_bound_variables(node: &mut Node, bound: &mut Vec<String>) {
         Node::NamedVariableKind { name, .. } => {
             if bound.iter().any(|n| n == name) {
                 *name = format!("_xlpm.{name}");
+            } else if crate::language::get_language("en")
+                .is_ok_and(|l| l.functions.lookup(name).is_some())
+            {
+                // FOLIO PATCH: a function named as a value (`BYROW(A1:C3,SUM)`)
+                // is stored as `_xleta.SUM`.
+                *name = format!("_xleta.{}", name.to_uppercase());
             }
         }
         // A bound lambda used as a function: `LET(f,LAMBDA(a,a*a),f(2))`

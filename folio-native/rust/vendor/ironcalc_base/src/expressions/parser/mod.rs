@@ -1036,7 +1036,11 @@ impl<'a> Parser<'a> {
                     }
                 }
                 // xlpm: Excel Lambda Parameter
-                let name = name.trim_start_matches("_xlpm.").to_string();
+                // FOLIO PATCH: `_xleta.SUM` is a function named as a value.
+                let name = name
+                    .trim_start_matches("_xlpm.")
+                    .trim_start_matches("_xleta.")
+                    .to_string();
                 Node::NamedVariableKind { name, id: None }
             }
             TokenType::Error(kind) => Node::ErrorKind(kind),

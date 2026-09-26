@@ -15,9 +15,7 @@ fn get_re() -> &'static Regex {
     RANGE_REFERENCE_REGEX
         // Folio: allow `$`, since name definitions use absolute references
         // (`Sheet1!$A$1:$A$9`); without it no range name got its `@`.
-        .get_or_init(|| {
-            Regex::new(r":\$?[A-Z]*\$?[0-9]*$").expect("Regex is known to be valid")
-        })
+        .get_or_init(|| Regex::new(r":\$?[A-Z]*\$?[0-9]*$").expect("Regex is known to be valid"))
 }
 
 fn is_range_reference(s: &str) -> bool {
@@ -421,12 +419,12 @@ fn scalar_arguments(args: &[Node]) -> StaticResult {
 // included, so a range there makes the result a range.
 fn passed_through(condition: &Node, values: &[Node]) -> StaticResult {
     for value in values {
-        if let StaticResult::Range(..) | StaticResult::Unknown = run_static_analysis_on_node(value) {
+        if let StaticResult::Range(..) | StaticResult::Unknown = run_static_analysis_on_node(value)
+        {
             return StaticResult::Unknown;
         }
     }
-    scalar_arguments(std::slice::from_ref(condition))
-        .max_with(scalar_arguments(values))
+    scalar_arguments(std::slice::from_ref(condition)).max_with(scalar_arguments(values))
 }
 
 impl StaticResult {
@@ -559,6 +557,28 @@ fn args_signature_with_vectors(
         }
     }
     signature
+}
+
+// FOLIO PATCH: `required..=maximum` arguments that take ranges and arrays as
+// they are, except the scalar ones at `scalars`.
+fn args_signature_folio(
+    arg_count: usize,
+    required: usize,
+    maximum: usize,
+    scalars: &[usize],
+) -> Vec<Signature> {
+    if arg_count < required || arg_count > maximum {
+        return vec![Signature::Error; arg_count];
+    }
+    (0..arg_count)
+        .map(|i| {
+            if scalars.contains(&i) {
+                Signature::Scalar
+            } else {
+                Signature::Vector
+            }
+        })
+        .collect()
 }
 
 fn args_signature_lambda(arg_count: usize) -> Vec<Signature> {
@@ -1315,6 +1335,17 @@ fn get_function_args_signature(kind: &Function, arg_count: usize) -> Vec<Signatu
         Function::Delta => args_signature_scalars(arg_count, 1, 1),
         Function::Gestep => args_signature_scalars(arg_count, 1, 1),
         Function::Subtotal => args_signature_npv(arg_count),
+        Function::Aggregate => args_signature_folio(arg_count, 3, 255, &[0, 1]),
+        Function::Bahttext => args_signature_scalars(arg_count, 1, 0),
+        Function::Dbcs => args_signature_scalars(arg_count, 1, 0),
+        Function::Jis => args_signature_scalars(arg_count, 1, 0),
+        Function::Phonetic => args_signature_folio(arg_count, 1, 1, &[]),
+        Function::Encodeurl => args_signature_scalars(arg_count, 1, 0),
+        Function::Hyperlink => args_signature_scalars(arg_count, 1, 1),
+        Function::Euroconvert => args_signature_scalars(arg_count, 3, 2),
+        Function::Filterxml => args_signature_scalars(arg_count, 2, 0),
+        Function::Groupby => args_signature_folio(arg_count, 3, 8, &[]),
+        Function::Pivotby => args_signature_folio(arg_count, 4, 11, &[]),
         Function::Rand => args_signature_no_args(arg_count),
         Function::Randbetween => args_signature_scalars(arg_count, 2, 0),
         Function::Formulatext => args_signature_with_vectors(arg_count, 1, 0, &[0]),
@@ -1996,6 +2027,17 @@ fn static_analysis_on_function(kind: &Function, args: &[Node]) -> StaticResult {
         Function::Delta => not_implemented(args),
         Function::Gestep => not_implemented(args),
         Function::Subtotal => not_implemented(args),
+        Function::Aggregate => StaticResult::Scalar,
+        Function::Bahttext => StaticResult::Scalar,
+        Function::Dbcs => StaticResult::Scalar,
+        Function::Jis => StaticResult::Scalar,
+        Function::Phonetic => StaticResult::Scalar,
+        Function::Encodeurl => StaticResult::Scalar,
+        Function::Hyperlink => StaticResult::Scalar,
+        Function::Euroconvert => StaticResult::Scalar,
+        Function::Filterxml => StaticResult::Unknown,
+        Function::Groupby => StaticResult::Unknown,
+        Function::Pivotby => StaticResult::Unknown,
         Function::Rand => not_implemented(args),
         Function::Randbetween => scalar_arguments(args),
         Function::Eomonth => scalar_arguments(args),

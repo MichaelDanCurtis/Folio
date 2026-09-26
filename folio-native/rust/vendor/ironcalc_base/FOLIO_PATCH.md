@@ -314,3 +314,21 @@ src/functions/math_and_trigonometry/matrix.rs.
 letters (`Sheet!Missing`), which panics in debug builds. It stops once the
 number passes the last column. Modified: src/expressions/utils/mod.rs; tests
 in src/test/test_folio_corpus_fixes.rs.
+
+## Excel functions IronCalc lacks (X08.03)
+
+`src/functions/folio/` adds AGGREGATE, BAHTTEXT, DBCS/JIS, PHONETIC,
+ENCODEURL, HYPERLINK, EUROCONVERT, FILTERXML (an XPath subset over
+`roxmltree`, a new dependency), GROUPBY, PIVOTBY and the FORECAST.ETS family
+(replacing the #N/IMPL stubs in `statistical/forecast.rs`). The new functions
+are found by `Function::folio_lookup` when the language tables have no entry,
+so `language.bin` is unchanged; their names are English in every language.
+
+A function's name used as a value (`BYROW(A1:C3, SUM)`) evaluates to a lambda
+that calls the function (`Model::eta_functions`, `logical/lambda.rs`). It is
+read from and written to files as `_xleta.SUM`. COUNT counts the numbers in
+an array argument. Modified upstream files: `src/functions/mod.rs`,
+`src/model.rs`, `src/new_empty.rs`, `src/functions/subtotal.rs`,
+`src/functions/logical/lambda.rs`, `src/functions/statistical/forecast.rs`,
+`src/functions/statistical/count_and_average.rs`,
+`src/expressions/parser/{mod,static_analysis,stringify}.rs`.

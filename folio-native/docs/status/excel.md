@@ -115,14 +115,14 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 
 ## X08 Functions and calculation semantics
 
-Coverage of Excel's catalog of 514 worksheet functions, measured by `formula_catalog_tests.rs` ([excel-functions.tsv](excel-functions.tsv)): **483 evaluate, 4 are recognized but not implemented (FORECAST.ETS family), and 27 are unknown to the engine.** "Evaluate" means the engine computes a result. It does not mean the results match Excel; that needs X08.02.
+Coverage of Excel's catalog of 514 worksheet functions, measured by `formula_catalog_tests.rs` ([excel-functions.tsv](excel-functions.tsv)): **498 evaluate and 16 are unknown to the engine** (CUBE functions, RTD, WEBSERVICE, STOCKHISTORY, TRANSLATE, DETECTLANGUAGE, CALL, REGISTER.ID, IMAGE and GETPIVOTDATA). "Evaluate" means the engine computes a result. It does not mean the results match Excel; that needs X08.02.
 
 | ID | Requirement | M | State | Evidence | Gap / next step |
 |---|---|---|---|---|---|
-| X08.01 | The 483 catalog functions the engine evaluates | M3 | Automated verified | IronCalc suite (2,232 tests); catalog test | Differential corpus against Excel (X08.02) |
+| X08.01 | The 498 catalog functions the engine evaluates | M3 | Automated verified | IronCalc suite (2,246 tests); catalog test | Differential corpus against Excel (X08.02) |
 | X08.02 | Differential function corpus: recorded Excel results for every function, including edge cases | M3 | Specified | — | Needs the Office baseline |
-| X08.03 | Missing functions: AGGREGATE, BAHTTEXT, DBCS, JIS, PHONETIC, HYPERLINK, IMAGE, GROUPBY, PIVOTBY, GETPIVOTDATA, RTD, FORECAST.ETS family | M3 | Specified | [excel-functions.tsv](excel-functions.tsv) | Implement; GETPIVOTDATA needs X12 |
-| X08.04 | Service functions: WEBSERVICE, FILTERXML, ENCODEURL, STOCKHISTORY, TRANSLATE, DETECTLANGUAGE, CUBE* (7), CALL, REGISTER.ID, EUROCONVERT | M4 | Specified | [excel-functions.tsv](excel-functions.tsv) | Need network/data-model decisions (X13) |
+| X08.03 | Missing functions: AGGREGATE, BAHTTEXT, DBCS, JIS, PHONETIC, HYPERLINK, GROUPBY, PIVOTBY, FORECAST.ETS family | M3 | Automated verified | Rank 17 ([plan](../../../docs/superpowers/plans/2026-09-26-missing-functions.md)); `test_folio_functions.rs` | Excel comparison (X08.02). FORECAST.ETS fits its parameters by least squares; Excel's fitting is unpublished, so results are close, not equal. PIVOTBY: one value column, no relative_to, no column subtotals. HYPERLINK cells are not clickable yet |
+| X08.04 | Service functions: WEBSERVICE, STOCKHISTORY, TRANSLATE, DETECTLANGUAGE, CUBE* (7), CALL, REGISTER.ID | M4 | Specified | [excel-functions.tsv](excel-functions.tsv) | Need network/data-model decisions (X13) |
 | X08.05 | Error values: the seven classic errors typed through import, calculation, display, clipboard and export | M1 | Native verified | 0.37 ([VALIDATION](../../VALIDATION.md#037-typed-spreadsheet-error-qualification--2026-09-19)) | Newer errors (#SPILL!, #CALC!) in files |
 | X08.06 | 1900 and 1904 date systems through input, calculation and export | M2 | Automated verified | 0.36 ([VALIDATION](../../VALIDATION.md#036-workbook-calendar-and-typed-export-qualification--2026-09-19)) | Native check |
 | X08.07 | Early-1900 dates, serial zero and the 1900 leap-year bug | M2 | Native verified | 0.38 ([VALIDATION](../../VALIDATION.md#038-early-date-qualification--2026-09-19)) | Financial and week-number edge cases |
@@ -135,6 +135,9 @@ Coverage of Excel's catalog of 514 worksheet functions, measured by `formula_cat
 | X08.14 | Legacy formulas passing a range to a scalar function use implicit intersection, as Excel does for pre-dynamic-array files | M1 | Automated verified | Imported formulas get Excel 365's automatic `@` ([legacy formula tests](../../rust/src/legacy_formula_tests.rs)); range-taking arguments (WORKDAY holidays, IF/CHOOSE values, reference arguments) keep their ranges; corpus rerun | Excel comparison of the corpus cells still differing |
 | X08.15 | 3-D references (`Sheet1:Sheet3!A1`) in SUM, MIN, MAX and the other aggregates | M2 | Automated verified | Spans calculate over the current sheet order; rename and delete adjust them; text kept and round-tripped (`sheet_spans.rs`); the corpus cells match | Inserting rows across grouped sheets; native check |
 | X08.16 | Whole-column lookups (VLOOKUP, HLOOKUP, MATCH, LOOKUP) read only populated rows, and sorted searches end at the last value not greater than the target | M1 | Automated verified | Corpus finding; [formula limits](../../rust/src/formula_limits_tests.rs) | Excel comparison of blank-cell edge cases |
+| X08.17 | IMAGE, GETPIVOTDATA and RTD | M3 | Specified | [excel-functions.tsv](excel-functions.tsv) | IMAGE needs pictures in cells; GETPIVOTDATA needs X12; RTD needs a data server |
+| X08.18 | Offline service functions: FILTERXML (XPath subset), ENCODEURL, EUROCONVERT | M4 | Automated verified | Rank 17; `test_folio_functions.rs` | Excel comparison; FILTERXML has no namespaces or axes beyond child, descendant, parent and attribute |
+| X08.19 | Function names as values (`BYROW(A1:C3, SUM)`), stored as `_xleta.` | M3 | Automated verified | Rank 17; `test_folio_functions.rs`, `legacy_formula_tests.rs` | Excel comparison |
 
 ## X09 Arrays, spill, names and external references
 
