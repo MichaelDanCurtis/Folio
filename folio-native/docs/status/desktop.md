@@ -12,9 +12,9 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | D01.04 | Command search ("Tell me") that runs any ribbon command by name | M2 | Specified | — | Not built |
 | D01.05 | Document status bar: page, word count including tables, language, view and zoom controls | M1 | Automated verified | 0.15 word count includes table text | Page/language/zoom items; native check |
 | D01.06 | Workbook status bar: Sum, Average, Count and other selection aggregates | M1 | Automated verified | Workbook essentials Task 2 ([plan](../../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)) | Persist the chosen aggregates; which hidden cells Excel counts; native check |
-| D01.07 | Several documents and workbooks open at once, as tabs or windows, with independent save state | M2 | Specified | — | One workspace window today |
+| D01.07 | Several documents and workbooks open at once, as tabs or windows, with independent save state | M2 | Automated verified | Open files [plan](../../../docs/superpowers/plans/2026-09-26-open-files.md): each tab has its own engine session, recovery file and save prompts | Separate windows (D01.08); native check of the tab strip and menus |
 | D01.08 | Separate windows for one file (New Window, Arrange All) and task switching | M4 | Specified | — | Not built |
-| D01.09 | Window size, position and open files restored after restart | M2 | Specified | — | Window recovery not built |
+| D01.09 | Window size, position and open files restored after restart | M2 | Automated verified | Open files [plan](../../../docs/superpowers/plans/2026-09-26-open-files.md): the open tabs and the tab in front come back; the window frame is autosaved by AppKit | Native check of the window frame |
 | D01.10 | Native macOS menu bar (File, Edit, View, Window) sharing commands with the ribbon | M1 | Native verified | Build 11, 0.64 ([FILE_COMMANDS](../FILE_COMMANDS.md), [HISTORY_MENUS](../HISTORY_MENUS.md)) | Windows/Linux menus |
 | D01.11 | Context menus on text, cells, rows/columns and objects with Office-grouped commands | M1 | Native verified | 0.29/0.30 row/column context menus ([VALIDATION](../../VALIDATION.md)) | Object and text context menus beyond spelling; grouping audit |
 | D01.12 | Quick Access Toolbar with user customization | M3 | Specified | — | Not built |
