@@ -118,10 +118,14 @@ pub(crate) fn read_block(
     if typ == "p"
         && !node.descendants().any(|n| {
             n.is_element()
+                && n.tag_name().name() == "drawing"
+                && !crate::docx_pictures::is_inline_picture(n)
+        })
+        && !node.descendants().any(|n| {
+            n.is_element()
                 && matches!(
                     n.tag_name().name(),
-                    "drawing"
-                        | "pict"
+                    "pict"
                         | "object"
                         | "fldChar"
                         | "fldSimple"
@@ -247,6 +251,14 @@ pub(crate) fn read_block(
                                 text["marks"] = json!(marks);
                             }
                             content.push(text);
+                        }
+                    }
+                    "drawing" => {
+                        if let Some(mut image) = crate::docx_pictures::read(part, rels) {
+                            if !marks.is_empty() {
+                                image["marks"] = json!(marks);
+                            }
+                            content.push(image);
                         }
                     }
                     "tab" => {
@@ -717,6 +729,14 @@ fn write_inline(n: &Value, links: &HashMap<String, String>) -> String {
     }
     if n["type"] == "pageField" {
         return crate::docx_fields::write(n, &marks);
+    }
+    if n["type"] == "image" {
+        // Drawing ids must be unique in a document; new ones count up from
+        // well above Word's own.
+        static NEXT: std::sync::atomic::AtomicUsize =
+            std::sync::atomic::AtomicUsize::new(1_000_000);
+        let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        return crate::docx_pictures::write(n, &marks, id);
     }
     let text = n["text"].as_str().unwrap_or("");
     let mut inline = String::new();
