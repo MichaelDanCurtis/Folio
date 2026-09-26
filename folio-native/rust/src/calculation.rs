@@ -28,6 +28,9 @@ pub struct WorkbookCalculator {
     pub(crate) name_errors: Vec<String>,
     pub values: Value,
     pub cell_errors: Value,
+    /// Dynamic-array formulas that spill, per sheet: anchor -> (top, left,
+    /// rows, columns) of the spilled range (X09.02).
+    spills: Vec<HashMap<String, (usize, usize, usize, usize)>>,
     pub display: crate::number_format::Display,
     pub generation: u64,
     pub error: Option<String>,
@@ -56,6 +59,7 @@ impl Default for WorkbookCalculator {
             applied_names: vec![],
             name_errors: vec![],
             values: json!({}),
+            spills: vec![],
             cell_errors: json!({}),
             display: Default::default(),
             generation: 0,
@@ -365,6 +369,7 @@ impl WorkbookCalculator {
                     .collect(),
             );
             self.cell_errors = self.values.clone();
+            self.spills = vec![HashMap::new(); sheets.len()];
         }
         crate::perf_stages::record("calc.inputs", started);
         let started = Instant::now();
@@ -424,6 +429,61 @@ impl WorkbookCalculator {
                 }
             }
         }
+        // Dynamic arrays: the cells each formula spills into now, and the
+        // ones an earlier, larger spill filled, which may need clearing.
+        let mut spills = vec![HashMap::new(); sheets.len()];
+        for (i, formulas) in self.formulas.iter().enumerate() {
+            let sheet = model.workbook.worksheet(i as u32)?;
+            for (a, &(r, c)) in formulas {
+                if let Some(ironcalc_base::types::Cell::ArrayFormula {
+                    r: (width, height),
+                    kind: ironcalc_base::types::ArrayKind::Dynamic,
+                    ..
+                }) = sheet.cell(r as i32 + 1, c as i32 + 1)
+                {
+                    if width * height > 1 {
+                        spills[i].insert(a.clone(), (r, c, *height as usize, *width as usize));
+                    }
+                }
+            }
+        }
+        let cse_followers = followers.len();
+        let mut spill_cells = vec![];
+        for (i, sheet) in self
+            .spills
+            .iter()
+            .enumerate()
+            .chain(spills.iter().enumerate())
+        {
+            if i >= self.inputs.len() {
+                continue;
+            }
+            for &(top, left, rows, columns) in sheet.values() {
+                for r in top..top + rows {
+                    for c in left..left + columns {
+                        let address = crate::formula::address(r, c);
+                        if !self.inputs[i].contains_key(&address) {
+                            spill_cells.push((i, address, r, c));
+                        }
+                    }
+                }
+            }
+        }
+        spill_cells.sort();
+        spill_cells.dedup();
+        followers.extend(spill_cells);
+        let spilled: std::collections::HashSet<(usize, String)> = spills
+            .iter()
+            .enumerate()
+            .flat_map(|(i, s)| {
+                s.values().flat_map(move |&(top, left, rows, columns)| {
+                    (top..top + rows).flat_map(move |r| {
+                        (left..left + columns).map(move |c| (i, crate::formula::address(r, c)))
+                    })
+                })
+            })
+            .collect();
+        self.spills = spills;
         let mut read: Vec<(usize, &str, usize, usize)> = changed
             .iter()
             .zip(&positions)
@@ -438,9 +498,16 @@ impl WorkbookCalculator {
                 .iter()
                 .map(|(i, a, r, c)| (*i, a.as_str(), *r, *c)),
         );
-        let filled: std::collections::HashSet<(usize, &str)> = followers
+        // Cells a CSE array fills, and cells a dynamic array spills into now.
+        let filled: std::collections::HashSet<(usize, &str)> = followers[..cse_followers]
             .iter()
             .map(|(i, a, _, _)| (*i, a.as_str()))
+            .chain(
+                followers[cse_followers..]
+                    .iter()
+                    .filter(|(i, a, _, _)| spilled.contains(&(*i, a.clone())))
+                    .map(|(i, a, _, _)| (*i, a.as_str())),
+            )
             .collect();
         let mut updated = vec![];
         for (i, a, r, c) in read {
@@ -495,6 +562,39 @@ impl WorkbookCalculator {
         self.audit = None;
         self.error = None;
         Ok(())
+    }
+}
+
+impl WorkbookCalculator {
+    /// The spilled ranges, per sheet id: `{"sheet-1": {"A1": "A1:A3"}}`.
+    pub fn spill_ranges(&self) -> Value {
+        let mut out = serde_json::Map::new();
+        for (i, sheet) in self.spills.iter().enumerate() {
+            let Some((id, _)) = self.identity.get(i) else {
+                continue;
+            };
+            if sheet.is_empty() {
+                continue;
+            }
+            out.insert(
+                id.clone(),
+                sheet
+                    .iter()
+                    .map(|(a, &(top, left, rows, columns))| {
+                        (
+                            a.clone(),
+                            json!(format!(
+                                "{}:{}",
+                                crate::formula::address(top, left),
+                                crate::formula::address(top + rows - 1, left + columns - 1)
+                            )),
+                        )
+                    })
+                    .collect::<serde_json::Map<_, _>>()
+                    .into(),
+            );
+        }
+        Value::Object(out)
     }
 }
 
