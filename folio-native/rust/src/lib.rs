@@ -26,6 +26,9 @@ mod goal_seek;
 mod goal_seek_tests;
 #[cfg(test)]
 mod legacy_formula_tests;
+mod name_manager;
+#[cfg(test)]
+mod name_manager_tests;
 #[cfg(test)]
 mod office_corpus_tests;
 mod office_templates;

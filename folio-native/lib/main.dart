@@ -1,4 +1,5 @@
 import 'src/compatibility_report.dart';
+import 'src/name_manager.dart';
 import 'src/document_case.dart' show documentText;
 import 'src/document_word_count.dart';
 import 'src/document_pictures.dart' show preloadPictures;
@@ -3629,6 +3630,16 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                 label: const Text('Formula inspector'),
               ),
               TextButton.icon(
+                key: const Key('name-manager-button'),
+                onPressed: () => guard(() async {
+                  await flush();
+                  if (!mounted) return;
+                  await showNameManager(context, model, activeSheetId: sheetId);
+                }),
+                icon: const Icon(Icons.label_outline, size: 18),
+                label: const Text('Name Manager'),
+              ),
+              TextButton.icon(
                 key: const Key('watch-toggle'),
                 onPressed: () => setState(() => watchPanel = !watchPanel),
                 icon: Icon(
@@ -3921,6 +3932,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                         (model.snapshot['calculated'] as Map?)?[sheetId] ?? {},
                     formattedCells:
                         (model.snapshot['formatted'] as Map?)?[sheetId] ?? {},
+                    spills: (model.snapshot['spills'] as Map?)?[sheetId] ?? {},
                     conditionalWarnings:
                         (model.snapshot['conditionalWarnings']
                             as Map?)?[sheetId] ??

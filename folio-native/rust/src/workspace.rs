@@ -671,7 +671,7 @@ impl Core {
         let file_states = stage("snapshot.file_states", || self.file_states());
         stage(
             "snapshot.build",
-            || json!({"blankWorkspace":blank,"fileStates":file_states,"workspace":self.workspace,"calculated":self.calculator.values,"formatted":self.calculator.display.values,"conditionalWarnings":self.conditional_warnings,"date1904":self.calculator.display.date1904,"calculationError":self.calculator.error,"canUndo":self.history.can_undo(),"canRedo":self.history.can_redo(),"evaluatedCells":self.calculator.generation,"localCalendarDay":self.calculator.clock.map(|c|c.local_day),"localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),"rows":ROWS,"columns":COLS,"epoch":self.epoch}),
+            || json!({"blankWorkspace":blank,"fileStates":file_states,"workspace":self.workspace,"calculated":self.calculator.values,"formatted":self.calculator.display.values,"spills":self.calculator.spill_ranges(),"conditionalWarnings":self.conditional_warnings,"date1904":self.calculator.display.date1904,"calculationError":self.calculator.error,"canUndo":self.history.can_undo(),"canRedo":self.history.can_redo(),"evaluatedCells":self.calculator.generation,"localCalendarDay":self.calculator.clock.map(|c|c.local_day),"localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),"rows":ROWS,"columns":COLS,"epoch":self.epoch}),
         )
     }
     /// The published state as changes from the state the caller holds, when
@@ -726,6 +726,7 @@ impl Core {
             "localCalendarDay":self.calculator.clock.map(|c|c.local_day),
             "localUtcOffset":self.calculator.clock.map(|c|c.offset_seconds),
             "blankWorkspace":self.is_blank(),"epoch":self.epoch,
+            "spills":self.calculator.spill_ranges(),
         });
         if change.warnings {
             set["conditionalWarnings"] = self.conditional_warnings.clone();
@@ -2100,6 +2101,89 @@ impl Core {
             }
             "get" => Ok(self.snapshot()),
             // The workbook's defined names, for Go To and the name box.
+            "nameManager" => {
+                let sheets = self.workspace["sheets"].clone();
+                let names = self.defined_names();
+                if r["action"] == "list" {
+                    let ids: Vec<String> = sheets
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|s| s["id"].as_str().unwrap_or("").to_string())
+                        .collect();
+                    let mut values = vec![];
+                    for n in &names {
+                        let sheet = ids.get(n.1.unwrap_or(0)).cloned().unwrap_or_default();
+                        values.push(
+                            match self
+                                .calculator
+                                .expression(&sheet, "A1", &format!("={}", n.0))
+                            {
+                                Ok(rows) => {
+                                    let cells: usize = rows.as_array().map_or(0, |r| {
+                                        r.iter().map(|c| c.as_array().map_or(0, Vec::len)).sum()
+                                    });
+                                    if cells == 1 {
+                                        rows[0][0].clone()
+                                    } else {
+                                        json!(format!("{cells} values"))
+                                    }
+                                }
+                                Err(_) => Value::Null,
+                            },
+                        );
+                    }
+                    let rows = crate::name_manager::rows(&names, &sheets, &values);
+                    return Ok(json!({"names": rows}));
+                }
+                if r.get("baseRevision")
+                    .is_some_and(|v| *v != self.workspace["revision"])
+                {
+                    return Err("The workbook changed. Open the Name Manager again.".into());
+                }
+                let edit = crate::name_manager::NameEdit::from_request(&r, &sheets)?;
+                let sheet_names: Vec<String> = sheets
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|s| s["name"].as_str().unwrap_or("").to_string())
+                    .collect();
+                edit.apply(&names, &sheet_names)?;
+                // Bake the current edits into a package (a new one for a
+                // workbook made in Folio), then write the name into it.
+                let mut next = self.workspace.clone();
+                let pkg = self.workspace["officeWorkbook"]["packageId"]
+                    .as_str()
+                    .and_then(|id| self.packages.get(id))
+                    .map(AsRef::as_ref);
+                let bytes = crate::xlsx::export(
+                    &self.workspace["sheets"],
+                    &self.calculator.values,
+                    &self.calculator.cell_errors,
+                    pkg,
+                    self.workspace["officeWorkbook"].get("baseline"),
+                )?;
+                let mut updated = crate::office::Package::from_bytes(bytes)?;
+                crate::name_manager::write(&mut updated, &next["sheets"], &edit)?;
+                updated.original = updated.bytes()?;
+                crate::xlsx_tables::bind_paths(
+                    &mut next["sheets"],
+                    &crate::xlsx::import(&updated)?.0,
+                    true,
+                )?;
+                let id = format!(
+                    "package-{}",
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                );
+                crate::file_state::replace_package(&mut next, "officeWorkbook", &id);
+                next["officeWorkbook"]["baseline"] = next["sheets"].clone();
+                validate(&next)?;
+                self.packages.insert(id, Arc::new(updated));
+                self.commit(next)
+            }
             "definedNames" => {
                 let sheets = self.workspace["sheets"].clone();
                 let names = self.defined_names();

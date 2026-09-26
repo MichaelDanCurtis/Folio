@@ -54,6 +54,9 @@ String cellAddress(int row, int col) => '${columnLabel(col)}${row + 1}';
 class SheetView extends StatefulWidget {
   final Map sheet;
   final Map calculated;
+
+  /// Dynamic-array formulas that spill: anchor → spilled range (X09.02).
+  final Map spills;
   final Map formattedCells;
   final List conditionalWarnings;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
@@ -114,6 +117,7 @@ class SheetView extends StatefulWidget {
     super.key,
     required this.sheet,
     required this.calculated,
+    this.spills = const {},
     this.formattedCells = const {},
     this.conditionalWarnings = const [],
     this.onConditionalRange,
@@ -445,6 +449,31 @@ class SheetViewState extends State<SheetView> {
       formulaFocus = FocusNode();
   final vertical = ScrollController(), horizontal = ScrollController();
   String get selected => cellAddress(row, col);
+
+  /// The spilled range the active cell is in, and the formula's anchor.
+  (TableArea, String)? get activeSpill {
+    for (final MapEntry(:key, :value) in widget.spills.entries) {
+      final area = TableArea.parse(value as String);
+      if (area.contains(row, col)) return (area, key as String);
+    }
+    return null;
+  }
+
+  /// A blue outline around the active cell's spilled range, as in Excel.
+  BoxDecoration? spillOutline(int r, int c) {
+    final area = activeSpill?.$1;
+    if (area == null || !area.contains(r, c)) return null;
+    const side = BorderSide(color: Color(0xff2f6fd6), width: 1.2);
+    return BoxDecoration(
+      border: Border(
+        top: r == area.top ? side : BorderSide.none,
+        bottom: r == area.bottom ? side : BorderSide.none,
+        left: c == area.left ? side : BorderSide.none,
+        right: c == area.right ? side : BorderSide.none,
+      ),
+    );
+  }
+
   String raw(String a) => widget.sheet['cells'][a]?.toString() ?? '';
   @override
   void initState() {
@@ -4234,9 +4263,17 @@ class SheetViewState extends State<SheetView> {
                       keyboardType: TextInputType.multiline,
                       textInputAction: TextInputAction.done,
                       style: const TextStyle(fontFamily: 'Menlo', fontSize: 12),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         border: InputBorder.none,
-                        hintText: 'Value or formula',
+                        // A spilled cell shows its formula, greyed, as in
+                        // Excel; typing replaces the cell.
+                        hintText: switch (activeSpill) {
+                          (_, final anchor)
+                              when anchor != selected &&
+                                  raw(selected).isEmpty =>
+                            raw(anchor),
+                          _ => 'Value or formula',
+                        },
                       ),
                       onSubmitted: (_) => finishEditing(1, 0, formula: true),
                     ),
@@ -4675,6 +4712,8 @@ class SheetViewState extends State<SheetView> {
                             r,
                             c,
                             Container(
+                              key: Key('sheet-frame-$a'),
+                              foregroundDecoration: spillOutline(r, c),
                               decoration: BoxDecoration(
                                 color: active || inRange
                                     ? Color.alphaBlend(

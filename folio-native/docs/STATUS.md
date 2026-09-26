@@ -45,7 +45,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X06 | [Sort, filter and tables](status/excel.md#x06-sort-filter-and-tables) | 5 | 0 | 1 | 4 | 0 | 0 | 10 |
 | X07 | [Data validation and conditional formatting](status/excel.md#x07-data-validation-and-conditional-formatting) | 3 | 0 | 2 | 5 | 0 | 0 | 10 |
 | X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 5 | 0 | 12 | 2 | 0 | 0 | 19 |
-| X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
+| X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 2 | 0 | 6 | 0 | 0 | 0 | 8 |
 | X10 | [Auditing](status/excel.md#x10-auditing) | 4 | 0 | 0 | 2 | 0 | 0 | 6 |
 | X11 | [Charts, sparklines and drawings](status/excel.md#x11-charts-sparklines-and-drawings) | 6 | 1 | 1 | 0 | 0 | 0 | 8 |
 | X12 | [PivotTables](status/excel.md#x12-pivottables) | 6 | 0 | 0 | 0 | 0 | 0 | 6 |
@@ -56,7 +56,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 4 | 1 | 7 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **214** | **5** | **105** | **80** | **0** | **0** | **404** |
+| **All** | | **211** | **5** | **108** | **80** | **0** | **0** | **404** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
@@ -91,7 +91,7 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 | 15 | Printing and PDF (documents, then workbooks) | D05.02, D05.04–D05.06, X18 | L | Medium | — |
 | 16 | Several open files, as tabs or windows | D01.07, D01.09 | L | Medium | — |
 | 17 | Missing functions: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-missing-functions.md)): 498 of 514 catalog functions evaluate. Left: the differential corpus against Excel, IMAGE, GETPIVOTDATA, RTD and the online service functions | X08.02, X08.04, X08.17 | M | Medium | Office baseline |
-| 18 | Dynamic-array spill in the grid; Name Manager; LET/LAMBDA names | X09.02, X09.04–X09.05 | M | Medium | — |
+| 18 | Dynamic-array spill in the grid, Name Manager and named LAMBDAs: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-spill-and-names.md)). Left: cached spill values in exported files, native checks | X09.02, X09.04–X09.05 | S | High | The Mac for native checks |
 | 19 | Charts: render imported charts, insert and edit, save as Office charts | X11.01–X11.04 | XL | Low | Risk R3 |
 | 20 | PivotTables | X12.01–X12.04 | XL | Low | — |
 | 21 | Scale: remove the 30-sheet/100k-cell limits; one-million-cell tier | X19.03–X19.05 | L | Medium | Stress tier definition |
@@ -128,6 +128,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-26 | Spill and names (rank 18): dynamic-array results spill into the grid, with a blue outline around the active spill and the formula shown greyed in spilled cells; a smaller spill clears the cells it leaves, and a value in the way shows #SPILL!. The Name Manager (Formulas ribbon) lists names with their values and creates, edits and deletes them, including named LAMBDAs; unqualified references get the active sheet, and a workbook made in Folio gets a package on its first name. X09.02, X09.04 and X09.05 to Automated verified. |
 | 2026-09-26 | Missing functions (rank 17): AGGREGATE, BAHTTEXT, DBCS/JIS, PHONETIC, HYPERLINK, GROUPBY, PIVOTBY and the FORECAST.ETS family (X08.03), FILTERXML, ENCODEURL and EUROCONVERT (new X08.18), and function names as values (new X08.19). 498 of 514 catalog functions evaluate (483 before). IMAGE, GETPIVOTDATA and RTD split out as X08.17. Corpus differences: 31 → 30. |
 | 2026-09-26 | Compatibility matrix and impact preview (rank 10): one engine table of 36 features gives the [matrix](status/COMPATIBILITY.md) (a test fails when they differ), the Compatibility Report's inventory of the open file by state, and the preview before an export that would remove signatures or lose formatting in edited paragraphs, with Export Anyway, Save Folio Copy and Cancel. Exporting a changed signed file now removes its signatures. W16.09, X17.09 and D02.17 to Automated verified. |
 | 2026-09-26 | Pictures in documents (rank 7): inline pictures import, render in the editor and page preview, and export from their source drawing; Insert Picture stores PNG, JPEG or GIF files in the document's package in one Undo step. 44 of the corpus's 56 inline pictures show. W08.01 and W08.02 to Automated verified. |

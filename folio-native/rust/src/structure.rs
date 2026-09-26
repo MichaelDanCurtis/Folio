@@ -186,6 +186,51 @@ pub fn excel_formula(
     }
 }
 
+/// A defined name's formula in the file's form, with every reference
+/// qualified by a sheet: unqualified ones get `sheet`'s, as Excel's Name
+/// Manager does (`=$A$1` on Sheet1 is `=Sheet1!$A$1`).
+pub fn name_formula(formula: &str, names: &[String], sheet: usize) -> String {
+    fn qualify(node: &mut Node, sheet: &str) {
+        use Node::*;
+        match node {
+            ReferenceKind { sheet_name, .. } | RangeKind { sheet_name, .. } => {
+                if sheet_name.is_none() {
+                    *sheet_name = Some(sheet.to_string());
+                }
+            }
+            OpRangeKind { left, right }
+            | OpConcatenateKind { left, right }
+            | OpSumKind { left, right, .. }
+            | OpProductKind { left, right, .. }
+            | OpPowerKind { left, right }
+            | CompareKind { left, right, .. } => {
+                qualify(left, sheet);
+                qualify(right, sheet);
+            }
+            FunctionKind { args, .. } | NamedFunctionKind { args, .. } => {
+                args.iter_mut().for_each(|a| qualify(a, sheet))
+            }
+            LambdaDefKind { body, .. } => qualify(body, sheet),
+            LambdaCallKind { lambda, args } => {
+                qualify(lambda, sheet);
+                args.iter_mut().for_each(|a| qualify(a, sheet));
+            }
+            ImplicitIntersection { child, .. } | SpillRangeOperator { child } => {
+                qualify(child, sheet)
+            }
+            UnaryKind { right, .. } => qualify(right, sheet),
+            _ => {}
+        }
+    }
+    let body = formula.strip_prefix('=').unwrap_or(formula);
+    let Some((mut node, context, refs)) = parse_at(body, names, sheet, "A1", &[]) else {
+        return body.to_string();
+    };
+    qualify(&mut node, &context.sheet);
+    remove_redundant_implicit_intersection(&mut node, true);
+    crate::table_refs::restore(to_excel_string(&node, &context), refs)
+}
+
 /// Check reference nodes, rather than guessing sheet qualifiers from text.
 /// Quoted strings containing exclamation marks are ordinary text.
 pub(crate) fn missing_formula_sheet(
