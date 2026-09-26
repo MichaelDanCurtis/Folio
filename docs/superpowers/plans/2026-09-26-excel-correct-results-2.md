@@ -38,4 +38,4 @@
 ### Task 6: Close-out
 
 - [x] Rerun the corpus (31 of 23,120 formulas differ, in 6 files; the causes are in CORPUS.md); update CORPUS.md, STATUS.md, the register rows and the change log.
-- [ ] Run the local CI mirror.
+- [x] Run the local CI mirror: Flutter 463 passed with only the 7 Linux-only failures; Rust 490 and IronCalc 2,232 passed; rustfmt clean.
