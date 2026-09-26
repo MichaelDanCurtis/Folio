@@ -64,7 +64,9 @@ final class FolioFileMenu: NSObject, NSMenuItemValidation {
     super.init()
     add("New Workspace", "newWorkspace", "n")
     add("New from Template…", "fromTemplate", "", [])
+    add("New Tab", "newTab", "t")
     add("Open…", "open", "o")
+    add("Open in New Tab…", "openInNewTab", "o", [.command, .option])
     add("Recent Files and Recovery…", "recent", "", [])
     menu.addItem(.separator())
     add("Save", "save", "s")
@@ -75,6 +77,8 @@ final class FolioFileMenu: NSObject, NSMenuItemValidation {
     pdfItem = add("Export PDF…", "exportPdf", "", [])
     menu.addItem(.separator())
     add("Compatibility Report", "compatibility", "", [])
+    menu.addItem(.separator())
+    add("Close Tab", "closeTab", "w", [.command, .option])
   }
 
   @discardableResult
@@ -226,6 +230,8 @@ class MainFlutterWindow: NSWindow {
     let controller = FolioFlutterViewController()
     contentViewController = controller
     setContentSize(NSSize(width: 1440, height: 960))
+    // D01.09: the window reopens where it was left.
+    setFrameAutosaveName("FolioMainWindow")
     minSize = NSSize(width: 1150, height: 720)
     center()
     title = "Folio Native"

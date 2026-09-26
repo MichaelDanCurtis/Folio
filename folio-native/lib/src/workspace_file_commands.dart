@@ -13,6 +13,9 @@ enum WorkspaceFileCommand {
   export,
   exportPdf,
   compatibility,
+  newTab,
+  openInNewTab,
+  closeTab,
 }
 
 class WorkspaceFileIntent extends Intent {
@@ -28,6 +31,16 @@ Map<ShortcutActivator, Intent> workspaceFileShortcuts({
         const WorkspaceFileIntent(WorkspaceFileCommand.newWorkspace),
     SingleActivator(LogicalKeyboardKey.keyO, meta: meta, control: !meta):
         const WorkspaceFileIntent(WorkspaceFileCommand.open),
+    SingleActivator(LogicalKeyboardKey.keyT, meta: meta, control: !meta):
+        const WorkspaceFileIntent(WorkspaceFileCommand.newTab),
+    SingleActivator(
+      LogicalKeyboardKey.keyO,
+      meta: meta,
+      control: !meta,
+      alt: true,
+    ): const WorkspaceFileIntent(
+      WorkspaceFileCommand.openInNewTab,
+    ),
     SingleActivator(LogicalKeyboardKey.keyS, meta: meta, control: !meta):
         const WorkspaceFileIntent(WorkspaceFileCommand.save),
     SingleActivator(

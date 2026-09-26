@@ -11,6 +11,10 @@ import 'sheet_autofit.dart';
 typedef CoreCall = Future<Map<String, dynamic>> Function(Map<String, dynamic>);
 
 class CoreBridge {
+  /// The engine session this bridge talks to (D01.07). Each open file tab
+  /// has its own; `null` is the first tab's engine.
+  final String? session;
+  CoreBridge({this.session});
   Future<void> _tail = Future.value();
   static Future<void> initialize() async {
     final contents = File(Platform.resolvedExecutable).parent.parent.path;
@@ -46,9 +50,22 @@ class CoreBridge {
     return complete.future;
   }
 
+  /// Releases this bridge's engine session.
+  Future<void> close() async {
+    if (session == null) return;
+    await call({'op': 'closeSession'});
+  }
+
   Future<Map<String, dynamic>> _dispatch(Map<String, dynamic> request) async {
     final result =
-        jsonDecode(await rust.dispatch(request: jsonEncode(request))) as Map;
+        jsonDecode(
+              await rust.dispatch(
+                request: jsonEncode(
+                  session == null ? request : {...request, 'session': session},
+                ),
+              ),
+            )
+            as Map;
     if (result['ok'] != true) throw StateError(result['error'].toString());
     return Map<String, dynamic>.from(result['value']);
   }

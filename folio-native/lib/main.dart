@@ -63,13 +63,14 @@ import 'src/proofreading.dart';
 import 'src/writing_panel.dart';
 import 'src/search.dart';
 import 'src/search_panel.dart';
+import 'src/workspace_tabs.dart';
+export 'src/workspace_tabs.dart' show lifecycleChannel;
 
 const ink = Color(0xff242424),
     muted = Color(0xff616161),
     line = Color(0xffdfe3e8),
     paper = Color(0xffffffff),
     accent = Color(0xff185abd);
-const lifecycleChannel = MethodChannel('folio/lifecycle');
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
@@ -99,7 +100,7 @@ Future<void> main() async {
   }
 }
 
-class FolioApp extends StatelessWidget {
+class FolioApp extends StatefulWidget {
   final WorkspaceModel model;
   final String agentDirectory;
   const FolioApp({
@@ -108,21 +109,41 @@ class FolioApp extends StatelessWidget {
     required this.agentDirectory,
   });
   @override
+  State<FolioApp> createState() => _FolioAppState();
+}
+
+class _FolioAppState extends State<FolioApp> {
+  // The tab in front decides app-wide document settings.
+  late final activeModel = ValueNotifier<WorkspaceModel>(widget.model);
+
+  @override
+  void dispose() {
+    activeModel.dispose();
+    super.dispose();
+  }
+
+  WorkspaceScreenState? _screen(WorkspaceTab tab) =>
+      tab.key.currentState as WorkspaceScreenState?;
+
+  @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Folio Native',
-    builder: (context, child) => AnimatedBuilder(
-      animation: model,
-      builder: (context, _) => DocumentTabSettings(
-        intervalTwips: documentTabInterval(model.workspace['document']),
-        child: q.QuillParagraphLayout(
-          builder: layoutDocumentTabs,
-          paddingBuilder: paragraphPadding,
-          styleBuilder: paragraphTextStyle,
-          inlineStyleBuilder: paragraphInlineStyle,
-          alignmentBuilder: paragraphAlignment,
-          strutBuilder: paragraphStrut,
-          blockSpacingBuilder: paragraphBlockSpacing,
-          child: child!,
+    builder: (context, child) => ValueListenableBuilder(
+      valueListenable: activeModel,
+      builder: (context, model, _) => AnimatedBuilder(
+        animation: model,
+        builder: (context, _) => DocumentTabSettings(
+          intervalTwips: documentTabInterval(model.workspace['document']),
+          child: q.QuillParagraphLayout(
+            builder: layoutDocumentTabs,
+            paddingBuilder: paragraphPadding,
+            styleBuilder: paragraphTextStyle,
+            inlineStyleBuilder: paragraphInlineStyle,
+            alignmentBuilder: paragraphAlignment,
+            strutBuilder: paragraphStrut,
+            blockSpacingBuilder: paragraphBlockSpacing,
+            child: child!,
+          ),
         ),
       ),
     ),
@@ -155,17 +176,61 @@ class FolioApp extends StatelessWidget {
         waitDuration: Duration(milliseconds: 600),
       ),
     ),
-    home: WorkspaceScreen(model: model, agentDirectory: agentDirectory),
+    home: WorkspaceTabs(
+      first: widget.model,
+      dataDirectory: File(widget.model.recoveryPath).parent.path,
+      activeModel: activeModel,
+      prepareClose: (tab) async => await _screen(tab)?.prepareClose() ?? true,
+      open: (tab) async =>
+          await _screen(tab)?.fileCommand(WorkspaceFileCommand.open),
+      buildTab: (context, tab, active, host) => WorkspaceScreen(
+        key: tab.key,
+        model: tab.model,
+        agentDirectory: widget.agentDirectory,
+        dataDirectory: File(widget.model.recoveryPath).parent.path,
+        active: active,
+        hostedLifecycle: true,
+        onTabCommand: (command) async {
+          switch (command) {
+            case WorkspaceFileCommand.newTab:
+              await host.newTab();
+            case WorkspaceFileCommand.openInNewTab:
+              await host.openInNewTab();
+            case WorkspaceFileCommand.closeTab:
+              await host.closeTab(tab);
+            default:
+          }
+        },
+      ),
+    ),
   );
 }
 
 class WorkspaceScreen extends StatefulWidget {
   final WorkspaceModel model;
   final String agentDirectory;
+
+  /// Where recent files, templates, recovery copies and proofreading
+  /// settings are kept, shared by every tab. Defaults to the folder of the
+  /// workspace's recovery file.
+  final String? dataDirectory;
+
+  /// Whether this is the tab in front, which owns the native menus.
+  final bool active;
+
+  /// Whether the tab host answers the window's close request for all tabs.
+  final bool hostedLifecycle;
+
+  /// Handles New Tab, Open in New Tab and Close Tab (D01.07).
+  final Future<void> Function(WorkspaceFileCommand command)? onTabCommand;
   const WorkspaceScreen({
     super.key,
     required this.model,
     required this.agentDirectory,
+    this.dataDirectory,
+    this.active = true,
+    this.hostedLifecycle = false,
+    this.onTabCommand,
   });
   @override
   State<WorkspaceScreen> createState() => WorkspaceScreenState();
@@ -237,16 +302,10 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
     workingFiles = WorkingFiles(
       '${File(model.recoveryPath).parent.path}/working-files.json',
     );
-    recentFiles = RecentFiles(
-      '${File(model.recoveryPath).parent.path}/recent-files.json',
-    );
-    recoveryCopies = RecoveryCatalog(
-      '${File(model.recoveryPath).parent.path}/Snapshots',
-    );
-    templates = TemplateLibrary(
-      '${File(model.recoveryPath).parent.path}/Templates',
-      workingFiles.access,
-    );
+    final shared = widget.dataDirectory ?? File(model.recoveryPath).parent.path;
+    recentFiles = RecentFiles('$shared/recent-files.json');
+    recoveryCopies = RecoveryCatalog('$shared/Snapshots');
+    templates = TemplateLibrary('$shared/Templates', workingFiles.access);
     // Typing can start while local metadata loads. Preserve the startup
     // baseline now rather than treating those later edits as already saved.
     final initialWorkspace = model.workspace;
@@ -302,7 +361,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
     proofreading = ProofreadingController(
       editor,
       check: CoreBridge().call,
-      settingsPath: '${File(model.recoveryPath).parent.path}/proofreading.json',
+      settingsPath: '$shared/proofreading.json',
     );
     proofreading.addListener(_proofreadingChanged);
     _epoch = model.documentEpoch;
@@ -317,6 +376,22 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
       onOpen: openSource,
     );
     assistantUi.addListener(_agentChanged);
+    if (widget.active) _claimMenus();
+    FocusManager.instance.addListener(_syncHistoryMenu);
+    focusedDraftHistory.addListener(_syncHistoryMenu);
+    if (!widget.hostedLifecycle) {
+      lifecycleChannel.setMethodCallHandler((call) async {
+        if (call.method == 'prepareClose') return prepareClose();
+        return null;
+      });
+    }
+    _startCalendarRefresh();
+  }
+
+  /// The native File and Edit menus act on the tab in front.
+  void _claimMenus() {
+    _fileMenuState = null;
+    _historyMenuState = null;
     fileMenuChannel.setMethodCallHandler((call) async {
       if (call.method != 'command') return null;
       final command = WorkspaceFileCommand.values
@@ -343,12 +418,15 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
       _syncHistoryMenu();
       return null;
     });
-    FocusManager.instance.addListener(_syncHistoryMenu);
-    focusedDraftHistory.addListener(_syncHistoryMenu);
-    lifecycleChannel.setMethodCallHandler((call) async {
-      if (call.method == 'prepareClose') return prepareClose();
-      return null;
-    });
+  }
+
+  @override
+  void didUpdateWidget(WorkspaceScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) _claimMenus();
+  }
+
+  void _startCalendarRefresh() {
     _calendarRefresh = CalendarRefresh(
       onChange: () => model.refreshCalculations(),
       onError: (e) {
@@ -361,16 +439,18 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
           if (mounted) notice(e.toString());
         }),
       ),
-      onExitRequested: () async {
-        try {
-          return await prepareClose()
-              ? AppExitResponse.exit
-              : AppExitResponse.cancel;
-        } catch (error) {
-          notice('Folio could not finish saving. $error');
-          return AppExitResponse.cancel;
-        }
-      },
+      onExitRequested: widget.hostedLifecycle
+          ? null
+          : () async {
+              try {
+                return await prepareClose()
+                    ? AppExitResponse.exit
+                    : AppExitResponse.cancel;
+              } catch (error) {
+                notice('Folio could not finish saving. $error');
+                return AppExitResponse.cancel;
+              }
+            },
     );
   }
 
@@ -941,7 +1021,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
   }
 
   void _syncHistoryMenu() {
-    if (!mounted || !Platform.isMacOS) return;
+    if (!mounted || !Platform.isMacOS || !widget.active) return;
     final state = _historyState();
     final encoded = jsonEncode(state);
     if (_historyMenuState == encoded) return;
@@ -1077,6 +1157,14 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
           !agent.busy);
 
   Future<void> fileCommand(WorkspaceFileCommand command) async {
+    if (command == WorkspaceFileCommand.newTab ||
+        command == WorkspaceFileCommand.openInNewTab ||
+        command == WorkspaceFileCommand.closeTab) {
+      if (!_fileCommandBusy && !_leavingWorkspace) {
+        await widget.onTabCommand?.call(command);
+      }
+      return;
+    }
     if (!fileCommandEnabled(command)) return;
     // Claim the operation before the first await: native menus, keys and
     // toolbar clicks cannot enqueue duplicate panels or replace each other.
@@ -1104,6 +1192,9 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
         WorkspaceFileCommand.export => export(),
         WorkspaceFileCommand.exportPdf => exportPdf(),
         WorkspaceFileCommand.compatibility => compatibility(),
+        WorkspaceFileCommand.newTab ||
+        WorkspaceFileCommand.openInNewTab ||
+        WorkspaceFileCommand.closeTab => Future<void>.value(),
       };
     } finally {
       if (mounted) {
@@ -1260,7 +1351,9 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
       'spreadsheet': spreadsheet,
     };
     final encoded = jsonEncode(state);
-    if (_fileMenuState == encoded || !Platform.isMacOS) return;
+    if (_fileMenuState == encoded || !Platform.isMacOS || !widget.active) {
+      return;
+    }
     _fileMenuState = encoded;
     unawaited(
       fileMenuChannel.invokeMethod<void>('state', state).catchError((
@@ -4810,10 +4903,12 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
   void dispose() {
     FocusManager.instance.removeListener(_syncHistoryMenu);
     focusedDraftHistory.removeListener(_syncHistoryMenu);
-    historyMenuChannel.setMethodCallHandler(null);
+    if (widget.active) {
+      historyMenuChannel.setMethodCallHandler(null);
+      fileMenuChannel.setMethodCallHandler(null);
+    }
     _workspaceFocus.dispose();
-    lifecycleChannel.setMethodCallHandler(null);
-    fileMenuChannel.setMethodCallHandler(null);
+    if (!widget.hostedLifecycle) lifecycleChannel.setMethodCallHandler(null);
     _lifecycle?.dispose();
     _calendarRefresh.dispose();
     documentZoom.dispose();

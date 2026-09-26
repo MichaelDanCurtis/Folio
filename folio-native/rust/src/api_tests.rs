@@ -61,3 +61,30 @@ fn malformed_requests_are_errors() {
     assert_eq!(call(&core, json!({"op":"noSuchOp"}))["ok"], false);
     assert_eq!(call(&core, json!({"op":"get"}))["ok"], true);
 }
+
+#[test]
+fn sessions_are_independent_engines_and_close_cleanly() {
+    let call = |request: serde_json::Value| -> serde_json::Value {
+        serde_json::from_str(&crate::api::dispatch(request.to_string())).unwrap()
+    };
+    let a = format!("test-a-{}", std::process::id());
+    let b = format!("test-b-{}", std::process::id());
+    call(json!({"session":a,"op":"new","blank":true}));
+    call(json!({"session":b,"op":"new","blank":true}));
+    call(json!({"session":a,"op":"title","title":"First"}));
+    call(json!({"session":b,"op":"title","title":"Second"}));
+    let title =
+        |s: &str| call(json!({"session":s,"op":"get"}))["value"]["workspace"]["title"].clone();
+    assert_eq!(title(&a), "First");
+    assert_eq!(title(&b), "Second");
+    // Closing a session discards it; its name starts afresh.
+    assert_eq!(
+        call(json!({"session":a,"op":"closeSession"}))["value"]["closed"],
+        true
+    );
+    call(json!({"session":a,"op":"new","blank":true}));
+    assert_eq!(title(&a), "Untitled workspace");
+    assert_eq!(title(&b), "Second");
+    call(json!({"session":a,"op":"closeSession"}));
+    call(json!({"session":b,"op":"closeSession"}));
+}
