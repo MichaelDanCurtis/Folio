@@ -307,3 +307,10 @@ Found by the Office corpus (FormulaEvalTestData_Copy.xlsx,
 MatrixFormulaEvalTestData.xlsx). Modified:
 src/functions/statistical/count_and_average.rs,
 src/functions/math_and_trigonometry/matrix.rs.
+
+## Long words in a column position
+
+`column_to_number` multiplied past `i32` for a word of seven or more
+letters (`Sheet!Missing`), which panics in debug builds. It stops once the
+number passes the last column. Modified: src/expressions/utils/mod.rs; tests
+in src/test/test_folio_corpus_fixes.rs.

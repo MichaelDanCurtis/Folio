@@ -194,6 +194,8 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
                 && (input_parser.input_parses_as_number(&raw)
                     || input_is_error(&raw)
                     || raw.starts_with(['=', '\''])
+                    // Folio: `-@-` is text in the file; typed, it's a formula.
+                    || (raw.starts_with(['+', '-']) && raw.len() > 1)
                     || matches!(raw.to_uppercase().as_str(), "TRUE" | "FALSE"))
             {
                 raw = format!("'{raw}");
@@ -1016,12 +1018,13 @@ mod text_tests {
     use super::*;
     #[test]
     fn literal_formula_and_numeric_text_stay_text() {
-        let sheets = json!([{"id":"s","name":"Text","cells":{"A1":"'00123","A2":"'=SUM(B1:B2)","A3":"'TRUE","B1":"2"}}]);
+        let sheets = json!([{"id":"s","name":"Text","cells":{"A1":"'00123","A2":"'=SUM(B1:B2)","A3":"'TRUE","A4":"'-@-","B1":"2"}}]);
         let data = export(&sheets, &json!({}), &json!({}), None, None).unwrap();
         let imported = import(&Package::from_bytes(data).unwrap()).unwrap().0;
         assert_eq!(imported[0]["cells"]["A1"], "'00123");
         assert_eq!(imported[0]["cells"]["A2"], "'=SUM(B1:B2)");
         assert_eq!(imported[0]["cells"]["A3"], "'TRUE");
+        assert_eq!(imported[0]["cells"]["A4"], "'-@-");
     }
 }
 

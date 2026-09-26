@@ -28,7 +28,7 @@
 
 ### Task 4: Function edge cases
 
-- [ ] Each remaining corpus difference outside `TEXT` gets Excel's result or a recorded reason: RANK over a union, EDATE through names, SUMIF with a range criterion, LOOKUP on text, MINA/MAXA, MODE with text, SUMPRODUCT with errors, MDETERM/MINVERSE on text, UPPER of `@range`, HYPERLINK, GETPIVOTDATA, a name resolving to another sheet.
+- [x] Each remaining corpus difference outside `TEXT` gets Excel's result or a recorded reason: RANK over a union, EDATE through names, SUMIF with a range criterion, LOOKUP on text, MINA/MAXA, MODE with text, SUMPRODUCT with errors, MDETERM/MINVERSE on text, UPPER of `@range`, HYPERLINK, GETPIVOTDATA, a name resolving to another sheet.
 
 ### Task 5: Tolerant reading and export
 
@@ -37,5 +37,5 @@
 
 ### Task 6: Close-out
 
-- [ ] Rerun the corpus; update CORPUS.md, STATUS.md, the register rows and the change log.
+- [x] Rerun the corpus (31 of 23,120 formulas differ, in 6 files; the causes are in CORPUS.md); update CORPUS.md, STATUS.md, the register rows and the change log.
 - [ ] Run the local CI mirror.

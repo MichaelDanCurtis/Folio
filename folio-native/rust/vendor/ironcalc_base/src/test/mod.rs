@@ -135,6 +135,7 @@ mod test_spill_functions;
 mod test_today;
 mod test_trigonometric_reciprocals;
 mod test_types;
+mod test_folio_corpus_fixes;
 mod text_functions;
 mod user_model;
 

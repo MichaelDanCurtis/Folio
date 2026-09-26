@@ -20,6 +20,10 @@ pub fn column_to_number(column: &str) -> Result<i32, String> {
             return Err("Column identifier can use only A-Z characters".to_string());
         }
         column_number = column_number * 26 + ((character as i32) - 64);
+        // Folio: stop before a long word (`Sheet!Missing`) overflows.
+        if column_number > LAST_COLUMN {
+            return Err("Column is not valid.".to_string());
+        }
     }
 
     match is_valid_column_number(column_number) {

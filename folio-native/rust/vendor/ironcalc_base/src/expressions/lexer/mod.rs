@@ -830,10 +830,19 @@ impl<'a> Lexer<'a> {
             }
             Err(error) => {
                 // Folio: `Sheet!Name` is a defined name scoped to that sheet.
-                if let Some(sheet) = sheet {
+                let starts_name = self
+                    .chars
+                    .get(start)
+                    .is_some_and(|c| c.is_alphabetic() || *c == '_' || *c == '\\');
+                if let (Some(sheet), true) = (sheet, starts_name) {
+                    let failed_at = self.position;
                     self.position = start;
                     let name = self.consume_identifier();
-                    if !name.is_empty() && self.peek_char() != Some('(') {
+                    if name.is_empty() || self.peek_char() == Some('(') {
+                        self.position = failed_at;
+                        return TokenType::Illegal(error);
+                    }
+                    {
                         let quoted = if sheet
                             .chars()
                             .all(|c| c.is_alphanumeric() || c == '_' || c == '.')
