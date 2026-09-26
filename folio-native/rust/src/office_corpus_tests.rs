@@ -312,6 +312,7 @@ fn office_corpus() {
     let mut results = vec![];
     let mut outcomes: BTreeMap<String, usize> = BTreeMap::new();
     let (mut formulas, mut formula_differences_total) = (0, 0);
+    let (mut pictures, mut unreadable_pictures) = (0usize, 0usize);
     let mut files_with_differences = 0;
     for (name, application) in manifest() {
         let path = dir.join(&name);
@@ -359,6 +360,27 @@ fn office_corpus() {
             result["words"] = json!(expected.len());
             result["wordOverlap"] = json!(word_overlap(&expected, &actual));
         }
+        if kind == "docx" {
+            // Inline pictures that import as editable pictures, and whether
+            // each one's bytes can be read from the package.
+            let mut sources = vec![];
+            fn walk(n: &Value, out: &mut Vec<String>) {
+                if n["type"] == "image" {
+                    out.push(n["attrs"]["src"].as_str().unwrap_or("").to_string());
+                }
+                for c in n["content"].as_array().into_iter().flatten() {
+                    walk(c, out);
+                }
+            }
+            walk(&core.workspace["document"], &mut sources);
+            let readable = sources
+                .iter()
+                .filter(|src| call(&mut core, json!({"op":"documentImage","src":src})).is_ok())
+                .count();
+            pictures += sources.len();
+            unreadable_pictures += sources.len() - readable;
+            result["pictures"] = json!(sources.len());
+        }
         // Export, then reimport the export: the projection must survive.
         let exported = out.join(&name);
         let round_trip = call(
@@ -403,6 +425,7 @@ fn office_corpus() {
         "documents with text compared: {}, below 99% word overlap: {low}",
         overlaps.len()
     );
+    println!("inline pictures shown: {pictures} ({unreadable_pictures} unreadable)");
     println!("report: {}", report.display());
     let panics: Vec<&Value> = results
         .iter()
