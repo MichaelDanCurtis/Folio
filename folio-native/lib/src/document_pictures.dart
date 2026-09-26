@@ -3,10 +3,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as q;
 import 'core.dart';
+import 'document_page_layout.dart' show previewPictures;
 
 /// Pictures larger than this are refused, as the engine does.
 const maxPictureBytes = 10 * 1024 * 1024;
@@ -121,5 +123,34 @@ class DocumentPicture extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// Decodes the pictures in a page-preview snapshot, so the layout can paint
+/// them. Pictures that can't be decoded keep their placeholder.
+Future<void> preloadPictures(WorkspaceModel model, Map snapshot) async {
+  final sources = <String>{};
+  void walk(Object? n) {
+    if (n is Map) {
+      if (n['type'] == 'image' && n['attrs']?['src'] is String) {
+        sources.add(n['attrs']['src'] as String);
+      }
+      n.values.forEach(walk);
+    } else if (n is List) {
+      n.forEach(walk);
+    }
+  }
+
+  walk(snapshot);
+  previewPictures.clear();
+  for (final src in sources) {
+    try {
+      final codec = await ui.instantiateImageCodec(
+        await pictureBytes(model, src),
+      );
+      previewPictures[src] = (await codec.getNextFrame()).image;
+    } catch (_) {
+      // Shown as a placeholder.
+    }
   }
 }

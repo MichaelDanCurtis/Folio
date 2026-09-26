@@ -1,5 +1,6 @@
 import 'src/document_case.dart' show documentText;
 import 'src/document_word_count.dart';
+import 'src/document_pictures.dart' show preloadPictures;
 import 'src/document_page_preview.dart';
 import 'src/formula_inspector.dart';
 import 'src/goal_seek_dialog.dart';
@@ -2697,6 +2698,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
     if (spreadsheet || _leavingWorkspace) return;
     await flush();
     final snapshot = await model.core.call({'op': 'documentPagePreview'});
+    await preloadPictures(model, snapshot);
     if (!mounted) return;
     await showDialog<void>(
       context: context,

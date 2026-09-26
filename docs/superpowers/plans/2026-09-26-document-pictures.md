@@ -22,7 +22,7 @@
 
 ### Task 3: Pictures in the page preview
 
-- [ ] The page layout measures a picture's line by its height and paints it on the page.
+- [x] The page layout measures a picture's line by its height and paints it on the page.
 
 ### Task 4: Insert a picture from a file (W08.02)
 

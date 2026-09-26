@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -170,18 +171,34 @@ class _TextPiece {
   final Offset offset;
   final List<({String key, int start, int end, Map field})> fields;
   final Rect? clip;
-  _TextPiece(this.painter, this.offset, this.fields, {this.clip});
+
+  /// The pictures in this text, in placeholder order.
+  final List<String> pictures;
+  _TextPiece(
+    this.painter,
+    this.offset,
+    this.fields, {
+    this.clip,
+    this.pictures = const [],
+  });
   _TextPiece shifted(Offset delta, {Rect? within}) => _TextPiece(
     painter,
     offset + delta,
     fields,
     clip: _shiftClip(clip, delta, within),
+    pictures: pictures,
   );
   void paint(Canvas canvas) {
     if (clip?.isEmpty == true) return;
     canvas.save();
     if (clip != null) canvas.clipRect(clip!);
     painter.paint(canvas, offset);
+    final boxes = pictures.isEmpty
+        ? const <TextBox>[]
+        : painter.inlinePlaceholderBoxes ?? const <TextBox>[];
+    for (var i = 0; i < boxes.length && i < pictures.length; i++) {
+      paintPicture(canvas, boxes[i].toRect().shift(offset), pictures[i]);
+    }
     var at = 0;
     painter.text!.visitChildren((span) {
       final length = span is TextSpan ? (span.text?.length ?? 0) : 1;
@@ -314,6 +331,30 @@ class _MeasuredBlock {
     }
     return out.join('\n');
   }
+}
+
+/// Decoded pictures for the page preview, by part; see [preloadPictures].
+final previewPictures = <String, ui.Image>{};
+
+/// Draws a picture in its box, or a placeholder while it isn't decoded.
+void paintPicture(Canvas canvas, Rect box, String src) {
+  final image = previewPictures[src];
+  if (image != null) {
+    canvas.drawImageRect(
+      image,
+      Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+      box,
+      Paint()..filterQuality = FilterQuality.medium,
+    );
+    return;
+  }
+  canvas.drawRect(box, Paint()..color = const Color(0xfff1f3f5));
+  canvas.drawRect(
+    box.deflate(.5),
+    Paint()
+      ..color = const Color(0xffc5cbd3)
+      ..style = PaintingStyle.stroke,
+  );
 }
 
 String? formatPageNumber(int value, String format) {
@@ -659,8 +700,9 @@ class _PageFlow {
     InlineSpan text,
     double width,
     Map props,
-    TextAlign align,
-  ) {
+    TextAlign align, {
+    List<PlaceholderDimensions> placeholders = const [],
+  }) {
     final p = TextPainter(
       text: text,
       textDirection: props['bidi'] == true
@@ -673,7 +715,9 @@ class _PageFlow {
         props,
         StrutStyle.fromTextStyle(text.style ?? const TextStyle(fontSize: 16)),
       ),
-    )..layout(maxWidth: math.max(1, width));
+    );
+    if (placeholders.isNotEmpty) p.setPlaceholderDimensions(placeholders);
+    p.layout(maxWidth: math.max(1, width));
     painters.add(p);
     return p;
   }
@@ -746,6 +790,8 @@ class _PageFlow {
     final sites = <({String key, int start, int end, Map field})>[];
     var position = 0;
     final manualBreaks = <({int offset, String kind})>[];
+    final pictures = <({String src, Size size})>[];
+    final available0 = math.max(1.0, width - left - right);
     if (label != null) {
       final value = '$label ';
       if (textStart < value.length) {
@@ -790,6 +836,26 @@ class _PageFlow {
       }
       style = directRunStyle(inherited, attrs, style);
       final id = '$key:$i';
+      if (n['type'] == 'image') {
+        // A picture is one character, sized like the editor shows it.
+        if (position + 1 > textStart) {
+          final a = n['attrs'] as Map? ?? {};
+          var size = Size(
+            (a['width'] as num?)?.toDouble() ?? 96,
+            (a['height'] as num?)?.toDouble() ?? 96,
+          );
+          if (size.width > available0) size = size * (available0 / size.width);
+          pictures.add((src: '${a['src']}', size: size));
+          spans.add(
+            WidgetSpan(
+              alignment: PlaceholderAlignment.bottom,
+              child: SizedBox.fromSize(size: size),
+            ),
+          );
+        }
+        position += 1;
+        continue;
+      }
       final value = n['type'] == 'pageField'
           ? (story
                 ? fieldValue(n, index, number)
@@ -844,7 +910,19 @@ class _PageFlow {
       'justify' || 'both' => TextAlign.justify,
       _ => TextAlign.left,
     };
-    final p = painter(text, available, props, align);
+    final p = painter(
+      text,
+      available,
+      props,
+      align,
+      placeholders: [
+        for (final picture in pictures)
+          PlaceholderDimensions(
+            size: picture.size,
+            alignment: PlaceholderAlignment.bottom,
+          ),
+      ],
+    );
     final height = top + p.height + bottom;
     final breaks = p
         .computeLineMetrics()
@@ -873,7 +951,14 @@ class _PageFlow {
       width,
       height,
       breaks,
-      [_TextPiece(p, Offset(left, top), sites)],
+      [
+        _TextPiece(
+          p,
+          Offset(left, top),
+          sites,
+          pictures: [for (final picture in pictures) picture.src],
+        ),
+      ],
       properties: props,
       forceBreaks: forced,
       paragraph: true,
