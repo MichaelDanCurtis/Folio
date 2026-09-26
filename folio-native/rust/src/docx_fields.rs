@@ -7,6 +7,36 @@ const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 pub fn kind(code: &str) -> Option<&str> {
     let mut tokens = code.split_whitespace();
     let raw = tokens.next()?;
+    // FOLIO: captions and cross-references (W10.03, W10.04) name what they
+    // number or point at: `SEQ Figure`, `REF _Ref12 \h`, `PAGEREF _Toc3`.
+    if let Some(first) = ["SEQ", "REF", "PAGEREF"]
+        .into_iter()
+        .find(|k| k.eq_ignore_ascii_case(raw))
+    {
+        let target = tokens.next()?;
+        if target.starts_with('\\') || !valid_target(target) {
+            return None;
+        }
+        while let Some(t) = tokens.next() {
+            match t {
+                "\\*" => {
+                    let value = tokens.next()?;
+                    if !FORMATS.contains(&value) {
+                        return None;
+                    }
+                }
+                // SEQ: repeat, hide, next, reset (\r n), reset at heading (\s n).
+                // REF: link, paragraph number, relative, no context, above/below.
+                "\\c" | "\\h" | "\\n" | "\\w" | "\\p" | "\\f" | "\\d" => {}
+                "\\r" | "\\s" if first == "SEQ" => {
+                    tokens.next()?.parse::<u32>().ok()?;
+                }
+                "\\r" => {}
+                _ => return None,
+            }
+        }
+        return Some(first);
+    }
     let first = ["PAGE", "NUMPAGES", "SECTIONPAGES", "SECTION"]
         .into_iter()
         .find(|k| k.eq_ignore_ascii_case(raw))?;
@@ -16,26 +46,45 @@ pub fn kind(code: &str) -> Option<&str> {
             return None;
         }
         let value = tokens.next()?;
-        if ![
-            "MERGEFORMAT",
-            "CHARFORMAT",
-            "Arabic",
-            "ROMAN",
-            "roman",
-            "ALPHABETIC",
-            "alphabetic",
-            "Ordinal",
-            "CardText",
-            "OrdText",
-            "Hex",
-        ]
-        .contains(&value)
-        {
+        if !FORMATS.contains(&value) {
             return None;
         }
     }
     Some(first)
 }
+
+const FORMATS: [&str; 12] = [
+    "MERGEFORMAT",
+    "CHARFORMAT",
+    "ARABIC",
+    "Arabic",
+    "ROMAN",
+    "roman",
+    "ALPHABETIC",
+    "alphabetic",
+    "Ordinal",
+    "CardText",
+    "OrdText",
+    "Hex",
+];
+
+/// A SEQ identifier or bookmark name: letters, digits and underscores.
+fn valid_target(t: &str) -> bool {
+    !t.is_empty() && t.len() <= 40 && t.chars().all(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// The name a field's instruction points at: the SEQ identifier or the
+/// bookmark of a REF or PAGEREF.
+pub fn target(code: &str) -> Option<&str> {
+    let mut tokens = code.split_whitespace();
+    let raw = tokens.next()?;
+    ["SEQ", "REF", "PAGEREF"]
+        .iter()
+        .any(|k| k.eq_ignore_ascii_case(raw))
+        .then(|| tokens.next())
+        .flatten()
+}
+
 fn has_fields(n: Node) -> bool {
     n.descendants().any(|c| {
         c.has_tag_name((W, "fldSimple"))

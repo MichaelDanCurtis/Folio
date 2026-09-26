@@ -58,7 +58,7 @@ fn page_fields_import_simple_complex_and_keep_source_while_editing_text() {
 #[test]
 fn unsupported_simple_nested_and_malformed_fields_remain_preserved() {
     for x in [
-        simple(" REF Named ", "cached"),
+        simple(" MERGEFIELD Named ", "cached"),
         format!(
             "<w:fldSimple w:instr=\" PAGE \">{}</w:fldSimple>",
             simple(" PAGE ", "1")

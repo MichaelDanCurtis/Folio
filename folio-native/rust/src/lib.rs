@@ -105,6 +105,9 @@ mod docx_moves;
 #[cfg(test)]
 mod docx_moves_tests;
 mod docx_note_text;
+mod docx_notes;
+#[cfg(test)]
+mod docx_notes_tests;
 mod docx_numbering;
 #[cfg(test)]
 mod docx_numbering_tests;
@@ -120,6 +123,9 @@ mod docx_paragraph_tests;
 mod docx_pictures;
 #[cfg(test)]
 mod docx_pictures_tests;
+mod docx_references;
+#[cfg(test)]
+mod docx_references_tests;
 mod docx_revisions;
 #[cfg(test)]
 mod docx_revisions_tests;

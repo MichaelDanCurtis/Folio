@@ -137,23 +137,24 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 
 | ID | Requirement | M | State | Evidence | Gap / next step |
 |---|---|---|---|---|---|
-| W10.01 | Field display and update (F9) for common fields: DATE, PAGE, REF, SEQ | M2 | Automated verified | Page fields 0.67 ([PAGE_NUMBERS](../PAGE_NUMBERS.md)) | General field update; REF/SEQ |
+| W10.01 | Field display and update (F9) for common fields: DATE, PAGE, REF, SEQ | M2 | Automated verified | Page fields 0.67 ([PAGE_NUMBERS](../PAGE_NUMBERS.md)) | General field update (DATE and other fields) |
 | W10.02 | Toggle field codes (Alt+F9) and edit a field code | M3 | Specified | — | Not built |
-| W10.03 | Captions for tables and figures with automatic numbering | M2 | Specified | — | Not built |
-| W10.04 | Cross-references to headings, bookmarks, captions and notes that update | M2 | Specified | — | Not built |
-| W10.05 | Table of contents: insert, update, styles and levels | M2 | Specified | — | Not built |
+| W10.03 | Captions for tables and figures with automatic numbering | M2 | Automated verified | Rank 14 ([plan](../../../docs/superpowers/plans/2026-09-26-references.md)): `docx_references_tests.rs`, `document_references_workspace_test.dart` | Word comparison; chapter numbers in captions; captions for pictures by position |
+| W10.04 | Cross-references to headings, bookmarks, captions and notes that update | M2 | Automated verified | Rank 14 ([plan](../../../docs/superpowers/plans/2026-09-26-references.md)): REF and PAGEREF to headings, captions and bookmarks with Word's hidden `_Ref` bookmarks | Word comparison; references to notes and numbered paragraphs |
+| W10.05 | Table of contents: insert, update, styles and levels | M2 | Automated verified | Rank 14 ([plan](../../../docs/superpowers/plans/2026-09-26-references.md)): tables of contents written as Word's TOC field, read back, page numbers from the layout | Word comparison; hyperlinked entries; custom styles |
 | W10.06 | Index: mark entries, insert and update | M4 | Specified | — | Not built |
 | W10.07 | Table of authorities and table of figures | M4 | Specified | — | Not built |
-| W10.08 | Missing targets show visible errors | M2 | Specified | — | Depends on W10.04 |
+| W10.08 | Missing targets show visible errors | M2 | Automated verified | Rank 14 ([plan](../../../docs/superpowers/plans/2026-09-26-references.md)): a missing target shows “Error! Reference source not found.” on Update Fields | Word comparison |
 
 ## W11 Footnotes, endnotes, citations and bibliography
 
 | ID | Requirement | M | State | Evidence | Gap / next step |
 |---|---|---|---|---|---|
-| W11.01 | Footnotes and endnotes: display, insert, edit, number, and place on pages | M2 | Specified | — | Imported notes preserved; no editing |
+| W11.01 | Footnotes and endnotes: display, insert, edit, number, and place on pages | M2 | Automated verified | Rank 14: references import as inline notes (they were dropped before); insert, edit and number; new notes parts created (`docx_notes_tests.rs`) | Notes at the bottom of their page in the preview (W11.05); formatting inside an edited note |
 | W11.02 | Note options: numbering format, restart, position, convert | M3 | Specified | — | Not built |
 | W11.03 | Citations and bibliography with styles (APA, MLA…) | M4 | Specified | — | Not built |
 | W11.04 | Reference-manager integration (Zotero, EndNote) | M5 | Specified | — | Not built |
+| W11.05 | Footnotes placed at the bottom of their page in preview and print, continuing on the next page when long | M2 | Specified | — | Page-aware layout (rank 13) |
 
 ## W12 Proofing
 

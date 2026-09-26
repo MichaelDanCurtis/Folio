@@ -29,8 +29,8 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | W07 | [Tables](status/word.md#w07-tables) | 4 | 0 | 2 | 9 | 0 | 0 | 15 |
 | W08 | [Pictures, shapes, text boxes, SmartArt and charts](status/word.md#w08-pictures-shapes-text-boxes-smartart-and-charts) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
 | W09 | [Equations, embedded objects, media and content controls](status/word.md#w09-equations-embedded-objects-media-and-content-controls) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
-| W10 | [Fields, captions, cross-references, TOC and indexes](status/word.md#w10-fields-captions-cross-references-toc-and-indexes) | 7 | 0 | 1 | 0 | 0 | 0 | 8 |
-| W11 | [Footnotes, endnotes, citations and bibliography](status/word.md#w11-footnotes-endnotes-citations-and-bibliography) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
+| W10 | [Fields, captions, cross-references, TOC and indexes](status/word.md#w10-fields-captions-cross-references-toc-and-indexes) | 3 | 0 | 5 | 0 | 0 | 0 | 8 |
+| W11 | [Footnotes, endnotes, citations and bibliography](status/word.md#w11-footnotes-endnotes-citations-and-bibliography) | 4 | 0 | 1 | 0 | 0 | 0 | 5 |
 | W12 | [Proofing](status/word.md#w12-proofing) | 4 | 0 | 4 | 2 | 0 | 0 | 10 |
 | W13 | [Comments, track changes, compare and merge](status/word.md#w13-comments-track-changes-compare-and-merge) | 3 | 0 | 4 | 2 | 0 | 0 | 9 |
 | W14 | [Mail merge, labels and envelopes](status/word.md#w14-mail-merge-labels-and-envelopes) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
@@ -56,7 +56,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 4 | 1 | 7 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **211** | **5** | **108** | **80** | **0** | **0** | **404** |
+| **All** | | **207** | **5** | **113** | **80** | **0** | **0** | **405** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
@@ -87,7 +87,7 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 | 11 | Proofing accuracy corpus and measurement (ROADMAP §5) | W12.01, W12.04 | L | Medium | Human-reviewed corpus |
 | 12 | Assistant: stale-context conflicts and real-model qualification | D10.01–D10.05 | M | Medium | Live provider runs |
 | 13 | Print-layout editing and page-aware layout: widow/orphan, keep rules, floating objects | W05.07–W05.08, W08.04, W01.08 | XL | Low | Risk R1 decision |
-| 14 | References: TOC, captions, cross-references, footnotes | W10.03–W10.05, W10.08, W11.01 | L | Medium | Page model from rank 12 for page numbers |
+| 14 | References: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-references.md)): footnotes and endnotes, captions, cross-references, tables of contents and Update Fields. Left: notes placed on pages (W11.05), TOC hyperlinks, native checks | W10.03–W10.05, W10.08, W11.01 | S | Medium | Page-aware layout (rank 13) for notes on pages |
 | 15 | Printing and PDF (documents, then workbooks) | D05.02, D05.04–D05.06, X18 | L | Medium | — |
 | 16 | Several open files, as tabs or windows | D01.07, D01.09 | L | Medium | — |
 | 17 | Missing functions: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-missing-functions.md)): 498 of 514 catalog functions evaluate. Left: the differential corpus against Excel, IMAGE, GETPIVOTDATA, RTD and the online service functions | X08.02, X08.04, X08.17 | M | Medium | Office baseline |
@@ -128,6 +128,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-26 | References (rank 14): footnote and endnote references import as inline notes (before, they were dropped, and editing their paragraph lost them), with insert, edit and numbering; SEQ, REF and PAGEREF fields become editable; Insert Caption, Cross-reference (with Word's hidden `_Ref` bookmarks) and Table of contents, and Update Fields with page numbers from the layout. W10.03, W10.04, W10.05, W10.08 and W11.01 to Automated verified; new W11.05 for notes placed on pages. |
 | 2026-09-26 | Spill and names (rank 18): dynamic-array results spill into the grid, with a blue outline around the active spill and the formula shown greyed in spilled cells; a smaller spill clears the cells it leaves, and a value in the way shows #SPILL!. The Name Manager (Formulas ribbon) lists names with their values and creates, edits and deletes them, including named LAMBDAs; unqualified references get the active sheet, and a workbook made in Folio gets a package on its first name. X09.02, X09.04 and X09.05 to Automated verified. |
 | 2026-09-26 | Missing functions (rank 17): AGGREGATE, BAHTTEXT, DBCS/JIS, PHONETIC, HYPERLINK, GROUPBY, PIVOTBY and the FORECAST.ETS family (X08.03), FILTERXML, ENCODEURL and EUROCONVERT (new X08.18), and function names as values (new X08.19). 498 of 514 catalog functions evaluate (483 before). IMAGE, GETPIVOTDATA and RTD split out as X08.17. Corpus differences: 31 → 30. |
 | 2026-09-26 | Compatibility matrix and impact preview (rank 10): one engine table of 36 features gives the [matrix](status/COMPATIBILITY.md) (a test fails when they differ), the Compatibility Report's inventory of the open file by state, and the preview before an export that would remove signatures or lose formatting in edited paragraphs, with Export Anyway, Save Folio Copy and Cancel. Exporting a changed signed file now removes its signatures. W16.09, X17.09 and D02.17 to Automated verified. |

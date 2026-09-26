@@ -89,6 +89,27 @@ pub fn available(catalog: &Value) -> Vec<Value> {
             "type":"paragraph","customStyle":false,"basedOn":body_id,"next":body_id,
             "properties":{"outlineLevel":index,"paragraph":{"before":before,"after":after},"tabs":[],"run":run}}));
     }
+    // Captions and table-of-contents levels (W10.03, W10.05), in Word's
+    // names so Word and Folio treat them as the built-in styles.
+    if matching(catalog, "Caption", "caption").is_none() {
+        added.push(
+            json!({"id":unique(&mut used,"Caption"),"name":"caption","type":"paragraph",
+            "customStyle":false,"basedOn":body_id,"next":body_id,
+            "properties":{"paragraph":{"after":200},"tabs":[],
+                "run":{"italic":true,"sz":18,"color":{"val":"0E2841"}}}}),
+        );
+    }
+    for level in 1..=3u64 {
+        if matching(catalog, &format!("TOC{level}"), &format!("toc {level}")).is_some() {
+            continue;
+        }
+        added.push(
+            json!({"id":unique(&mut used,&format!("TOC{level}")),"name":format!("toc {level}"),
+            "type":"paragraph","customStyle":false,"basedOn":body_id,"next":body_id,
+            "properties":{"paragraph":{"after":100,"left":(level - 1) * 220},
+                "tabs":[{"position":9350,"alignment":"right","leader":"dot"}],"run":{}}}),
+        );
+    }
     added
 }
 pub fn expanded(catalog: &Value) -> Value {
@@ -127,6 +148,18 @@ pub fn materialize(catalog: &mut Value, id: &str) -> bool {
 pub fn needed(document: &Value, catalog: &Value) -> bool {
     let candidates = available(catalog);
     fn walk(node: &Value, candidates: &[Value]) -> bool {
+        if node["type"] == "tableOfContents"
+            && node["attrs"]["entries"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|e| {
+                    let id = format!("TOC{}", e["level"].as_u64().unwrap_or(1));
+                    candidates.iter().any(|s| s["id"] == id.as_str())
+                })
+        {
+            return true;
+        }
         if matches!(node["type"].as_str(), Some("paragraph" | "heading")) {
             if let Some(id) = node["attrs"]["paragraphFormat"]["styleId"].as_str() {
                 if candidates.iter().any(|s| s["id"] == id) {
@@ -161,6 +194,12 @@ pub fn materialize_document(document: &mut Value, pkg: &mut Package) -> Result<(
         .unwrap_or(styles::read(pkg)?);
     let expanded = expanded(&catalog);
     fn collect(node: &mut Value, catalog: &Value, wanted: &mut HashSet<String>) {
+        // A table of contents uses a TOC style for each level it shows.
+        if node["type"] == "tableOfContents" {
+            for e in node["attrs"]["entries"].as_array().into_iter().flatten() {
+                wanted.insert(format!("TOC{}", e["level"].as_u64().unwrap_or(1)));
+            }
+        }
         if matches!(node["type"].as_str(), Some("paragraph" | "heading")) {
             if let Some(id) = node["attrs"]["paragraphFormat"]["styleId"].as_str() {
                 wanted.insert(id.into());

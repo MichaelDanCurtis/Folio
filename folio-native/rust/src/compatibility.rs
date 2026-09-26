@@ -218,9 +218,9 @@ pub fn features() -> Vec<Feature> {
             id: "word.fields",
             format: "docx",
             name: "Fields",
-            states: [V, P, P, NA, K, V, U, NA],
-            on_save: "Page fields written; other fields kept unchanged",
-            evidence: "W10",
+            states: [V, P, P, P, V, V, U, NA],
+            on_save: "Page, caption and cross-reference fields written; other fields kept unchanged",
+            evidence: "W10.01, W10.03–W10.04",
             count: |p| {
                 elements(p, "word/document.xml", "fldSimple")
                     + elements_where(p, "word/document.xml", "fldChar", |n| {
@@ -269,8 +269,8 @@ pub fn features() -> Vec<Feature> {
             id: "word.notes",
             format: "docx",
             name: "Footnotes and endnotes",
-            states: [V, K, K, NA, K, K, U, NA],
-            on_save: "Kept unchanged",
+            states: [V, V, V, NA, V, V, U, NA],
+            on_save: "Kept; edited and new notes written as plain paragraphs",
             evidence: "W11.01",
             count: |p| {
                 let note = |n: roxmltree::Node| {
@@ -278,6 +278,19 @@ pub fn features() -> Vec<Feature> {
                 };
                 elements_where(p, "word/footnotes.xml", "footnote", note)
                     + elements_where(p, "word/endnotes.xml", "endnote", note)
+            },
+        },
+        Feature {
+            id: "word.toc",
+            format: "docx",
+            name: "Tables of contents",
+            states: [V, V, P, NA, V, V, U, NA],
+            on_save: "Kept; Folio's tables written as Word's TOC field",
+            evidence: "W10.05",
+            count: |p| {
+                elements_where(p, "word/document.xml", "docPartGallery", |n| {
+                    attr(n, "val") == Some("Table of Contents")
+                })
             },
         },
         Feature {
@@ -636,8 +649,19 @@ fn lost_run_formatting(
         let labels: BTreeSet<&'static str> = d
             .descendants()
             .filter(|e| e.is_element() && e.tag_name().name() == "rPr")
-            // Run properties, not a paragraph mark's.
-            .filter(|e| e.parent().is_some_and(|p| p.tag_name().name() == "r"))
+            // Run properties, not a paragraph mark's; a note reference's
+            // run is written from its source.
+            .filter(|e| {
+                e.parent().is_some_and(|p| {
+                    p.tag_name().name() == "r"
+                        && !p.children().any(|c| {
+                            matches!(
+                                c.tag_name().name(),
+                                "footnoteReference" | "endnoteReference"
+                            )
+                        })
+                })
+            })
             .flat_map(|rpr| rpr.children().filter(|c| c.is_element()))
             .map(|c| c.tag_name().name())
             .filter(|name| !KEPT_RUN_PROPERTIES.contains(name))

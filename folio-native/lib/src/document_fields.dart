@@ -42,6 +42,18 @@ class PageFieldEmbedBuilder extends q.EmbedBuilder {
   @override
   Widget build(BuildContext context, q.EmbedContext embedContext) {
     final field = jsonDecode(embedContext.node.value.data) as Map;
+    final kind = field['attrs']?['kind'];
+    // Captions and cross-references show their result, as Word does.
+    if (const {'SEQ', 'REF', 'PAGEREF'}.contains(kind)) {
+      return Tooltip(
+        message:
+            'Field:${field['attrs']['instruction']}. Update Fields recalculates it.',
+        child: Container(
+          color: const Color(0xffe8ebef),
+          child: Text('${field['text']}', style: embedContext.textStyle),
+        ),
+      );
+    }
     final label = pageFieldLabels[field['attrs']['kind']] ?? 'Page field';
     final cached = field['text'];
     return Tooltip(
