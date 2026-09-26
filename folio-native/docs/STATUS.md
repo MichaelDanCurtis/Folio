@@ -14,7 +14,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | D02 | [Files: new, open, save, recent, templates, autosave and recovery](status/desktop.md#d02-files-new-open-save-recent-templates-autosave-and-recovery) | 4 | 0 | 9 | 4 | 0 | 0 | 17 |
 | D03 | [Clipboard, drag and drop, undo/redo and shortcuts](status/desktop.md#d03-clipboard-drag-and-drop-undoredo-and-shortcuts) | 3 | 0 | 3 | 4 | 0 | 0 | 10 |
 | D04 | [Accessibility, zoom and localization](status/desktop.md#d04-accessibility-zoom-and-localization) | 9 | 0 | 2 | 0 | 0 | 0 | 11 |
-| D05 | [Printing, page setup and PDF](status/desktop.md#d05-printing-page-setup-and-pdf) | 5 | 0 | 0 | 1 | 0 | 0 | 6 |
+| D05 | [Printing, page setup and PDF](status/desktop.md#d05-printing-page-setup-and-pdf) | 4 | 0 | 2 | 1 | 0 | 0 | 7 |
 | D06 | [Security, protection, encryption and trusted automation](status/desktop.md#d06-security-protection-encryption-and-trusted-automation) | 5 | 0 | 2 | 0 | 0 | 0 | 7 |
 | D07 | [Collaboration, sharing and conflict recovery](status/desktop.md#d07-collaboration-sharing-and-conflict-recovery) | 3 | 0 | 2 | 0 | 0 | 0 | 5 |
 | D08 | [Packaging, updates and distribution](status/desktop.md#d08-packaging-updates-and-distribution) | 4 | 1 | 1 | 1 | 0 | 0 | 7 |
@@ -56,7 +56,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 4 | 1 | 7 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **207** | **5** | **113** | **80** | **0** | **0** | **405** |
+| **All** | | **206** | **5** | **115** | **80** | **0** | **0** | **406** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
@@ -88,7 +88,7 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 | 12 | Assistant: stale-context conflicts and real-model qualification | D10.01–D10.05 | M | Medium | Live provider runs |
 | 13 | Print-layout editing and page-aware layout: widow/orphan, keep rules, floating objects | W05.07–W05.08, W08.04, W01.08 | XL | Low | Risk R1 decision |
 | 14 | References: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-references.md)): footnotes and endnotes, captions, cross-references, tables of contents and Update Fields. Left: notes placed on pages (W11.05), TOC hyperlinks, native checks | W10.03–W10.05, W10.08, W11.01 | S | Medium | Page-aware layout (rank 13) for notes on pages |
-| 15 | Printing and PDF (documents, then workbooks) | D05.02, D05.04–D05.06, X18 | L | Medium | — |
+| 15 | Printing and PDF: document PDF export built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-pdf-export.md)). Left: the system print dialog (D05.02), tagged tables and lists (D05.07), workbooks (X18) | D05.02, D05.06–D05.07, X18 | L | Medium | The Mac for printing |
 | 16 | Several open files, as tabs or windows | D01.07, D01.09 | L | Medium | — |
 | 17 | Missing functions: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-missing-functions.md)): 498 of 514 catalog functions evaluate. Left: the differential corpus against Excel, IMAGE, GETPIVOTDATA, RTD and the online service functions | X08.02, X08.04, X08.17 | M | Medium | Office baseline |
 | 18 | Dynamic-array spill in the grid, Name Manager and named LAMBDAs: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-spill-and-names.md)). Left: cached spill values in exported files, native checks | X09.02, X09.04–X09.05 | S | High | The Mac for native checks |
@@ -128,6 +128,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-26 | PDF export (rank 15): File → Export PDF… writes the page preview as a PDF with text as text (fragments placed and width-matched to the layout), embedded TrueType subsets chosen from the system's fonts with per-character fallback, pictures, links, a heading outline and tags (headings, paragraphs, figures with alt text; headers and footers as artifacts). D05.04 and D05.05 to Automated verified; new D05.07 for tagged tables and lists. |
 | 2026-09-26 | References (rank 14): footnote and endnote references import as inline notes (before, they were dropped, and editing their paragraph lost them), with insert, edit and numbering; SEQ, REF and PAGEREF fields become editable; Insert Caption, Cross-reference (with Word's hidden `_Ref` bookmarks) and Table of contents, and Update Fields with page numbers from the layout. W10.03, W10.04, W10.05, W10.08 and W11.01 to Automated verified; new W11.05 for notes placed on pages. |
 | 2026-09-26 | Spill and names (rank 18): dynamic-array results spill into the grid, with a blue outline around the active spill and the formula shown greyed in spilled cells; a smaller spill clears the cells it leaves, and a value in the way shows #SPILL!. The Name Manager (Formulas ribbon) lists names with their values and creates, edits and deletes them, including named LAMBDAs; unqualified references get the active sheet, and a workbook made in Folio gets a package on its first name. X09.02, X09.04 and X09.05 to Automated verified. |
 | 2026-09-26 | Missing functions (rank 17): AGGREGATE, BAHTTEXT, DBCS/JIS, PHONETIC, HYPERLINK, GROUPBY, PIVOTBY and the FORECAST.ETS family (X08.03), FILTERXML, ENCODEURL and EUROCONVERT (new X08.18), and function names as values (new X08.19). 498 of 514 catalog functions evaluate (483 before). IMAGE, GETPIVOTDATA and RTD split out as X08.17. Corpus differences: 31 → 30. |

@@ -80,9 +80,10 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | D05.01 | Document print preview with page flow, section geometry, headers/footers and page fields | M2 | Native verified | 0.68 ([PAGINATION](../PAGINATION.md)) | Word layout comparison (W05) |
 | D05.02 | Print a document through the system print dialog: printer, copies, page ranges | M2 | Specified | — | No printing |
 | D05.03 | Workbook print preview and printing with print areas, titles and scaling | M3 | Specified | — | See X18 |
-| D05.04 | Export to PDF matching print preview | M2 | Specified | — | Not built |
-| D05.05 | Tagged, accessible PDF: reading order, headings, table headers, links, alt text | M2 | Specified | — | Not built |
+| D05.04 | Export to PDF matching print preview | M2 | Automated verified | Rank 15 ([plan](../../../docs/superpowers/plans/2026-09-26-pdf-export.md)): File → Export PDF… writes the preview's pages with text as text, embedded font subsets and pictures (`pdf_export_tests.rs`, `document_pdf_workspace_test.dart`) | Native check; CFF-outline fonts are substituted; complex scripts (Arabic, Indic) are not shaped |
+| D05.05 | Tagged, accessible PDF: reading order, headings, table headers, links, alt text | M2 | Automated verified | Rank 15 ([plan](../../../docs/superpowers/plans/2026-09-26-pdf-export.md)): tags headings, paragraphs and figures with alt text; links, outline, language and title; headers and footers are artifacts | PDF/UA validation; tables and lists (D05.07) |
 | D05.06 | Printed output matches the page model: nothing clipped or omitted | M2 | Specified | — | Needs D05.02 |
+| D05.07 | Tagged tables (TR/TD with headers) and lists (L/LI) in exported PDF | M2 | Specified | — | Tables and lists are tagged as paragraphs today |
 
 ## D06 Security, protection, encryption and trusted automation
 

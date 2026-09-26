@@ -1,4 +1,5 @@
 import 'src/compatibility_report.dart';
+import 'src/document_pdf.dart' show exportDocumentPdf;
 import 'src/name_manager.dart';
 import 'src/document_case.dart' show documentText;
 import 'src/document_word_count.dart';
@@ -1101,6 +1102,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
         WorkspaceFileCommand.saveAs => saveWorkingFileAs(),
         WorkspaceFileCommand.saveCopy => saveCopy(),
         WorkspaceFileCommand.export => export(),
+        WorkspaceFileCommand.exportPdf => exportPdf(),
         WorkspaceFileCommand.compatibility => compatibility(),
       };
     } finally {
@@ -1886,6 +1888,32 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
       return;
     }
     notice('Template saved. Find it in New from template.');
+  }
+
+  /// Export PDF (D05.04): the document as the page preview lays it out.
+  Future<void> exportPdf() async {
+    if (spreadsheet) {
+      notice('PDF export is available for documents.');
+      return;
+    }
+    await flush();
+    final dest = await getSaveLocation(
+      suggestedName: '${model.workspace['title']}.pdf',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'PDF', extensions: ['pdf']),
+      ],
+    );
+    if (dest == null || !mounted) return;
+    final path = dest.path.toLowerCase().endsWith('.pdf')
+        ? dest.path
+        : '${dest.path}.pdf';
+    await exportDocumentPdf(
+      model,
+      path,
+      locale: Localizations.maybeLocaleOf(context),
+      preload: (snapshot) => preloadPictures(model, snapshot),
+    );
+    notice('Saved ${File(path).uri.pathSegments.last}.');
   }
 
   Future<void> export() async {
@@ -3481,6 +3509,11 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                             spreadsheet ? 'Export Excel…' : 'Export Word…',
                           ),
                         ),
+                        if (!spreadsheet)
+                          const PopupMenuItem(
+                            value: WorkspaceFileCommand.exportPdf,
+                            child: Text('Export PDF…'),
+                          ),
                         const PopupMenuDivider(),
                         const PopupMenuItem(
                           value: WorkspaceFileCommand.compatibility,
