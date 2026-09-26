@@ -36,6 +36,7 @@ pub struct Feature {
     pub states: [State; 8],
     /// What exporting an edited file does with it.
     pub on_save: &'static str,
+    #[cfg_attr(not(test), allow(dead_code))]
     pub evidence: &'static str,
     count: fn(&Package) -> usize,
 }
@@ -717,6 +718,7 @@ pub fn features_for(format: &str) -> impl Iterator<Item = Feature> + '_ {
 }
 
 /// The matrix as Markdown, for docs/status/COMPATIBILITY.md.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn matrix_markdown() -> String {
     let mut out = String::new();
     for (format, title) in [

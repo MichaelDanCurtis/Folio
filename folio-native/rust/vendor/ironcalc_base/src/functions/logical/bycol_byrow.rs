@@ -39,7 +39,7 @@ impl<'a> Model<'a> {
             return CalcResult::new_error(Error::VALUE, cell, "empty array".to_string());
         }
 
-        let lambda_result = self.evaluate_node_in_context(&args[1], cell);
+        let lambda_result = self.evaluate_lambda_argument(&args[1], cell);
         if lambda_result.is_error() {
             return lambda_result;
         }
@@ -74,7 +74,7 @@ impl<'a> Model<'a> {
             return CalcResult::new_error(Error::VALUE, cell, "empty array".to_string());
         }
 
-        let lambda_result = self.evaluate_node_in_context(&args[1], cell);
+        let lambda_result = self.evaluate_lambda_argument(&args[1], cell);
         if lambda_result.is_error() {
             return lambda_result;
         }
@@ -135,7 +135,7 @@ impl<'a> Model<'a> {
             return CalcResult::new_error(error, cell, message);
         }
 
-        let lambda_result = self.evaluate_node_in_context(&args[2], cell);
+        let lambda_result = self.evaluate_lambda_argument(&args[2], cell);
         if lambda_result.is_error() {
             return lambda_result;
         }

@@ -112,6 +112,7 @@ mod test_fn_scan;
 mod test_fn_tocol_torow;
 mod test_fn_transpose;
 mod test_fn_type;
+mod test_folio_corpus_fixes;
 mod test_frozen_rows_and_columns;
 mod test_geomean;
 mod test_get_cell_content;
@@ -135,8 +136,8 @@ mod test_spill_functions;
 mod test_today;
 mod test_trigonometric_reciprocals;
 mod test_types;
-mod test_folio_corpus_fixes;
 mod text_functions;
 mod user_model;
 
+mod test_folio_functions;
 mod test_validation_expressions;

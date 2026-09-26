@@ -695,6 +695,7 @@ impl<'a> Model<'a> {
             variable_stack: HashMap::new(),
             last_variable_id: 0,
             lambdas: HashMap::new(),
+            eta_functions: HashMap::new(),
             last_lambda_id: 0,
             spill_cells: Vec::new(),
             support: HashMap::new(),

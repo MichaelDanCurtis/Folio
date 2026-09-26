@@ -10,7 +10,7 @@ ACOSH	Math and trigonometry	implemented
 ACOT	Math and trigonometry	implemented
 ACOTH	Math and trigonometry	implemented
 ADDRESS	Lookup and reference	implemented
-AGGREGATE	Math and trigonometry	unknown
+AGGREGATE	Math and trigonometry	implemented
 AMORDEGRC	Financial	implemented
 AMORLINC	Financial	implemented
 AND	Logical	implemented
@@ -28,7 +28,7 @@ AVERAGE	Statistical	implemented
 AVERAGEA	Statistical	implemented
 AVERAGEIF	Statistical	implemented
 AVERAGEIFS	Statistical	implemented
-BAHTTEXT	Text	unknown
+BAHTTEXT	Text	implemented
 BASE	Math and trigonometry	implemented
 BESSELI	Engineering	implemented
 BESSELJ	Engineering	implemented
@@ -121,7 +121,7 @@ DAY	Date and time	implemented
 DAYS	Date and time	implemented
 DAYS360	Date and time	implemented
 DB	Financial	implemented
-DBCS	Text	unknown
+DBCS	Text	implemented
 DCOUNT	Database	implemented
 DCOUNTA	Database	implemented
 DDB	Financial	implemented
@@ -150,14 +150,14 @@ DVAR	Database	implemented
 DVARP	Database	implemented
 EDATE	Date and time	implemented
 EFFECT	Financial	implemented
-ENCODEURL	Web	unknown
+ENCODEURL	Web	implemented
 EOMONTH	Date and time	implemented
 ERF	Engineering	implemented
 ERF.PRECISE	Engineering	implemented
 ERFC	Engineering	implemented
 ERFC.PRECISE	Engineering	implemented
 ERROR.TYPE	Information	implemented
-EUROCONVERT	Add-in and Automation	unknown
+EUROCONVERT	Add-in and Automation	implemented
 EVEN	Math and trigonometry	implemented
 EXACT	Text	implemented
 EXP	Math and trigonometry	implemented
@@ -174,7 +174,7 @@ FACTDOUBLE	Math and trigonometry	implemented
 FALSE	Logical	implemented
 FDIST	Compatibility	implemented
 FILTER	Lookup and reference	implemented
-FILTERXML	Web	unknown
+FILTERXML	Web	implemented
 FIND	Text	implemented
 FINV	Compatibility	implemented
 FISHER	Statistical	implemented
@@ -184,10 +184,10 @@ FLOOR	Compatibility	implemented
 FLOOR.MATH	Math and trigonometry	implemented
 FLOOR.PRECISE	Math and trigonometry	implemented
 FORECAST	Statistical	implemented
-FORECAST.ETS	Statistical	not-implemented
-FORECAST.ETS.CONFINT	Statistical	not-implemented
-FORECAST.ETS.SEASONALITY	Statistical	not-implemented
-FORECAST.ETS.STAT	Statistical	not-implemented
+FORECAST.ETS	Statistical	implemented
+FORECAST.ETS.CONFINT	Statistical	implemented
+FORECAST.ETS.SEASONALITY	Statistical	implemented
+FORECAST.ETS.STAT	Statistical	implemented
 FORECAST.LINEAR	Statistical	implemented
 FORMULATEXT	Lookup and reference	implemented
 FREQUENCY	Statistical	implemented
@@ -206,7 +206,7 @@ GCD	Math and trigonometry	implemented
 GEOMEAN	Statistical	implemented
 GESTEP	Engineering	implemented
 GETPIVOTDATA	Lookup and reference	unknown
-GROUPBY	Lookup and reference	unknown
+GROUPBY	Lookup and reference	implemented
 GROWTH	Statistical	implemented
 HARMEAN	Statistical	implemented
 HEX2BIN	Engineering	implemented
@@ -215,7 +215,7 @@ HEX2OCT	Engineering	implemented
 HLOOKUP	Lookup and reference	implemented
 HOUR	Date and time	implemented
 HSTACK	Lookup and reference	implemented
-HYPERLINK	Lookup and reference	unknown
+HYPERLINK	Lookup and reference	implemented
 HYPGEOM.DIST	Statistical	implemented
 HYPGEOMDIST	Compatibility	implemented
 IF	Logical	implemented
@@ -272,7 +272,7 @@ ISOWEEKNUM	Date and time	implemented
 ISPMT	Financial	implemented
 ISREF	Information	implemented
 ISTEXT	Information	implemented
-JIS	Text	unknown
+JIS	Text	implemented
 KURT	Statistical	implemented
 LAMBDA	Logical	implemented
 LARGE	Statistical	implemented
@@ -358,9 +358,9 @@ PERCENTRANK.INC	Statistical	implemented
 PERMUT	Statistical	implemented
 PERMUTATIONA	Statistical	implemented
 PHI	Statistical	implemented
-PHONETIC	Text	unknown
+PHONETIC	Text	implemented
 PI	Math and trigonometry	implemented
-PIVOTBY	Lookup and reference	unknown
+PIVOTBY	Lookup and reference	implemented
 PMT	Financial	implemented
 POISSON	Compatibility	implemented
 POISSON.DIST	Statistical	implemented

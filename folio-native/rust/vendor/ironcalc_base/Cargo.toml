@@ -45,6 +45,9 @@ path = "examples/hello_world.rs"
 version = "=0.1.0"
 path = "../ssf-rs"
 
+[dependencies.roxmltree]
+version = "0.21.1"
+
 [dependencies.bitcode]
 version = "0.6.8"
 

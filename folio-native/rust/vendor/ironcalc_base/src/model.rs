@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::vec::Vec;
 
 use crate::expressions::parser::static_analysis::run_static_analysis_on_node;
+use crate::functions::Function;
 use crate::{
     calc_result::{CalcResult, Range},
     cell::CellValue,
@@ -224,6 +225,9 @@ pub struct Model<'a> {
     pub(crate) last_variable_id: usize,
     /// Lambdas
     pub(crate) lambdas: HashMap<usize, (Vec<NamedVariable>, Node)>,
+    /// FOLIO PATCH: lambdas that stand for a function named as a value
+    /// (`BYROW(A1:C3, SUM)`).
+    pub(crate) eta_functions: HashMap<usize, Function>,
     /// Last lambda id used. It is incremented every time a new lambda is created.
     pub(crate) last_lambda_id: usize,
     /// The list of cells that might spill
@@ -290,6 +294,7 @@ impl<'a> Model<'a> {
     }
     fn clear_lambdas(&mut self) {
         self.lambdas.clear();
+        self.eta_functions.clear();
         self.last_lambda_id = 0;
     }
     pub(crate) fn evaluate_node_with_reference(
@@ -1939,6 +1944,7 @@ impl<'a> Model<'a> {
             variable_stack: HashMap::new(),
             last_variable_id: 0,
             lambdas: HashMap::new(),
+            eta_functions: HashMap::new(),
             last_lambda_id: 0,
             spill_cells: Vec::new(),
             support: HashMap::new(),

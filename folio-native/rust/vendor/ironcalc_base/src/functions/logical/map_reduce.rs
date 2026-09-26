@@ -41,7 +41,7 @@ impl<'a> Model<'a> {
 
         let n_arrays = args.len() - 1;
 
-        let lambda_result = self.evaluate_node_in_context(&args[n_arrays], cell);
+        let lambda_result = self.evaluate_lambda_argument(&args[n_arrays], cell);
         if lambda_result.is_error() {
             return lambda_result;
         }
@@ -104,7 +104,7 @@ impl<'a> Model<'a> {
             (0, 1, false)
         };
 
-        let lambda_result = self.evaluate_node_in_context(&args[lambda_idx], cell);
+        let lambda_result = self.evaluate_lambda_argument(&args[lambda_idx], cell);
         if lambda_result.is_error() {
             return lambda_result;
         }
