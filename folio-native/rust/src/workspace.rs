@@ -1780,6 +1780,7 @@ impl Core {
                 | "documentPagePreview"
                 | "documentNotesText"
                 | "documentImage"
+                | "compatibilityReport"
                 | "copyCells"
                 | "previewNumberFormat"
                 | "validationEntryCheck"
@@ -2682,6 +2683,35 @@ impl Core {
                     .ok_or("This picture is not in the document.")?;
                 let kind = crate::docx_pictures::image_kind(bytes).map(|k| k.1);
                 Ok(json!({"base64": STANDARD.encode(bytes), "contentType": kind}))
+            }
+            "compatibilityReport" => {
+                let mut reports = vec![];
+                for (format, key, content) in [
+                    ("docx", "officeDocument", "document"),
+                    ("xlsx", "officeWorkbook", "sheets"),
+                ] {
+                    let Some(meta) = self.workspace.get(key) else {
+                        continue;
+                    };
+                    let pkg = meta["packageId"]
+                        .as_str()
+                        .and_then(|id| self.packages.get(id))
+                        .map(AsRef::as_ref);
+                    let current = if format == "docx" {
+                        self.resolved_document()?
+                    } else {
+                        self.workspace[content].clone()
+                    };
+                    let baseline = meta.get("baseline");
+                    reports.push(crate::compatibility::report(
+                        format,
+                        pkg,
+                        Some(&current),
+                        baseline,
+                        baseline != Some(&current),
+                    ));
+                }
+                Ok(json!({"reports": reports}))
             }
             "documentImageAdd" => {
                 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -4073,11 +4103,15 @@ impl Core {
                     )?,
                     _ => return Err("Unsupported Office format".into()),
                 };
-                let bytes = crate::office_templates::convert(
+                let mut written = crate::office_templates::convert(
                     crate::office::Package::from_bytes(bytes)?,
                     format,
-                )?
-                .original;
+                )?;
+                // A signature no longer matches a changed file (D02.17).
+                if pkg.is_some_and(|p| p.original != written.original) {
+                    crate::compatibility::remove_signatures(&mut written)?;
+                }
+                let bytes = written.original;
                 let fingerprint = crate::office::write_checked_bytes(
                     text(&r, "path")?,
                     &bytes,

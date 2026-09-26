@@ -214,7 +214,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | W16.06 | ODT open and save | M4 | Specified | — | Not built |
 | W16.07 | HTML and plain text open and save | M3 | Specified | — | Not built |
 | W16.08 | PDF open for editing (reflow) | M5 | Specified | — | Not built |
-| W16.09 | Per-feature compatibility matrix: open, display, edit, save, round-trip, print | M1 | Specified | — | ROADMAP §2 matrix not yet written |
+| W16.09 | Per-feature compatibility matrix: open, display, edit, save, round-trip, print | M1 | Automated verified | Rank 10: [COMPATIBILITY](COMPATIBILITY.md), generated from the engine table and checked by `compatibility_tests.rs`; the Compatibility Report lists the open file by state | Word comparison of the Verified rows; Print waits for printing (rank 15) |
 | W16.10 | Word-created documents from the corpus open and round-trip with their text | M1 | Automated verified | 92/96 open; all 92 round-trip; 78 at ≥99% word overlap ([CORPUS](CORPUS.md#office-created-corpus-real-files)) | Two rejections; text in shapes and fields |
 
 ## W17 Views, zoom and accessibility checking

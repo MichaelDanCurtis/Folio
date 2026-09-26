@@ -26,6 +26,21 @@ The menu uses AppKit's existing [NSMenuItem target/action and keyboard equivalen
 and [modifier masks](https://developer.apple.com/documentation/appkit/nsmenuitem/keyequivalentmodifiermask).
 Existing native Edit actions and Flutter field-specific Undo remain in place.
 
+## Compatibility Report and the export preview
+
+The Compatibility Report lists what the open Word or Excel file contains, grouped by state: Verified, Partial, Preserved only and Unsupported. Each entry gives its count and what saving it will do. The list comes from the engine's `compatibilityReport` op. The same table generates [COMPATIBILITY](status/COMPATIBILITY.md).
+
+Save, Save As, Export and Save as Template to an Office format check first for anything the export would lose or invalidate:
+- the digital signatures of a signed file that has changed, which the export removes;
+- formatting Folio doesn't edit in edited paragraphs, such as small caps or character spacing.
+
+When there is any, a preview lists it, with three choices:
+- **Export Anyway**;
+- **Save Folio Copy…**, which keeps everything as it is now;
+- **Cancel**.
+
+An unchanged file, or one with nothing at risk, saves without a preview.
+
 ## Evidence and limits
 
 `test/workspace_file_commands_test.dart` drives the actual workspace and Rust
