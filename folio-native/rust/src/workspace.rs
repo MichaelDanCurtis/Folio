@@ -1779,6 +1779,7 @@ impl Core {
                 | "documentHeaders"
                 | "documentPagePreview"
                 | "documentNotesText"
+                | "documentImage"
                 | "copyCells"
                 | "previewNumberFormat"
                 | "validationEntryCheck"
@@ -2670,6 +2671,103 @@ impl Core {
                 validate(&n)?;
                 self.packages.insert(id, Arc::new(updated));
                 self.commit(n)
+            }
+            "documentImage" => {
+                use base64::{engine::general_purpose::STANDARD, Engine as _};
+                let src = text(&r, "src")?;
+                let bytes = self.workspace["officeDocument"]["packageId"]
+                    .as_str()
+                    .and_then(|id| self.packages.get(id))
+                    .and_then(|p| p.entries.get(src))
+                    .ok_or("This picture is not in the document.")?;
+                let kind = crate::docx_pictures::image_kind(bytes).map(|k| k.1);
+                Ok(json!({"base64": STANDARD.encode(bytes), "contentType": kind}))
+            }
+            "documentImageAdd" => {
+                use base64::{engine::general_purpose::STANDARD, Engine as _};
+                if r.get("baseRevision")
+                    .is_some_and(|v| *v != self.workspace["revision"])
+                {
+                    return Err("The document changed. Insert the picture again.".into());
+                }
+                let bytes = STANDARD
+                    .decode(text(&r, "bytes")?)
+                    .map_err(|_| "The picture could not be read.")?;
+                if bytes.len() > 10 * 1024 * 1024 {
+                    return Err("Pictures are limited to 10 MB.".into());
+                }
+                let (w, h) = crate::docx_pictures::image_size(&bytes)
+                    .filter(|(w, h)| *w > 0 && *h > 0)
+                    .ok_or("Choose a PNG, JPEG or GIF picture.")?;
+                let mut pkg = self.workspace["officeDocument"]["packageId"]
+                    .as_str()
+                    .and_then(|id| self.packages.get(id))
+                    .map(|p| (**p).clone())
+                    .unwrap_or_else(crate::docx::new_package);
+                let (part, rid) = crate::docx_pictures::add(&mut pkg, &bytes)?;
+                // Scaled down to the text width, as Word inserts it.
+                let max = r["maxWidth"].as_f64().filter(|m| *m > 0.0).unwrap_or(624.0);
+                let scale = (max / w as f64).min(1.0);
+                let size = |v: u32| (v as f64 * scale * 100.0).round() / 100.0;
+                let (width, height) = (size(w), size(h));
+                let mut document = r["document"].clone();
+                fn fill(n: &mut Value, attrs: &Value, found: &mut bool) {
+                    if n["type"] == "image" && n["attrs"]["src"] == "pending" {
+                        for (k, v) in attrs.as_object().unwrap() {
+                            n["attrs"][k] = v.clone();
+                        }
+                        *found = true;
+                    }
+                    if let Some(c) = n.get_mut("content").and_then(Value::as_array_mut) {
+                        for child in c {
+                            fill(child, attrs, found);
+                        }
+                    }
+                }
+                let mut found = false;
+                fill(
+                    &mut document,
+                    &json!({"src": part, "rId": rid, "width": width, "height": height}),
+                    &mut found,
+                );
+                if !found {
+                    return Err("There is no place for the picture.".into());
+                }
+                // The package changes with the document, in one history step;
+                // an undone picture leaves only an unused part in the package.
+                let previous = self.workspace.get("officeDocument").cloned();
+                let id = format!(
+                    "package-{}",
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_nanos()
+                );
+                self.packages.insert(id.clone(), Arc::new(pkg));
+                crate::file_state::replace_package(&mut self.workspace, "officeDocument", &id);
+                match self.dispatch(json!({
+                    "op": "document",
+                    "document": document,
+                    "baseRevision": r["baseRevision"],
+                })) {
+                    Ok(mut result) => {
+                        result["picture"] = json!({"src": part, "width": width, "height": height});
+                        Ok(result)
+                    }
+                    Err(e) => {
+                        match previous {
+                            Some(v) => self.workspace["officeDocument"] = v,
+                            None => {
+                                self.workspace
+                                    .as_object_mut()
+                                    .unwrap()
+                                    .remove("officeDocument");
+                            }
+                        }
+                        self.packages.remove(&id);
+                        Err(e)
+                    }
+                }
             }
             "documentNotesText" => crate::docx_note_text::read(
                 self.workspace["officeDocument"]["packageId"]

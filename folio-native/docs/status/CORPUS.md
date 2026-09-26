@@ -71,6 +71,7 @@ The cached-value comparison is real Excel output. It counts as differential evid
 
 - **Formulas:** 23,120 compared with Excel's cached results, and 31 differ (0.13%), in 6 files. The first run had 947 differences in 30 files; part 1 of the plan left 656.
 - **Documents:** 14 of the 92 have below 99% word overlap with Word's text.
+- **Pictures:** 44 of the 56 inline pictures in the corpus documents import as editable pictures, and all 44 can be read from their packages. The rest are in content Folio still preserves whole (fields, tracked changes, tables, headers); 15 floating pictures stay preserved blocks (W08.04).
 
 What closed the gap:
 - part 1: defined names (X09.08), implicit intersection (X08.14), array formulas, 3-D references (X08.15), XLOOKUP rows, coercion (X08.08), tolerant reading and Strict Open XML (X17.11, X17.12);

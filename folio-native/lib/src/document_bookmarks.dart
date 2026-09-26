@@ -117,10 +117,16 @@ class DocumentBookmarkIndex {
         var logicalPart = begin, editorPart = editor;
         for (final op in delta.toList()) {
           final insert = op.data;
-          final isField = insert is Map && insert['folioPageField'] is String;
-          final width = isField
-              ? (jsonDecode(insert['folioPageField'])['text'] as String).length
-              : op.length!;
+          final isField =
+              insert is Map &&
+              (insert['folioPageField'] is String ||
+                  insert['folioImage'] is String);
+          // A picture has no text: no logical width, as in the engine.
+          final width = !isField
+              ? op.length!
+              : insert['folioImage'] is String
+              ? 0
+              : (jsonDecode(insert['folioPageField'])['text'] as String).length;
           _spans.add(
             _Span(
               logicalPart,

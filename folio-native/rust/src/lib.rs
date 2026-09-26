@@ -111,6 +111,9 @@ mod docx_page_setup_tests;
 mod docx_paragraph;
 #[cfg(test)]
 mod docx_paragraph_tests;
+mod docx_pictures;
+#[cfg(test)]
+mod docx_pictures_tests;
 mod docx_revisions;
 #[cfg(test)]
 mod docx_revisions_tests;

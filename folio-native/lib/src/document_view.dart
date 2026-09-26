@@ -4,6 +4,7 @@ import 'document_case.dart' show documentText;
 import 'document_fields.dart';
 import 'document_formatting_marks.dart';
 import 'document_links.dart';
+import 'document_pictures.dart';
 import 'format_painter.dart';
 import 'sheet_zoom.dart';
 import 'document_page_setup.dart';
@@ -14,6 +15,7 @@ import 'document_paragraph_format.dart';
 import 'document_paragraph_dialog.dart';
 import 'draft_text_field.dart';
 import 'dart:convert';
+import 'package:dart_quill_delta/dart_quill_delta.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show OverflowBoxFit;
 import 'package:flutter/services.dart';
@@ -482,6 +484,55 @@ class DocumentViewState extends State<DocumentView> {
     }
   }
 
+  /// Insert › Picture (W08.02): stores the file's picture in the document
+  /// and puts it at the caret, scaled to the text width, in one Undo step.
+  Future<void> insertPicture() async {
+    if (model == null) return;
+    try {
+      final picked = await choosePictureFile();
+      if (picked == null || !mounted) return;
+      if (picked.bytes.length > maxPictureBytes) {
+        throw const FormatException('Pictures are limited to 10 MB.');
+      }
+      await model!.flush();
+      if (!mounted) return;
+      final selection = controller.selection;
+      final revision = model!.revision;
+      final start = selection.start.clamp(0, controller.document.length - 1);
+      final end = selection.end.clamp(start, controller.document.length - 1);
+      final change = Delta()
+        ..retain(start)
+        ..delete(end - start)
+        ..insert({'folioImage': jsonEncode(pendingPicture())});
+      final document = deltaToDocument(
+        controller.document.toDelta().compose(change),
+        attributes: model!.workspace['document']['attrs'] as Map?,
+      );
+      final geometry = _geometry;
+      await model!.mutate({
+        'op': 'documentImageAdd',
+        'document': document,
+        'bytes': base64Encode(picked.bytes),
+        'maxWidth': geometry.width - geometry.margins.horizontal,
+        'baseRevision': revision,
+      }, refreshDocument: true);
+      if (!mounted) return;
+      controller.updateSelection(
+        TextSelection.collapsed(
+          offset: (start + 1).clamp(0, controller.document.length - 1),
+        ),
+        q.ChangeSource.local,
+      );
+      _focus.requestFocus();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e is FormatException ? e.message : '$e')),
+        );
+      }
+    }
+  }
+
   /// Insert or edit the hyperlink at the selection (Ctrl/Cmd+K).
   Future<void> editLink() async {
     try {
@@ -932,6 +983,12 @@ class DocumentViewState extends State<DocumentView> {
                     icon: const Icon(Icons.link, size: 19),
                   ),
                   IconButton(
+                    key: const Key('insert-picture'),
+                    tooltip: 'Insert picture',
+                    onPressed: model == null ? null : insertPicture,
+                    icon: const Icon(Icons.image_outlined, size: 19),
+                  ),
+                  IconButton(
                     key: const Key('insert-table'),
                     tooltip: 'Insert table',
                     onPressed: insertTable,
@@ -1073,6 +1130,7 @@ class DocumentViewState extends State<DocumentView> {
                 customStyles: documentEditorStyles(),
                 embedBuilders: [
                   const PageFieldEmbedBuilder(),
+                  DocumentPictureBuilder(model: model),
                   FolioEmbedBuilder(model: model, onOpen: onOpenSource),
                 ],
                 customShortcuts: {

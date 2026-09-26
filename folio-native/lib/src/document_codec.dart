@@ -55,7 +55,7 @@ Delta documentToDelta(Map document) {
       editableNumbering(node['attrs']?['numbering']) &&
       ((node['content'] as List?) ?? []).every(
         (n) =>
-            (['text', 'pageField'].contains(n['type']) ||
+            (['text', 'pageField', 'image'].contains(n['type']) ||
                 (n['type'] == 'hardBreak' &&
                     ((n['attrs'] as Map?) ?? {}).entries.every(
                       (e) =>
@@ -119,6 +119,11 @@ Delta documentToDelta(Map document) {
       } else if (child['type'] == 'pageField') {
         delta.insert({
           'folioPageField': jsonEncode(child),
+        }, attrs.isEmpty ? null : attrs);
+      } else if (child['type'] == 'image') {
+        // Inline pictures (W08.01): one embed character; marks stay on the run.
+        delta.insert({
+          'folioImage': jsonEncode(child),
         }, attrs.isEmpty ? null : attrs);
       } else if ((child['text'] as String).isNotEmpty) {
         delta.insert(child['text'], attrs.isEmpty ? null : attrs);
@@ -265,9 +270,15 @@ Map<String, dynamic> deltaToDocument(Delta delta, {Map? attributes}) {
     final insert = op['insert'];
     final attrs = (op['attributes'] as Map?) ?? {};
     if (insert is Map &&
-        (insert['folioPageField'] is String || insert['lineBreak'] is String)) {
+        (insert['folioPageField'] is String ||
+            insert['lineBreak'] is String ||
+            insert['folioImage'] is String)) {
       final field = Map<String, dynamic>.from(
-        jsonDecode(insert['folioPageField'] ?? insert['lineBreak']),
+        jsonDecode(
+          insert['folioPageField'] ??
+              insert['lineBreak'] ??
+              insert['folioImage'],
+        ),
       );
       final marks = _readMarks(attrs);
       field.remove('marks');

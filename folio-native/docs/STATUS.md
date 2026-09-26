@@ -27,7 +27,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | W05 | [Page layout: sections, margins, columns and breaking](status/word.md#w05-page-layout-sections-margins-columns-and-breaking) | 5 | 0 | 2 | 4 | 0 | 0 | 11 |
 | W06 | [Headers, footers, page numbers and backgrounds](status/word.md#w06-headers-footers-page-numbers-and-backgrounds) | 3 | 0 | 0 | 4 | 0 | 0 | 7 |
 | W07 | [Tables](status/word.md#w07-tables) | 4 | 0 | 2 | 9 | 0 | 0 | 15 |
-| W08 | [Pictures, shapes, text boxes, SmartArt and charts](status/word.md#w08-pictures-shapes-text-boxes-smartart-and-charts) | 7 | 0 | 1 | 0 | 0 | 0 | 8 |
+| W08 | [Pictures, shapes, text boxes, SmartArt and charts](status/word.md#w08-pictures-shapes-text-boxes-smartart-and-charts) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
 | W09 | [Equations, embedded objects, media and content controls](status/word.md#w09-equations-embedded-objects-media-and-content-controls) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | W10 | [Fields, captions, cross-references, TOC and indexes](status/word.md#w10-fields-captions-cross-references-toc-and-indexes) | 7 | 0 | 1 | 0 | 0 | 0 | 8 |
 | W11 | [Footnotes, endnotes, citations and bibliography](status/word.md#w11-footnotes-endnotes-citations-and-bibliography) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
@@ -56,14 +56,14 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 5 | 1 | 6 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **218** | **6** | **97** | **80** | **0** | **0** | **401** |
+| **All** | | **216** | **6** | **99** | **80** | **0** | **0** | **401** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
 - 52 native verified;
-- 68 automated verified only;
+- 70 automated verified only;
 - 4 implemented without dedicated tests;
-- 12 not built.
+- 10 not built.
 
 ## Ranked gap list
 
@@ -76,11 +76,11 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 |---:|---|---|---|---|---|
 | 1 | Record the Office baseline and create the daily-workflow comparison files in Word/Excel. The real-world corpus (387 Office-saved files) now covers much of the file-compatibility evidence; the baseline is still needed for interaction and layout comparisons. | [OFFICE_BASELINE](status/OFFICE_BASELINE.md), [CORPUS](status/CORPUS.md) | S | High | Owner, with Office installs |
 | 2 | Excel-correct results: 31 of 23,120 corpus formulas differ ([part 1](../../docs/superpowers/plans/2026-09-26-excel-correct-results.md), [part 2](../../docs/superpowers/plans/2026-09-26-excel-correct-results-2.md)). Left: the intersection and union operators, iterative calculation, GETPIVOTDATA and HYPERLINK | X08.08, X08.11, X08.03 | S | Medium | — |
-| 3 | Native qualification sweep: raise the 68 M1 children that are only automated-verified; resolve the 7 Flutter tests that fail on Linux (Save/Save As, external writes, leave-file prompts, native menus) | D02.03–D02.09, D03.04, X01.12, X04.01–X04.04, W13.01, X15.01 and others | M | High | The Mac (packaged build) |
+| 3 | Native qualification sweep: raise the 70 M1 children that are only automated-verified; resolve the 7 Flutter tests that fail on Linux (Save/Save As, external writes, leave-file prompts, native menus) | D02.03–D02.09, D03.04, X01.12, X04.01–X04.04, W13.01, X15.01 and others | M | High | The Mac (packaged build) |
 | 4 | Workbook editing essentials: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md)). Left: copying charts, pictures and sheet-scoped names with a duplicated sheet, pointing from another sheet's tab, borders on whole rows/columns, native checks | X03.06, X01.06, X04.07 | S | High | The Mac for native checks |
 | 5 | Clipboard exchange with Office and other apps, and cut/move | D03.05, X01.10, X01.11 | L | Medium | Mac clipboard testing |
 | 6 | Document editing essentials: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-document-editing-essentials.md)). Left: the rest of the Home-tab text commands, a Draft view, native checks | W01.13, W01.14, W12.09, W17.02, W17.07, W07.06, D03.10, X04.12 | S | High | The Mac for native checks |
-| 7 | Pictures in documents: render inline images, insert from file | W08.01–W08.02 | L | Medium | Depends on risk R1 |
+| 7 | Pictures in documents: inline pictures render and insert ([plan](../../docs/superpowers/plans/2026-09-26-document-pictures.md)). Left: floating pictures (risk R1), pictures in tables and headers, paste and drag, native checks | W08.01–W08.02 | S | Medium | Risk R1 for floating pictures |
 | 8 | Measure the ROADMAP §7 budgets on the reference Mac: launch, typing latency, app-level open/save, memory | D09.01–D09.03, D09.05–D09.07 | S | High | The Mac |
 | 9 | Keyboard and VoiceOver audit of the daily workflow | D04.01–D04.03 | M | Medium | The Mac |
 | 10 | Compatibility matrix and the pre-save impact report | W16.09, X17.09, D02.17 | M | Medium | Corpus (rank 1) for the Office columns |
@@ -126,6 +126,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-26 | Pictures in documents (rank 7): inline pictures import, render in the editor and page preview, and export from their source drawing; Insert Picture stores PNG, JPEG or GIF files in the document's package in one Undo step. 44 of the corpus's 56 inline pictures show. W08.01 and W08.02 to Automated verified. |
 | 2026-09-26 | Excel-correct results part 2 (rank 2): number formats rendered from their placeholders (all 832 POI TEXT rows match, and `000.00` keeps its leading zero in cells), names and references on other sheets, MINA/MAXA and matrix edge cases, text starting with `+`/`-` kept as text, three more corpus files read and the bug66675 export fixed. Corpus differences: 656 → 31; X08.08 to Automated verified. |
 | 2026-09-26 | Document editing essentials (rank 6): Change Case and Clear All Formatting (W01.13), the hyperlink UI (W01.14), the Word Count dialog with a new `documentNotesText` op (W12.09), editor zoom (W17.02), formatting marks (W17.07), table drag-resize (W07.06) and Format Painter (D03.10, X04.12), all Automated verified. The plan is closed. |
 | 2026-09-26 | Excel-correct results (rank 2): 3-D references (X08.15), array (CSE) formulas, XLOOKUP rows, unary-plus intersection, backslash names, Excel's coercion rules (X08.08, Implemented), tolerant reading (X17.12) and Strict Open XML (X17.11). Corpus: 279 of 291 XLSX open (272 before); 656 of 23,120 formulas differ (744). |

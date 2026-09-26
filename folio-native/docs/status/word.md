@@ -114,8 +114,8 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 
 | ID | Requirement | M | State | Evidence | Gap / next step |
 |---|---|---|---|---|---|
-| W08.01 | Inline pictures render in the editor and preview | M1 | Specified | — | Imported drawing XML retained but not rendered |
-| W08.02 | Insert a picture from a file | M1 | Specified | — | Not built |
+| W08.01 | Inline pictures render in the editor and preview | M1 | Automated verified | Inline pictures import as `image` nodes and export from their source drawing (`docx_pictures.rs`); shown in the editor (scaled to the line) and the page preview; 44 of the corpus's 56 inline pictures shown, all readable ([CORPUS](CORPUS.md#office-created-corpus-real-files)) | Floating pictures (W08.04); pictures in tables, headers and paragraphs with fields or tracked changes; native check |
+| W08.02 | Insert a picture from a file | M1 | Automated verified | Insert Picture: PNG, JPEG or GIF up to 10 MB, stored in the document's package and scaled to the text width in one Undo step; `.folio` save, reopen and DOCX export keep it ([tests](../../rust/src/docx_pictures_tests.rs), `document_pictures_workspace_test.dart`) | Paste and drag pictures; resize, crop and alt text (W08.03); native check |
 | W08.03 | Resize, crop and rotate pictures; alt text | M2 | Specified | — | Not built |
 | W08.04 | Floating objects: text wrapping, anchors and positioning | M2 | Specified | — | Not built; rich-text layout risk |
 | W08.05 | Shapes and text boxes | M4 | Specified | — | Not built |
