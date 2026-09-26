@@ -32,11 +32,12 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
     if blocks.is_empty() {
         blocks.push(json!({"type":"paragraph"}));
     }
-    for(part,label)in [("word/header","Headers and footers are preserved but not paginated in the editor."),("word/footnotes","Footnotes and endnotes are preserved in the package."),("word/media","Embedded images and media are preserved; complex image layout may render as a preserved block.")] {if pkg.entries.keys().any(|k|k.starts_with(part)){warnings.push(label.into());}}
+    for(part,label)in [("word/header","Headers and footers are preserved but not paginated in the editor."),("word/media","Embedded images and media are preserved; complex image layout may render as a preserved block.")] {if pkg.entries.keys().any(|k|k.starts_with(part)){warnings.push(label.into());}}
     if crate::docx_revisions::has_changes(dom.root_element()) {
         warnings.push("Use Review > Track Changes to review preserved revisions, or Record changes to choose an author and record supported edits.".into());
     }
     let mut document = json!({"type":"doc","content":blocks});
+    crate::docx_notes::import(&mut document, pkg);
     document["attrs"][crate::docx_page_setup::KEY] = crate::docx_page_setup::read(pkg)?;
     document["attrs"][crate::docx_styles::KEY] = crate::docx_styles::read(pkg)?;
     if let Some(default) = tabs.default {
@@ -253,6 +254,14 @@ pub(crate) fn read_block(
                             content.push(text);
                         }
                     }
+                    "footnoteReference" | "endnoteReference" => {
+                        if let Some(mut note) = crate::docx_notes::read(run, part) {
+                            if !marks.is_empty() {
+                                note["marks"] = json!(marks);
+                            }
+                            content.push(note);
+                        }
+                    }
                     "drawing" => {
                         if let Some(mut image) = crate::docx_pictures::read(part, rels) {
                             if !marks.is_empty() {
@@ -295,6 +304,11 @@ pub(crate) fn read_block(
             return table;
         }
     }
+    if typ == "sdt" {
+        if let Some(toc) = crate::docx_references::read(node, id) {
+            return toc;
+        }
+    }
     json!({"type":"officeBlock","attrs":{"officeId":id,"label":format!("Preserved Word {typ}")},"content":[{"type":"paragraph","content":[{"type":"text","text":xml_text(node)}]}]})
 }
 pub fn export(
@@ -323,6 +337,8 @@ fn export_impl(
         }
     }
     let mut result = pkg.cloned().unwrap_or_else(new_package);
+    let noted = crate::docx_notes::prepare(document, &mut result)?;
+    let document = &noted;
     crate::docx_tabs::write_default(document, &mut result)?;
     crate::docx_styles::write(document, &mut result)?;
     let numbered = crate::docx_numbering::prepare(document, &mut result)?;
@@ -505,6 +521,9 @@ fn write_block_content(
         return previous
             .map(|(_, xml)| xml.to_string())
             .unwrap_or_else(|| paragraph(&crate::workspace::document_text(node), ""));
+    }
+    if node["type"] == "tableOfContents" {
+        return crate::docx_references::write(node);
     }
     if node["type"] == "workbookBlock" {
         return node["content"]
@@ -729,6 +748,9 @@ fn write_inline(n: &Value, links: &HashMap<String, String>) -> String {
     }
     if n["type"] == "pageField" {
         return crate::docx_fields::write(n, &marks);
+    }
+    if n["type"] == "noteRef" {
+        return crate::docx_notes::write(n, &marks);
     }
     if n["type"] == "image" {
         // Drawing ids must be unique in a document; new ones count up from

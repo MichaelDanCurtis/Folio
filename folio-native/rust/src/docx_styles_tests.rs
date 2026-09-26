@@ -811,7 +811,8 @@ fn missing_heading_gallery_materializes_each_level_with_roundtrip_and_single_his
         c.workspace, original,
         "reading the gallery must not create styles"
     );
-    assert_eq!(data["availableStyles"].as_array().unwrap().len(), 9);
+    // Nine headings, Caption and TOC 1–3.
+    assert_eq!(data["availableStyles"].as_array().unwrap().len(), 13);
     for level in 1..=9 {
         let before = c.workspace.clone();
         command(

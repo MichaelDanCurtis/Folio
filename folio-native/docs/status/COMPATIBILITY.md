@@ -37,11 +37,12 @@ A test fails when the tables and the code differ.
 | Tables | Verified | Verified | Verified | — | Verified | Verified | Unsupported | — | Kept, with Folio's changes | W07 |
 | Inline pictures | Verified | Verified | Partial | — | Verified | Verified | Unsupported | — | Kept; new pictures added | W08.01–W08.02; corpus pictures |
 | Floating pictures and shapes | Verified | Preserved only | Preserved only | — | Preserved only | Preserved only | Unsupported | — | Kept unchanged | W08.04, W08.08 |
-| Fields | Verified | Partial | Partial | — | Preserved only | Verified | Unsupported | — | Page fields written; other fields kept unchanged | W10 |
+| Fields | Verified | Partial | Partial | Partial | Verified | Verified | Unsupported | — | Page, caption and cross-reference fields written; other fields kept unchanged | W10.01, W10.03–W10.04 |
 | Comments | Verified | Verified | Verified | — | Verified | Verified | Unsupported | — | Kept, with Folio's changes | W13.01 |
 | Tracked changes | Verified | Verified | Partial | — | Verified | Verified | Unsupported | — | Kept; Folio's tracked edits recorded | W13.03–W13.06 |
 | Headers and footers | Verified | Verified | Verified | — | Verified | Verified | Unsupported | — | Kept, with Folio's changes | W06 |
-| Footnotes and endnotes | Verified | Preserved only | Preserved only | — | Preserved only | Preserved only | Unsupported | — | Kept unchanged | W11.01 |
+| Footnotes and endnotes | Verified | Verified | Verified | — | Verified | Verified | Unsupported | — | Kept; edited and new notes written as plain paragraphs | W11.01 |
+| Tables of contents | Verified | Verified | Partial | — | Verified | Verified | Unsupported | — | Kept; Folio's tables written as Word's TOC field | W10.05 |
 | Equations | Verified | Preserved only | Preserved only | — | Preserved only | Preserved only | Unsupported | — | Kept unchanged | W09.01 |
 | Content controls | Verified | Preserved only | Preserved only | — | Preserved only | Preserved only | Unsupported | — | Kept unchanged | W09.05 |
 | Charts and SmartArt | Verified | Preserved only | Preserved only | — | Preserved only | Preserved only | Unsupported | — | Kept unchanged | W08.06–W08.07 |

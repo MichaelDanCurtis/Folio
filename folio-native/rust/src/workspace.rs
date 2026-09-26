@@ -162,6 +162,8 @@ pub(crate) fn document_validate(v: &Value, depth: usize, count: &mut usize) -> R
         return Err("Invalid text node".into());
     }
     crate::docx_fields::validate(v)?;
+    crate::docx_notes::validate(v)?;
+    crate::docx_references::validate(v)?;
     crate::docx_numbering::validate_node(v)?;
     crate::docx_tabs::validate_node(v)?;
     crate::docx_paragraph::validate(v)?;
@@ -2796,6 +2798,89 @@ impl Core {
                     ));
                 }
                 Ok(json!({"reports": reports}))
+            }
+            "documentReferences" => {
+                // Insert a caption, cross-reference or table of contents
+                // (W10.03–W10.05) at a body-story offset, in one step.
+                let document = &self.workspace["document"];
+                if r["action"] == "targets" {
+                    return Ok(crate::docx_references::targets(document));
+                }
+                if r.get("baseRevision")
+                    .is_some_and(|v| *v != self.workspace["revision"])
+                {
+                    return Err("The document changed. Try again.".into());
+                }
+                let offset = r["offset"].as_u64().ok_or("Place the cursor first.")? as usize;
+                let next = match r["action"].as_str() {
+                    Some("caption") => crate::docx_references::insert_caption(
+                        document,
+                        offset,
+                        r["label"].as_str().unwrap_or("Figure"),
+                        r["text"].as_str().unwrap_or(""),
+                    )?,
+                    Some("crossReference") => crate::docx_references::insert_cross_reference(
+                        document,
+                        offset,
+                        &r["target"],
+                        r["page"] == true,
+                    )?,
+                    Some("toc") => crate::docx_references::insert_toc(
+                        document,
+                        offset,
+                        r["levels"].as_u64().unwrap_or(3),
+                    )?,
+                    _ => return Err("Unknown references action".into()),
+                };
+                let mut n = self.workspace.clone();
+                n["document"] = document_with_settings(&next, &n["document"])?;
+                self.materialize_document_styles(&mut n)?;
+                self.commit_document(n, None)
+            }
+            "documentUpdateFields" => {
+                // Captions, cross-references and tables of contents (W10.03–
+                // W10.05). `blockPages` are the pages of the preview's
+                // top-level blocks, from the app's layout; without them,
+                // known page numbers stay as they are.
+                if r.get("baseRevision")
+                    .is_some_and(|v| *v != self.workspace["revision"])
+                {
+                    return Err("The document changed. Try again.".into());
+                }
+                let mut next = match r.get("document") {
+                    Some(d) => d.clone(),
+                    None => self.workspace["document"].clone(),
+                };
+                let pages = match r["blockPages"].as_array() {
+                    Some(list) => {
+                        let block_pages: Vec<String> = list
+                            .iter()
+                            .map(|p| p.as_str().unwrap_or("").chars().take(20).collect())
+                            .collect();
+                        let resolved = self.resolved_document()?;
+                        let source = self.workspace["officeDocument"]["packageId"]
+                            .as_str()
+                            .and_then(|id| self.packages.get(id))
+                            .cloned();
+                        let baked = crate::docx::export_review(
+                            &resolved,
+                            source.as_deref(),
+                            self.workspace["officeDocument"].get("baseline"),
+                        )?;
+                        let preview = crate::docx_headers::page_preview(&baked)?;
+                        crate::docx_references::pages(&preview["document"], &block_pages)
+                    }
+                    None => crate::docx_references::Pages::default(),
+                };
+                crate::docx_references::update(&mut next, &pages);
+                if next == self.workspace["document"] {
+                    return Ok(self.snapshot());
+                }
+                self.dispatch(json!({
+                    "op": "document",
+                    "document": next,
+                    "baseRevision": self.workspace["revision"],
+                }))
             }
             "documentImageAdd" => {
                 use base64::{engine::general_purpose::STANDARD, Engine as _};

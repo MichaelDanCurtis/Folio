@@ -1,3 +1,5 @@
+import 'document_references.dart';
+import 'document_notes.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'document_case.dart' show documentText;
@@ -533,6 +535,30 @@ class DocumentViewState extends State<DocumentView> {
     }
   }
 
+  /// The References menu (W10.03–W10.05, W11.01).
+  Future<void> references(String choice) async {
+    try {
+      switch (choice) {
+        case 'footnote' || 'endnote':
+          await insertNote(context, controller, choice);
+        case 'caption':
+          await insertCaption(context, model!, controller);
+        case 'crossReference':
+          await insertCrossReference(context, model!, controller);
+        case 'toc':
+          await insertTableOfContents(model!, controller);
+        case 'updateFields':
+          await updateFields(model!);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e is FormatException ? e.message : '$e')),
+        );
+      }
+    }
+  }
+
   /// Insert or edit the hyperlink at the selection (Ctrl/Cmd+K).
   Future<void> editLink() async {
     try {
@@ -988,6 +1014,41 @@ class DocumentViewState extends State<DocumentView> {
                     onPressed: model == null ? null : insertPicture,
                     icon: const Icon(Icons.image_outlined, size: 19),
                   ),
+                  PopupMenuButton<String>(
+                    key: const Key('document-references'),
+                    tooltip: 'References',
+                    icon: const Icon(Icons.menu_book_outlined, size: 19),
+                    onSelected: references,
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'footnote',
+                        child: Text('Insert footnote'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'endnote',
+                        child: Text('Insert endnote'),
+                      ),
+                      if (model != null) ...const [
+                        PopupMenuDivider(),
+                        PopupMenuItem(
+                          value: 'caption',
+                          child: Text('Insert caption…'),
+                        ),
+                        PopupMenuItem(
+                          value: 'crossReference',
+                          child: Text('Cross-reference…'),
+                        ),
+                        PopupMenuItem(
+                          value: 'toc',
+                          child: Text('Table of contents'),
+                        ),
+                        PopupMenuItem(
+                          value: 'updateFields',
+                          child: Text('Update fields'),
+                        ),
+                      ],
+                    ],
+                  ),
                   IconButton(
                     key: const Key('insert-table'),
                     tooltip: 'Insert table',
@@ -1131,6 +1192,7 @@ class DocumentViewState extends State<DocumentView> {
                 embedBuilders: [
                   const PageFieldEmbedBuilder(),
                   DocumentPictureBuilder(model: model),
+                  const NoteEmbedBuilder(),
                   FolioEmbedBuilder(model: model, onOpen: onOpenSource),
                 ],
                 customShortcuts: {
@@ -1233,6 +1295,12 @@ class FolioEmbedBuilder extends q.EmbedBuilder {
         model: model!,
         attributes: node['attrs'],
         onOpen: onOpen,
+      );
+    }
+    if (node['type'] == 'tableOfContents') {
+      return TableOfContentsView(
+        node: node,
+        onUpdate: model == null ? null : () => updateFields(model!),
       );
     }
     if (node['type'] == 'table') {

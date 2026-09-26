@@ -84,6 +84,51 @@ List<Map<String, dynamic>> availableBuiltinStyles(Map catalog) {
       },
     });
   }
+  // Captions and table-of-contents levels, as the engine offers them.
+  bool declared(String id, String name) =>
+      (catalog['styles'] as List? ?? []).whereType<Map>().any(
+        (s) =>
+            s['type'] == 'paragraph' &&
+            ((s['id'] as String?)?.toLowerCase() == id.toLowerCase() ||
+                (s['name'] as String?)?.toLowerCase() == name.toLowerCase()),
+      );
+  if (!declared('Caption', 'caption')) {
+    added.add({
+      'id': unique('Caption'),
+      'name': 'caption',
+      'type': 'paragraph',
+      'customStyle': false,
+      'basedOn': bodyId,
+      'next': bodyId,
+      'properties': {
+        'paragraph': {'after': 200},
+        'tabs': [],
+        'run': {
+          'italic': true,
+          'sz': 18,
+          'color': {'val': '0E2841'},
+        },
+      },
+    });
+  }
+  for (var level = 1; level <= 3; level++) {
+    if (declared('TOC$level', 'toc $level')) continue;
+    added.add({
+      'id': unique('TOC$level'),
+      'name': 'toc $level',
+      'type': 'paragraph',
+      'customStyle': false,
+      'basedOn': bodyId,
+      'next': bodyId,
+      'properties': {
+        'paragraph': {'after': 100, 'left': (level - 1) * 220},
+        'tabs': [
+          {'position': 9350, 'alignment': 'right', 'leader': 'dot'},
+        ],
+        'run': {},
+      },
+    });
+  }
   return added;
 }
 

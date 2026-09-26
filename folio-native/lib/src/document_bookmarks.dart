@@ -120,11 +120,13 @@ class DocumentBookmarkIndex {
           final isField =
               insert is Map &&
               (insert['folioPageField'] is String ||
-                  insert['folioImage'] is String);
-          // A picture has no text: no logical width, as in the engine.
+                  insert['folioImage'] is String ||
+                  insert['folioNote'] is String);
+          // A picture or note reference has no text: no logical width, as
+          // in the engine.
           final width = !isField
               ? op.length!
-              : insert['folioImage'] is String
+              : insert['folioImage'] is String || insert['folioNote'] is String
               ? 0
               : (jsonDecode(insert['folioPageField'])['text'] as String).length;
           _spans.add(

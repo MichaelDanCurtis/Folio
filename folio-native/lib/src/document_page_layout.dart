@@ -1,3 +1,5 @@
+import 'document_references.dart' show tableOfContentsPreview;
+import 'document_notes.dart' show documentNoteMarks;
 import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'dart:convert';
@@ -414,6 +416,7 @@ class _PageFlow {
   final sectionCounts = <int, int>{};
   late List sections;
   late Map document;
+  late final Map<Map, String> noteMarks = documentNoteMarks(document);
   late List blocks;
   late Map<int, String> labels;
   late List<String?> blockLabels;
@@ -739,6 +742,9 @@ class _PageFlow {
         'This document is nested too deeply to preview.',
       );
     }
+    if (block['type'] == 'tableOfContents') {
+      block = tableOfContentsPreview(block);
+    }
     if (block['type'] == 'table') {
       return table(block, width, key, index, number, story, depth);
     }
@@ -854,6 +860,23 @@ class _PageFlow {
           );
         }
         position += 1;
+        continue;
+      }
+      if (n['type'] == 'noteRef') {
+        // A note reference shows its mark, raised and smaller.
+        final mark = noteMarks[n] ?? '*';
+        if (position + mark.length > textStart) {
+          spans.add(
+            TextSpan(
+              text: mark.substring(math.max(0, textStart - position)),
+              style: style.copyWith(
+                fontSize: (base.fontSize ?? 12) * 0.65,
+                fontFeatures: const [FontFeature.superscripts()],
+              ),
+            ),
+          );
+        }
+        position += mark.length;
         continue;
       }
       final value = n['type'] == 'pageField'
