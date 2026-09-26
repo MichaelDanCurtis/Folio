@@ -32,6 +32,6 @@
 
 ### Task 5: Close-out
 
-- [ ] Rerun the Office corpus: pictures render and documents still round-trip.
-- [ ] Update the register rows, STATUS.md counts and the change log.
-- [ ] Run the local CI mirror. The Flutter baseline is 7 failures that happen only on Linux.
+- [x] Rerun the Office corpus: 44 of the 56 inline pictures import as editable pictures, all readable, and all 92 documents still round-trip.
+- [x] Update the register rows, STATUS.md counts and the change log.
+- [x] Run the local CI mirror: Flutter 469 passed with only the 7 Linux-only failures; Rust 494 passed; rustfmt clean.
