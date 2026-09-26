@@ -98,7 +98,7 @@ void main() {
       );
       expect(formula.decoration!.hintText, '=SEQUENCE(3)');
       Decoration? outline(String a) => t
-          .widget<Container>(find.byKey(Key('cell-frame-$a')))
+          .widget<Container>(find.byKey(Key('sheet-frame-$a')))
           .foregroundDecoration;
       expect(outline('A2'), isNotNull);
       expect(outline('A3'), isNotNull);

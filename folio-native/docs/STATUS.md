@@ -27,7 +27,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | W05 | [Page layout: sections, margins, columns and breaking](status/word.md#w05-page-layout-sections-margins-columns-and-breaking) | 5 | 0 | 2 | 4 | 0 | 0 | 11 |
 | W06 | [Headers, footers, page numbers and backgrounds](status/word.md#w06-headers-footers-page-numbers-and-backgrounds) | 3 | 0 | 0 | 4 | 0 | 0 | 7 |
 | W07 | [Tables](status/word.md#w07-tables) | 4 | 0 | 2 | 9 | 0 | 0 | 15 |
-| W08 | [Pictures, shapes, text boxes, SmartArt and charts](status/word.md#w08-pictures-shapes-text-boxes-smartart-and-charts) | 2 | 0 | 6 | 0 | 0 | 0 | 8 |
+| W08 | [Pictures, shapes, text boxes, SmartArt and charts](status/word.md#w08-pictures-shapes-text-boxes-smartart-and-charts) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
 | W09 | [Equations, embedded objects, media and content controls](status/word.md#w09-equations-embedded-objects-media-and-content-controls) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | W10 | [Fields, captions, cross-references, TOC and indexes](status/word.md#w10-fields-captions-cross-references-toc-and-indexes) | 7 | 0 | 1 | 0 | 0 | 0 | 8 |
 | W11 | [Footnotes, endnotes, citations and bibliography](status/word.md#w11-footnotes-endnotes-citations-and-bibliography) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
@@ -45,7 +45,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X06 | [Sort, filter and tables](status/excel.md#x06-sort-filter-and-tables) | 5 | 0 | 1 | 4 | 0 | 0 | 10 |
 | X07 | [Data validation and conditional formatting](status/excel.md#x07-data-validation-and-conditional-formatting) | 3 | 0 | 2 | 5 | 0 | 0 | 10 |
 | X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 5 | 0 | 12 | 2 | 0 | 0 | 19 |
-| X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
+| X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 2 | 0 | 6 | 0 | 0 | 0 | 8 |
 | X10 | [Auditing](status/excel.md#x10-auditing) | 4 | 0 | 0 | 2 | 0 | 0 | 6 |
 | X11 | [Charts, sparklines and drawings](status/excel.md#x11-charts-sparklines-and-drawings) | 6 | 1 | 1 | 0 | 0 | 0 | 8 |
 | X12 | [PivotTables](status/excel.md#x12-pivottables) | 6 | 0 | 0 | 0 | 0 | 0 | 6 |

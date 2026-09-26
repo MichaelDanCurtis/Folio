@@ -4712,7 +4712,7 @@ class SheetViewState extends State<SheetView> {
                             r,
                             c,
                             Container(
-                              key: Key('cell-frame-$a'),
+                              key: Key('sheet-frame-$a'),
                               foregroundDecoration: spillOutline(r, c),
                               decoration: BoxDecoration(
                                 color: active || inRange
