@@ -254,3 +254,27 @@ fn forecast_ets_family() {
     assert!(model._get_text("D6").parse::<f64>().is_ok());
     assert_eq!(model._get_text("D7"), "#NUM!");
 }
+
+#[test]
+fn named_lambdas_and_spills() {
+    let mut model = new_empty_model();
+    model
+        .new_defined_name("DOUBLE", None, "LAMBDA(x,x*2)")
+        .unwrap();
+    model.new_defined_name("Rate", None, "0.25").unwrap();
+    model._set("A1", "=DOUBLE(21)");
+    model._set("A2", "=Rate*4");
+    model._set("A3", "=_xlfn.LAMBDA(_xlpm.y,_xlpm.y+1)(1)");
+    model.evaluate();
+    assert_eq!(cells(&model, &["A1", "A2", "A3"]), ["42", "1", "2"]);
+}
+
+#[test]
+fn function_names_only_stand_for_functions_where_a_lambda_goes() {
+    let mut model = new_empty_model();
+    model._set("B2", "8");
+    model._set("A1", "=Rate*B2");
+    model._set("A2", "=SUM");
+    model.evaluate();
+    assert_eq!(cells(&model, &["A1", "A2"]), ["#NAME?", "#NAME?"]);
+}

@@ -123,12 +123,6 @@ fn prefix_bound_variables(node: &mut Node, bound: &mut Vec<String>) {
         Node::NamedVariableKind { name, .. } => {
             if bound.iter().any(|n| n == name) {
                 *name = format!("_xlpm.{name}");
-            } else if crate::language::get_language("en")
-                .is_ok_and(|l| l.functions.lookup(name).is_some())
-            {
-                // FOLIO PATCH: a function named as a value (`BYROW(A1:C3,SUM)`)
-                // is stored as `_xleta.SUM`.
-                *name = format!("_xleta.{}", name.to_uppercase());
             }
         }
         // A bound lambda used as a function: `LET(f,LAMBDA(a,a*a),f(2))`
@@ -166,8 +160,31 @@ fn prefix_bound_variables(node: &mut Node, bound: &mut Vec<String>) {
             prefix_bound_variables(&mut args[2 * pair_count], bound);
             bound.truncate(depth);
         }
-        Node::FunctionKind { args, .. } => {
+        Node::FunctionKind { kind, args } => {
+            // FOLIO PATCH: a function named where a LAMBDA goes
+            // (`BYROW(A1:C3,SUM)`) is stored as `_xleta.SUM`.
+            let takes_lambda = matches!(
+                kind,
+                Function::Byrow
+                    | Function::Bycol
+                    | Function::Map
+                    | Function::Reduce
+                    | Function::Scan
+                    | Function::Makearray
+                    | Function::Groupby
+                    | Function::Pivotby
+            );
             for arg in args {
+                if let Node::NamedVariableKind { name, .. } = arg {
+                    if takes_lambda
+                        && !bound.iter().any(|n| n == name)
+                        && crate::language::get_language("en")
+                            .is_ok_and(|l| l.functions.lookup(name).is_some())
+                    {
+                        *name = format!("_xleta.{}", name.to_uppercase());
+                        continue;
+                    }
+                }
                 prefix_bound_variables(arg, bound);
             }
         }

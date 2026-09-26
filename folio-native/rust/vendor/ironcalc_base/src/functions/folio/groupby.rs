@@ -296,7 +296,7 @@ impl Model<'_> {
         node: &Node,
         cell: CellReferenceIndex,
     ) -> Result<CalcResult, CalcResult> {
-        match self.evaluate_node_in_context(node, cell) {
+        match self.evaluate_lambda_argument(node, cell) {
             f @ CalcResult::Lambda(_) => Ok(f),
             e @ CalcResult::Error { .. } => Err(e),
             _ => Err(CalcResult::new_error(

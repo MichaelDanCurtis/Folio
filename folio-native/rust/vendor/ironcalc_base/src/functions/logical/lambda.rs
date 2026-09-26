@@ -160,6 +160,20 @@ impl<'a> Model<'a> {
         result
     }
 
+    /// FOLIO PATCH: an argument that takes a LAMBDA. A function's name there
+    /// is a lambda that calls it, as in Excel (`BYROW(A1:C3, SUM)`).
+    pub(crate) fn evaluate_lambda_argument(&mut self, node: &Node, cell: CellReferenceIndex) -> CalcResult {
+        if let Node::NamedVariableKind { name, id: None } = node {
+            if let Some(kind) = self.language.functions.lookup(name) {
+                let id = self.get_next_lambda_id();
+                self.lambdas.insert(id, (vec![], Node::EmptyArgKind));
+                self.eta_functions.insert(id, kind);
+                return CalcResult::Lambda(id);
+            }
+        }
+        self.evaluate_node_in_context(node, cell)
+    }
+
     pub(crate) fn fn_lambda(&mut self, args: &[Node], cell: CellReferenceIndex) -> CalcResult {
         // Reached when LAMBDA is stored as FunctionKind::Lambda (e.g. imported from xlsx).
         if args.is_empty() {

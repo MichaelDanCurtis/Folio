@@ -910,21 +910,6 @@ impl<'a> Model<'a> {
                     ),
                 }
             }
-            // FOLIO PATCH: a function's name as a value is a lambda that
-            // calls it, as in Excel (`BYROW(A1:C3, SUM)`).
-            NamedVariableKind { name, id: None }
-                if self.language.functions.lookup(name).is_some() =>
-            {
-                let kind = self
-                    .language
-                    .functions
-                    .lookup(name)
-                    .unwrap_or(Function::Sum);
-                let id = self.get_next_lambda_id();
-                self.lambdas.insert(id, (vec![], Node::EmptyArgKind));
-                self.eta_functions.insert(id, kind);
-                CalcResult::Lambda(id)
-            }
             NamedVariableKind { name, id: None } => CalcResult::new_error(
                 Error::NAME,
                 cell,
