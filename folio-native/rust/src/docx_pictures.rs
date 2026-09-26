@@ -250,5 +250,7 @@ pub fn add(pkg: &mut Package, bytes: &[u8]) -> Result<(String, String), String> 
             ),
         );
     }
+    // The saved `.folio` file and exports read the package's bytes.
+    pkg.original = pkg.bytes()?;
     Ok((part, rid))
 }

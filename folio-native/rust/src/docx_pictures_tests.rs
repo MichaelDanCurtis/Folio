@@ -141,3 +141,85 @@ fn picture_kinds_and_sizes_from_headers() {
     ];
     assert_eq!(docx_pictures::image_size(&jpeg), Some((9, 7)));
 }
+
+#[test]
+fn inserting_a_picture_is_one_step_and_survives_export() {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    let mut c = crate::workspace::Core::new();
+    c.dispatch(json!({"op":"new","blank":true})).unwrap();
+    let doc = json!({"type":"doc","content":[{"type":"paragraph","content":[
+        {"type":"text","text":"See "},
+        {"type":"image","attrs":{"src":"pending","alt":"Logo"}},
+    ]}]});
+    let before = c.workspace["document"].clone();
+    // A 2000×1000 PNG, scaled to the 500px text width.
+    let mut big = png();
+    big[16..20].copy_from_slice(&2000u32.to_be_bytes());
+    big[20..24].copy_from_slice(&1000u32.to_be_bytes());
+    let result = c
+        .dispatch(
+            json!({"op":"documentImageAdd","document":doc,"bytes":STANDARD.encode(&big),
+            "maxWidth":500,"baseRevision":c.workspace["revision"]}),
+        )
+        .unwrap();
+    let image = images(&c.workspace["document"])[0].clone();
+    assert_eq!(
+        (image["width"].as_f64(), image["height"].as_f64()),
+        (Some(500.0), Some(250.0))
+    );
+    assert_eq!(image["alt"], "Logo");
+    assert_eq!(result["picture"]["src"], image["src"]);
+    let bytes = c
+        .dispatch(json!({"op":"documentImage","src":image["src"]}))
+        .unwrap();
+    assert_eq!(
+        STANDARD.decode(bytes["base64"].as_str().unwrap()).unwrap(),
+        big
+    );
+    assert_eq!(bytes["contentType"], "image/png");
+
+    // Export and reimport keep it.
+    let path = std::env::temp_dir().join(format!("folio-picture-{}.docx", std::process::id()));
+    c.dispatch(json!({"op":"exportOffice","format":"docx","path":path}))
+        .unwrap();
+    let mut other = crate::workspace::Core::new();
+    let imported = other
+        .dispatch(json!({"op":"importOffice","path":path}))
+        .unwrap();
+    let again = images(&imported["workspace"]["document"]);
+    assert_eq!(again[0]["src"], image["src"]);
+    assert_eq!(again[0]["alt"], "Logo");
+    std::fs::remove_file(&path).ok();
+
+    // A saved workspace keeps the picture's package.
+    let saved = std::env::temp_dir().join(format!("folio-picture-{}.folio", std::process::id()));
+    c.dispatch(json!({"op":"save","path":saved})).unwrap();
+    let mut reopened = crate::workspace::Core::new();
+    reopened
+        .dispatch(json!({"op":"load","path":saved}))
+        .unwrap();
+    let bytes = reopened
+        .dispatch(json!({"op":"documentImage","src":image["src"]}))
+        .unwrap();
+    assert_eq!(
+        STANDARD.decode(bytes["base64"].as_str().unwrap()).unwrap(),
+        big
+    );
+    std::fs::remove_file(&saved).ok();
+
+    // One Undo step removes it; bad input is refused without a change.
+    c.dispatch(json!({"op":"undo"})).unwrap();
+    assert_eq!(c.workspace["document"], before);
+    let revision = c.workspace["revision"].clone();
+    for (bytes, message) in [
+        (STANDARD.encode(b"<svg/>"), "PNG, JPEG or GIF"),
+        (STANDARD.encode(vec![0u8; 10 * 1024 * 1024 + 1]), "10 MB"),
+    ] {
+        let err = c
+            .dispatch(json!({"op":"documentImageAdd","document":doc,"bytes":bytes,
+                "baseRevision":revision}))
+            .unwrap_err();
+        assert!(err.contains(message), "{err}");
+    }
+    assert_eq!(c.workspace["revision"], revision);
+}

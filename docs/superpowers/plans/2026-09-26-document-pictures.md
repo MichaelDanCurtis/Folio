@@ -16,9 +16,9 @@
 
 ### Task 2: Pictures in the editor
 
-- [ ] An engine op returns a picture's bytes (`documentImage`); the editor shows the picture at its size, scaled down to the text width.
-- [ ] The picture is one character: the caret moves over it, and it can be selected, deleted, copied within the document and undone.
-- [ ] Alt text is read out by screen readers.
+- [x] An engine op returns a picture's bytes (`documentImage`); the editor shows the picture at its size, scaled down to the text width.
+- [x] The picture is one character: the caret moves over it, and it can be selected, deleted, copied within the document and undone.
+- [x] Alt text is read out by screen readers.
 
 ### Task 3: Pictures in the page preview
 
@@ -26,9 +26,9 @@
 
 ### Task 4: Insert a picture from a file (W08.02)
 
-- [ ] Insert › Picture chooses a PNG, JPEG or GIF file. The picture is stored in the media store and inserted at the caret, scaled to the text width, as one Undo step.
-- [ ] Files over 10 MB, or whose contents aren't a supported image, are refused with a message.
-- [ ] Save as `.folio`, reopen, export to DOCX and reimport all keep the picture.
+- [x] Insert › Picture chooses a PNG, JPEG or GIF file. The picture is stored in the media store and inserted at the caret, scaled to the text width, as one Undo step.
+- [x] Files over 10 MB, or whose contents aren't a supported image, are refused with a message.
+- [x] Save as `.folio`, reopen, export to DOCX and reimport all keep the picture.
 
 ### Task 5: Close-out
 
