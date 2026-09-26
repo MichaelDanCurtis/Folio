@@ -1,3 +1,4 @@
+import 'document_pdf.dart' show LinkTextSpan, PdfRecorder;
 import 'document_references.dart' show tableOfContentsPreview;
 import 'document_notes.dart' show documentNoteMarks;
 import 'dart:ui' as ui;
@@ -194,7 +195,12 @@ class _TextPiece {
     if (clip?.isEmpty == true) return;
     canvas.save();
     if (clip != null) canvas.clipRect(clip!);
-    painter.paint(canvas, offset);
+    // A PDF keeps the text as text (D05.04).
+    if (canvas is PdfRecorder) {
+      canvas.text(painter, offset);
+    } else {
+      painter.paint(canvas, offset);
+    }
     final boxes = pictures.isEmpty
         ? const <TextBox>[]
         : painter.inlinePlaceholderBoxes ?? const <TextBox>[];
@@ -340,6 +346,10 @@ final previewPictures = <String, ui.Image>{};
 
 /// Draws a picture in its box, or a placeholder while it isn't decoded.
 void paintPicture(Canvas canvas, Rect box, String src) {
+  if (canvas is PdfRecorder && previewPictures.containsKey(src)) {
+    canvas.picture(src, box);
+    return;
+  }
   final image = previewPictures[src];
   if (image != null) {
     canvas.drawImageRect(
@@ -904,11 +914,15 @@ class _PageFlow {
         ));
       }
       if (position + value.length > textStart) {
+        final text = value.substring(math.max(0, textStart - position));
         spans.add(
-          TextSpan(
-            text: value.substring(math.max(0, textStart - position)),
-            style: style,
-          ),
+          attrs['link'] is String
+              ? LinkTextSpan(
+                  href: attrs['link'] as String,
+                  text: text,
+                  style: style,
+                )
+              : TextSpan(text: text, style: style),
         );
       }
       position += value.length;

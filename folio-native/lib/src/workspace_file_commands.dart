@@ -11,6 +11,7 @@ enum WorkspaceFileCommand {
   saveCopy,
   saveTemplate,
   export,
+  exportPdf,
   compatibility,
 }
 

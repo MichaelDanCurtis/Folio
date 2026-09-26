@@ -57,6 +57,7 @@ final class FolioFileMenu: NSObject, NSMenuItemValidation {
   private var canReplace = false
   private var pending = false
   private var exportItem: NSMenuItem!
+  private var pdfItem: NSMenuItem!
 
   init(window: NSWindow) {
     self.window = window
@@ -71,6 +72,7 @@ final class FolioFileMenu: NSObject, NSMenuItemValidation {
     add("Save Workspace Copy…", "saveCopy", "", [])
     add("Save as Template…", "saveTemplate", "", [])
     exportItem = add("Export Word…", "export", "e", [.command, .shift])
+    pdfItem = add("Export PDF…", "exportPdf", "", [])
     menu.addItem(.separator())
     add("Compatibility Report", "compatibility", "", [])
   }
@@ -90,6 +92,7 @@ final class FolioFileMenu: NSObject, NSMenuItemValidation {
     self.available = available
     self.canReplace = canReplace
     exportItem.title = spreadsheet ? "Export Excel…" : "Export Word…"
+    pdfItem.isHidden = spreadsheet
     // Dart publishes after the engine is ready, by which time the nib menu is installed.
     if menu.supermenu == nil, let main = NSApp.mainMenu {
       let item = NSMenuItem(title: "File", action: nil, keyEquivalent: "")

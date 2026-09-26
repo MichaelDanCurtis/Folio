@@ -34,6 +34,9 @@ mod office_corpus_tests;
 mod office_templates;
 #[cfg(test)]
 mod office_templates_tests;
+mod pdf_export;
+#[cfg(test)]
+mod pdf_export_tests;
 mod proofreading;
 mod workspace;
 

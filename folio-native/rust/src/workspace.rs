@@ -1807,6 +1807,7 @@ impl Core {
                 | "exportHtml"
                 | "exportCsv"
                 | "writeExport"
+                | "exportPdf"
                 | "readRange"
                 | "exportOffice"
                 | "context"
@@ -4156,6 +4157,14 @@ impl Core {
                     lines.push(fields.join(","));
                 }
                 Ok(json!({"text":lines.join("\r\n")}))
+            }
+            "exportPdf" => {
+                // PDF export (D05.04, D05.05): the pages the app laid out.
+                let bytes = crate::pdf_export::write(&r)?;
+                crate::office::write_bytes(text(&r, "path")?, &bytes)?;
+                Ok(
+                    json!({"saved": true, "bytes": bytes.len(), "pages": r["pages"].as_array().map_or(0, Vec::len)}),
+                )
             }
             "writeExport" => {
                 atomic_save(text(&r, "path")?, text(&r, "text")?)?;
