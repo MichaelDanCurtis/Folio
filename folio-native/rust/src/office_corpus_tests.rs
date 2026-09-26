@@ -314,6 +314,8 @@ fn office_corpus() {
     let (mut formulas, mut formula_differences_total) = (0, 0);
     let (mut pictures, mut unreadable_pictures) = (0usize, 0usize);
     let mut files_with_differences = 0;
+    let mut features: BTreeMap<String, usize> = BTreeMap::new();
+    let mut report_failures = vec![];
     for (name, application) in manifest() {
         let path = dir.join(&name);
         assert!(path.exists(), "{name} missing: run fetch_office_corpus.py");
@@ -381,6 +383,24 @@ fn office_corpus() {
             unreadable_pictures += sources.len() - readable;
             result["pictures"] = json!(sources.len());
         }
+        // The Compatibility Report runs on every file.
+        match call(&mut core, json!({"op":"compatibilityReport"})) {
+            Ok(r) => {
+                let ids: Vec<Value> = r["reports"][0]["features"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|f| f["id"].clone())
+                    .collect();
+                for id in &ids {
+                    *features
+                        .entry(id.as_str().unwrap_or("").to_string())
+                        .or_default() += 1;
+                }
+                result["features"] = json!(ids);
+            }
+            Err(e) => report_failures.push(format!("{name}: {e}")),
+        }
         // Export, then reimport the export: the projection must survive.
         let exported = out.join(&name);
         let round_trip = call(
@@ -426,7 +446,19 @@ fn office_corpus() {
         overlaps.len()
     );
     println!("inline pictures shown: {pictures} ({unreadable_pictures} unreadable)");
+    println!(
+        "files with each feature: {}",
+        features
+            .iter()
+            .map(|(id, n)| format!("{id} {n}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     println!("report: {}", report.display());
+    assert!(
+        report_failures.is_empty(),
+        "compatibility reports: {report_failures:#?}"
+    );
     let panics: Vec<&Value> = results
         .iter()
         .filter(|r| r["outcome"].as_str().is_some_and(|o| o.ends_with("panic")))

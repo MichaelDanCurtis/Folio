@@ -40,7 +40,7 @@ States and ID rules: [README](README.md). Family scope: [PARITY](../../PARITY.md
 | D02.14 | Version history: browse and restore earlier saved versions of a file | M4 | Specified | — | Timed/cloud history not built |
 | D02.15 | Finder file associations and Open With; double-clicking a file opens it | M2 | Specified | — | Not built |
 | D02.16 | File properties (title, author, tags) viewable and editable | M2 | Specified | — | Not built |
-| D02.17 | Compatibility report before saving content the target format can't hold | M1 | Implemented | Build 11 menu item ([FILE_COMMANDS](../FILE_COMMANDS.md)) | Automated and native evidence; impact preview per ROADMAP §2 |
+| D02.17 | Compatibility report before saving content the target format can't hold | M1 | Automated verified | Build 11 menu item ([FILE_COMMANDS](../FILE_COMMANDS.md)); rank 10 impact preview: signatures removed from a changed signed file, formatting lost in edited paragraphs, with Export Anyway, Save Folio Copy and Cancel (`compatibility_report_workspace_test.dart`) | Native check of the impact preview |
 
 ## D03 Clipboard, drag and drop, undo/redo and shortcuts
 

@@ -11,7 +11,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | Family | Name | Specified | Implemented | Automated verified | Native verified | Office compared | Accepted | Total |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
 | D01 | [Desktop application, windows and Office-like interaction](status/desktop.md#d01-desktop-application-windows-and-office-like-interaction) | 7 | 0 | 2 | 4 | 0 | 0 | 13 |
-| D02 | [Files: new, open, save, recent, templates, autosave and recovery](status/desktop.md#d02-files-new-open-save-recent-templates-autosave-and-recovery) | 4 | 1 | 8 | 4 | 0 | 0 | 17 |
+| D02 | [Files: new, open, save, recent, templates, autosave and recovery](status/desktop.md#d02-files-new-open-save-recent-templates-autosave-and-recovery) | 4 | 0 | 9 | 4 | 0 | 0 | 17 |
 | D03 | [Clipboard, drag and drop, undo/redo and shortcuts](status/desktop.md#d03-clipboard-drag-and-drop-undoredo-and-shortcuts) | 3 | 0 | 3 | 4 | 0 | 0 | 10 |
 | D04 | [Accessibility, zoom and localization](status/desktop.md#d04-accessibility-zoom-and-localization) | 9 | 0 | 2 | 0 | 0 | 0 | 11 |
 | D05 | [Printing, page setup and PDF](status/desktop.md#d05-printing-page-setup-and-pdf) | 5 | 0 | 0 | 1 | 0 | 0 | 6 |
@@ -35,7 +35,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | W13 | [Comments, track changes, compare and merge](status/word.md#w13-comments-track-changes-compare-and-merge) | 3 | 0 | 4 | 2 | 0 | 0 | 9 |
 | W14 | [Mail merge, labels and envelopes](status/word.md#w14-mail-merge-labels-and-envelopes) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
 | W15 | [Forms, restricted editing, protection and macros](status/word.md#w15-forms-restricted-editing-protection-and-macros) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
-| W16 | [Document format fidelity](status/word.md#w16-document-format-fidelity) | 7 | 0 | 3 | 0 | 0 | 0 | 10 |
+| W16 | [Document format fidelity](status/word.md#w16-document-format-fidelity) | 6 | 0 | 4 | 0 | 0 | 0 | 10 |
 | W17 | [Views, zoom and accessibility checking](status/word.md#w17-views-zoom-and-accessibility-checking) | 4 | 0 | 2 | 1 | 0 | 0 | 7 |
 | X01 | [Selection, editing, clipboard and fill](status/excel.md#x01-selection-editing-clipboard-and-fill) | 6 | 0 | 8 | 4 | 0 | 0 | 18 |
 | X02 | [Find, replace, Go To and navigation](status/excel.md#x02-find-replace-go-to-and-navigation) | 4 | 0 | 3 | 1 | 0 | 0 | 8 |
@@ -53,10 +53,10 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X14 | [What-if analysis](status/excel.md#x14-what-if-analysis) | 4 | 0 | 0 | 3 | 0 | 0 | 7 |
 | X15 | [Notes, comments, protection and sharing](status/excel.md#x15-notes-comments-protection-and-sharing) | 4 | 0 | 1 | 0 | 0 | 0 | 5 |
 | X16 | [Macros, add-ins and scripts](status/excel.md#x16-macros-add-ins-and-scripts) | 4 | 0 | 0 | 0 | 0 | 0 | 4 |
-| X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 5 | 1 | 6 | 1 | 0 | 0 | 13 |
+| X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 4 | 1 | 7 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **216** | **6** | **99** | **80** | **0** | **0** | **401** |
+| **All** | | **214** | **5** | **102** | **80** | **0** | **0** | **401** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
@@ -83,7 +83,7 @@ Ordered by what blocks the M1 daily-workflow scenario (ROADMAP §6) first, then 
 | 7 | Pictures in documents: inline pictures render and insert ([plan](../../docs/superpowers/plans/2026-09-26-document-pictures.md)). Left: floating pictures (risk R1), pictures in tables and headers, paste and drag, native checks | W08.01–W08.02 | S | Medium | Risk R1 for floating pictures |
 | 8 | Measure the ROADMAP §7 budgets on the reference Mac: launch, typing latency, app-level open/save, memory | D09.01–D09.03, D09.05–D09.07 | S | High | The Mac |
 | 9 | Keyboard and VoiceOver audit of the daily workflow | D04.01–D04.03 | M | Medium | The Mac |
-| 10 | Compatibility matrix and the pre-save impact report | W16.09, X17.09, D02.17 | M | Medium | Corpus (rank 1) for the Office columns |
+| 10 | Compatibility matrix and the pre-save impact report: built and automated-verified ([plan](../../docs/superpowers/plans/2026-09-26-compatibility-report.md), [matrix](status/COMPATIBILITY.md)). Left: Office comparison of the Verified rows, native checks | W16.09, X17.09, D02.17 | S | High | Office baseline (rank 1) |
 | 11 | Proofing accuracy corpus and measurement (ROADMAP §5) | W12.01, W12.04 | L | Medium | Human-reviewed corpus |
 | 12 | Assistant: stale-context conflicts and real-model qualification | D10.01–D10.05 | M | Medium | Live provider runs |
 | 13 | Print-layout editing and page-aware layout: widow/orphan, keep rules, floating objects | W05.07–W05.08, W08.04, W01.08 | XL | Low | Risk R1 decision |
@@ -103,6 +103,8 @@ The M4/M5 breadth (formats beyond DOCX/XLSX, macros, data connectors, co-authori
 **Rank 4, workbook editing essentials, is built.** Its [plan](../../docs/superpowers/plans/2026-09-25-m1-workbook-editing-essentials.md) moved X01.03, X01.06, X01.13, X01.17, X01.18, X02.04, X02.05, X04.07, X04.08, X05.03 and D01.06 to Automated verified, and X03.06 to Implemented. Its native qualification joins the rank 3 sweep on the Mac.
 
 **Rank 6, document editing essentials, is built.** Its [plan](../../docs/superpowers/plans/2026-09-26-document-editing-essentials.md) moved W01.13, W01.14, W07.06, W12.09, W17.02, W17.07, D03.10 and X04.12 to Automated verified. Its native checks join the rank 3 sweep.
+
+**Rank 10, the compatibility matrix and impact preview, is built.** Its [plan](../../docs/superpowers/plans/2026-09-26-compatibility-report.md) moved W16.09, X17.09 and D02.17 to Automated verified. The Office columns of the matrix need the baseline (rank 1).
 
 **Rank 2, Excel-correct results, is built** in two plans. 99.87% of the corpus formulas now match Excel's own results, and every corpus workbook under the size limit opens and round-trips. TEXT and number display match Excel on all 832 rows of POI's format tests. Ranks 1, 3, 8 and 9 need the owner's Office installs or the Mac, and can run alongside.
 
@@ -126,6 +128,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 
 | Date | Change |
 |---|---|
+| 2026-09-26 | Compatibility matrix and impact preview (rank 10): one engine table of 36 features gives the [matrix](status/COMPATIBILITY.md) (a test fails when they differ), the Compatibility Report's inventory of the open file by state, and the preview before an export that would remove signatures or lose formatting in edited paragraphs, with Export Anyway, Save Folio Copy and Cancel. Exporting a changed signed file now removes its signatures. W16.09, X17.09 and D02.17 to Automated verified. |
 | 2026-09-26 | Pictures in documents (rank 7): inline pictures import, render in the editor and page preview, and export from their source drawing; Insert Picture stores PNG, JPEG or GIF files in the document's package in one Undo step. 44 of the corpus's 56 inline pictures show. W08.01 and W08.02 to Automated verified. |
 | 2026-09-26 | Excel-correct results part 2 (rank 2): number formats rendered from their placeholders (all 832 POI TEXT rows match, and `000.00` keeps its leading zero in cells), names and references on other sheets, MINA/MAXA and matrix edge cases, text starting with `+`/`-` kept as text, three more corpus files read and the bug66675 export fixed. Corpus differences: 656 → 31; X08.08 to Automated verified. |
 | 2026-09-26 | Document editing essentials (rank 6): Change Case and Clear All Formatting (W01.13), the hyperlink UI (W01.14), the Word Count dialog with a new `documentNotesText` op (W12.09), editor zoom (W17.02), formatting marks (W17.07), table drag-resize (W07.06) and Format Painter (D03.10, X04.12), all Automated verified. The plan is closed. |

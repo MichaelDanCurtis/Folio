@@ -1,3 +1,4 @@
+import 'src/compatibility_report.dart';
 import 'src/document_case.dart' show documentText;
 import 'src/document_word_count.dart';
 import 'src/document_pictures.dart' show preloadPictures;
@@ -1358,10 +1359,35 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
     if (mounted) setState(() {});
   }
 
+  /// Before an export that would lose or invalidate something, lists it and
+  /// offers a Folio copy instead (D02.17). False when the export shouldn't go
+  /// ahead.
+  Future<bool> confirmExportImpacts(String format) async {
+    if (format == 'folio') return true;
+    final content = ['xlsx', 'xltx'].contains(format) ? 'xlsx' : 'docx';
+    final impacts = exportImpacts(
+      await model.core.call({'op': 'compatibilityReport'}),
+      content,
+    );
+    if (impacts.isEmpty) return true;
+    if (!mounted) return false;
+    final choice = await showExportImpacts(context, content, impacts);
+    switch (choice) {
+      case ExportChoice.export:
+        return true;
+      case ExportChoice.folioCopy:
+        await saveCopy();
+        return false;
+      case ExportChoice.cancel:
+        return false;
+    }
+  }
+
   Future<bool> saveWorkingFile({WorkingFile? target}) async {
     await flush();
     final file = target ?? activeWorkingFile;
     if (file == null) return saveWorkingFileAs();
+    if (!await confirmExportImpacts(file.format)) return false;
     final lease = await workingFiles.access.acquire(file);
     try {
       final fingerprint = await fileFingerprint(lease.path);
@@ -1427,6 +1453,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
             ? WorkingFileKind.xlsx
             : WorkingFileKind.docx);
     final format = current?.format ?? kind.name;
+    if (!await confirmExportImpacts(format)) return false;
     final destination = await getSaveLocation(
       initialDirectory: current == null ? null : File(current.path).parent.path,
       suggestedName: current?.name ?? '${model.workspace['title']}.$format',
@@ -1819,6 +1846,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
   Future<void> saveAsTemplate() async {
     await flush();
     final format = spreadsheet ? 'xltx' : 'dotx';
+    if (!await confirmExportImpacts(format)) return;
     final destination = await getSaveLocation(
       suggestedName: '${model.workspace['title']}.$format',
       acceptedTypeGroups: [
@@ -1862,6 +1890,7 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
   Future<void> export() async {
     await flush();
     final ext = spreadsheet ? 'xlsx' : 'docx';
+    if (!await confirmExportImpacts(ext)) return;
     final dest = await getSaveLocation(
       suggestedName: '${model.workspace['title']}.$ext',
       acceptedTypeGroups: [
@@ -2104,11 +2133,15 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
   }
 
   Future<void> compatibility() async {
+    await flush();
+    final inventory = await model.core.call({'op': 'compatibilityReport'});
     if (!mounted) return;
     final reports = [
       model.workspace['officeDocument']?['report'],
       model.workspace['officeWorkbook']?['report'],
     ].whereType<Map>();
+    final contents = (inventory['reports'] as List? ?? const [])
+        .whereType<Map>();
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -2126,12 +2159,16 @@ class WorkspaceScreenState extends State<WorkspaceScreen> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  'Unchanged imported files export byte for byte. Edited files retain untouched package parts. Folio does not yet reproduce Word pagination, tracked changes, embedded objects, Excel charts, pivot tables, or every formula. Advanced content may be preserved without being displayed.',
+                  'Unchanged imported files export byte for byte. Edited files retain untouched package parts. Folio does not yet reproduce Word pagination, embedded objects, Excel charts, pivot tables, or every formula. Advanced content may be preserved without being displayed.',
                 ),
                 const SizedBox(height: 12),
                 const Text(
                   'Limits: 32 MB per Office file, 30 worksheets, 100,000 populated cells per sheet. Legacy .doc/.xls, encrypted files, VBA execution and real-time coauthoring are not supported.',
                 ),
+                for (final report in contents) ...[
+                  const Divider(),
+                  CompatibilityReportView(report: report),
+                ],
                 for (final report in reports) ...[
                   const Divider(),
                   Text(
