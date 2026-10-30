@@ -144,10 +144,10 @@ Coverage of Excel's catalog of 514 worksheet functions, measured by `formula_cat
 | ID | Requirement | M | State | Evidence | Gap / next step |
 |---|---|---|---|---|---|
 | X09.01 | Shared formulas expanded on import and materialized on edit | M1 | Automated verified | 0.6 | Excel round trip |
-| X09.02 | Dynamic arrays spill into neighbouring cells with #SPILL! on collision, and render in the grid | M3 | Automated verified | Rank 18 ([plan](../../../docs/superpowers/plans/2026-09-26-spill-and-names.md)): `name_manager_tests.rs`, `name_manager_workspace_test.dart` | Excel comparison; spilled values are not yet written to exported files as cached values |
+| X09.02 | Dynamic arrays spill into neighbouring cells with #SPILL! on collision, and render in the grid | M3 | Automated verified | Rank 18 ([plan](../../../docs/superpowers/plans/2026-09-26-spill-and-names.md)): `name_manager_tests.rs`, `name_manager_workspace_test.dart`; export as Excel dynamic arrays (`t="array"`, `cm`, `xl/metadata.xml`) with cached spilled values: `xlsx_dynamic_tests.rs` | Excel comparison of the exported file |
 | X09.03 | Legacy CSE array formulas: enter, edit and keep | M3 | Specified | — | Not qualified |
 | X09.04 | LET and LAMBDA, including named LAMBDAs | M3 | Automated verified | Rank 18: named LAMBDAs through the Name Manager; IronCalc LET/LAMBDA suites | Excel comparison |
-| X09.05 | Defined names: Name Manager to create, edit and delete; names used in formulas | M2 | Automated verified | Rank 18: `name_manager_tests.rs`, `name_manager_workspace_test.dart` | Excel comparison; names with comments or hidden names are kept but not shown |
+| X09.05 | Defined names: Name Manager to create, edit and delete; names used in formulas | M2 | Automated verified | Rank 18: `name_manager_tests.rs`, `name_manager_workspace_test.dart`; a formula whose name is deleted exports as `t="e"` `#NAME?`: `xlsx_dynamic_tests.rs` | Excel comparison; names with comments or hidden names are kept but not shown |
 | X09.06 | Names follow structural edits and sheet renames | M2 | Automated verified | 0.6 | Named-formula evaluation parity |
 | X09.07 | External workbook references: display cached values; update links | M4 | Specified | — | Not built |
 | X09.08 | Defined names evaluate in formulas (workbook and sheet scope, references, constants and formulas) | M1 | Automated verified | [names tests](../../rust/src/xlsx_names_tests.rs); corpus rerun | Name Manager (X09.05); names in exported new workbooks |

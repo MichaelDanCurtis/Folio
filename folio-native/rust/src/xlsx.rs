@@ -116,7 +116,11 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
                 .and_then(|f| attr(f, "ref"))
             {
                 if let Ok(area) = crate::tables::Area::parse(range) {
-                    arrays.insert(a.into(), json!(area.text()));
+                    // A dynamic array (`cm`) spills again when calculated;
+                    // only CSE arrays fill a fixed range.
+                    if attr(c, "cm").is_none() {
+                        arrays.insert(a.into(), json!(area.text()));
+                    }
                     array_areas.push((area, a.to_string()));
                 }
             }
@@ -184,7 +188,7 @@ pub fn import(pkg: &Package) -> Result<(Value, Value), String> {
             // evaluate it with Excel 365's automatic `@` (X08.14). Array
             // (CSE) formulas and dynamic formulas (`cm`) keep their text.
             if let Some(f) = child(c, "f") {
-                if raw.starts_with('=') && attr(f, "t") != Some("array") && attr(f, "cm").is_none()
+                if raw.starts_with('=') && attr(f, "t") != Some("array") && attr(c, "cm").is_none()
                 {
                     raw = crate::structure::legacy_formula(&raw, &names, sheets.len(), a, &defined);
                 }
@@ -310,12 +314,54 @@ fn excel_error(text: &str) -> bool {
             | "#CALC!"
     )
 }
+/// A formula result's cell type and cached `<v>` text. None when there is no
+/// result, or for engine diagnostics such as #N/IMPL!, which have no Excel
+/// cache equivalent.
+pub(crate) fn cached_result(calculated: &Value, is_error: bool) -> Option<(&'static str, String)> {
+    if calculated.is_null() || (is_error && !calculated.as_str().is_some_and(excel_error)) {
+        return None;
+    }
+    let (t, v) = if is_error {
+        (" t=\"e\"", calculated.as_str().unwrap_or("").into())
+    } else if calculated.is_number() {
+        ("", calculated.to_string())
+    } else if calculated.is_boolean() {
+        (
+            " t=\"b\"",
+            if calculated == true {
+                "1".into()
+            } else {
+                "0".into()
+            },
+        )
+    } else {
+        (" t=\"str\"", calculated.as_str().unwrap_or("").into())
+    };
+    let cache = if t == " t=\"str\"" {
+        crate::xlsx_strings::xml(&v, false)
+    } else {
+        esc(&v)
+    };
+    Some((t, cache))
+}
 pub(crate) fn value_xml(
     a: &str,
     value: &str,
     style: Option<&str>,
     calculated: &Value,
     is_error: bool,
+) -> String {
+    cell_xml(a, value, style, calculated, is_error, None)
+}
+/// `dynamic` is a dynamic-array formula's spilled range and cell-metadata
+/// index (X09.02).
+fn cell_xml(
+    a: &str,
+    value: &str,
+    style: Option<&str>,
+    calculated: &Value,
+    is_error: bool,
+    dynamic: Option<(&str, &str)>,
 ) -> String {
     let style = style
         .map(|s| format!(" s=\"{}\"", esc(s)))
@@ -328,33 +374,18 @@ pub(crate) fn value_xml(
         );
     }
     if let Some(f) = value.strip_prefix('=') {
-        // Engine diagnostics such as #N/IMPL! have no Excel cache equivalent.
-        // Leave the cache absent so Excel can calculate the retained formula.
-        if calculated.is_null() || (is_error && !calculated.as_str().is_some_and(excel_error)) {
-            return format!("{start}><f>{}</f></c>", esc(f));
+        let (start, f) = match dynamic {
+            Some((range, cm)) => (
+                format!("{start} cm=\"{cm}\""),
+                format!("<f t=\"array\" ref=\"{}\">{}</f>", esc(range), esc(f)),
+            ),
+            None => (start, format!("<f>{}</f>", esc(f))),
+        };
+        // Without a cache Excel calculates the retained formula.
+        match cached_result(calculated, is_error) {
+            Some((t, cache)) => format!("{start}{t}>{f}<v>{cache}</v></c>"),
+            None => format!("{start}>{f}</c>"),
         }
-        let (t, v) = if is_error {
-            (" t=\"e\"", calculated.as_str().unwrap_or("").into())
-        } else if calculated.is_number() {
-            ("", calculated.to_string())
-        } else if calculated.is_boolean() {
-            (
-                " t=\"b\"",
-                if calculated == true {
-                    "1".into()
-                } else {
-                    "0".into()
-                },
-            )
-        } else {
-            (" t=\"str\"", calculated.as_str().unwrap_or("").into())
-        };
-        let cache = if t == " t=\"str\"" {
-            crate::xlsx_strings::xml(&v, false)
-        } else {
-            esc(&v)
-        };
-        format!("{start}{t}><f>{}</f><v>{cache}</v></c>", esc(f))
     } else if is_error || input_is_error(value) {
         format!(
             "{start} t=\"e\"><v>{}</v></c>",
@@ -377,6 +408,7 @@ pub(crate) fn value_xml(
         )
     }
 }
+#[allow(clippy::too_many_arguments)]
 fn patched_cell(
     old: roxmltree::Node<'_, '_>,
     a: &str,
@@ -385,10 +417,18 @@ fn patched_cell(
     is_error: bool,
     xml: &str,
     style: Option<&str>,
+    dynamic: Option<(&str, &str)>,
 ) -> String {
     // Keep the original cell's namespace-qualified metadata and extension
     // payloads while replacing its value and direct style id.
-    let fresh = value_xml(a, value, style.or(attr(old, "s")), calculated, is_error);
+    let fresh = cell_xml(
+        a,
+        value,
+        style.or(attr(old, "s")),
+        calculated,
+        is_error,
+        dynamic,
+    );
     let d = parse(&fresh).unwrap();
     let node = d.root_element();
     let scoped = scoped_record(xml, old);
@@ -400,6 +440,7 @@ fn patched_cell(
             ("r", Some(a.into())),
             ("s", attr(node, "s").map(String::from)),
             ("t", attr(node, "t").map(String::from)),
+            ("cm", attr(node, "cm").map(String::from)),
         ],
     );
     let inner = node
@@ -450,20 +491,46 @@ fn refresh_formula_cache(
     fragment_inner(&base, &(raw(xml, formula).to_string() + &cached + &extra))
         .expect("The source cell was parsed before refreshing its cache")
 }
-fn sheet_xml(sheet: &Value, calculated: &Value, errors: &Value) -> String {
+/// The XML of a cell Folio writes: its value, or what a formula spills into it.
+fn fresh_cell(
+    sheet: &Value,
+    a: &str,
+    value: &str,
+    calculated: &Value,
+    errors: &Value,
+    dynamic: &crate::xlsx_dynamic::Dynamic,
+) -> String {
+    let style = sheet["officeStyles"][a].as_str();
+    if dynamic.spilled.contains(a) {
+        crate::xlsx_dynamic::spilled_xml(a, style, &calculated[a], errors[a] == true)
+    } else {
+        cell_xml(
+            a,
+            value,
+            style,
+            &calculated[a],
+            errors[a] == true,
+            dynamic.formula(a),
+        )
+    }
+}
+fn sheet_xml(
+    sheet: &Value,
+    calculated: &Value,
+    errors: &Value,
+    dynamic: &crate::xlsx_dynamic::Dynamic,
+) -> String {
     let mut rows: BTreeMap<usize, Vec<(usize, String)>> = BTreeMap::new();
-    for (a, v) in sheet["cells"].as_object().unwrap() {
+    let values = sheet["cells"].as_object().unwrap();
+    for (a, v) in values
+        .iter()
+        .map(|(a, v)| (a.as_str(), v.as_str().unwrap()))
+        .chain(dynamic.spilled.iter().map(|a| (a.as_str(), "")))
+    {
         let (r, c) = parse_address(a).unwrap();
-        rows.entry(r).or_default().push((
-            c,
-            value_xml(
-                a,
-                v.as_str().unwrap(),
-                sheet["officeStyles"][a].as_str(),
-                &calculated[a],
-                errors[a] == true,
-            ),
-        ));
+        rows.entry(r)
+            .or_default()
+            .push((c, fresh_cell(sheet, a, v, calculated, errors, dynamic)));
     }
     let body = rows
         .into_iter()
@@ -485,6 +552,7 @@ fn patch_sheet(
     calc: &Value,
     errors: &Value,
     pkg: &Package,
+    dynamic: &crate::xlsx_dynamic::Dynamic,
 ) -> Result<String, String> {
     // Once any cell in a shared group changes, followers must no longer depend
     // on an old master that may be replaced or deleted. The imported projection
@@ -511,14 +579,18 @@ fn patch_sheet(
         .descendants()
         .find(|n| n.has_tag_name((S, "sheetData")))
         .ok_or("Worksheet data missing")?;
+    let released = crate::xlsx_dynamic::released(&d, sheet, before, calc, errors, dynamic);
     let mut rows: BTreeMap<usize, String> = BTreeMap::new();
     let mut wanted: BTreeMap<usize, Vec<(usize, String, String)>> = BTreeMap::new();
-    for (a, v) in sheet["cells"].as_object().ok_or("Cells missing")? {
+    for (a, v) in sheet["cells"]
+        .as_object()
+        .ok_or("Cells missing")?
+        .iter()
+        .map(|(a, v)| (a, v.as_str().unwrap_or("")))
+        .chain(dynamic.spilled.iter().map(|a| (a, "")))
+    {
         let (r, c) = parse_address(a)?;
-        wanted
-            .entry(r)
-            .or_default()
-            .push((c, a.clone(), v.as_str().unwrap_or("").into()));
+        wanted.entry(r).or_default().push((c, a.clone(), v.into()));
     }
     for row in data.children().filter(|n| n.is_element()) {
         if row.tag_name().name() != "row" {
@@ -538,6 +610,30 @@ fn patch_sheet(
         {
             let a = attr(cell, "r").ok_or("Cell address missing")?;
             let (_, c) = parse_address(a)?;
+            if dynamic.spilled.contains(a) {
+                changed = true;
+                let style = sheet["officeStyles"][a].as_str().or(attr(cell, "s"));
+                cells.insert(
+                    c,
+                    crate::xlsx_dynamic::spilled_xml(a, style, &calc[a], errors[a] == true),
+                );
+                continue;
+            }
+            // A cell an earlier spill filled keeps only its format.
+            if sheet["cells"].get(a).is_none()
+                && child(cell, "f").is_none()
+                && crate::xlsx_dynamic::in_released(&released, a)
+            {
+                changed = true;
+                let style = sheet["officeStyles"][a].as_str().or(attr(cell, "s"));
+                if let Some(s) = style {
+                    cells.insert(
+                        c,
+                        format!("<c xmlns=\"{S}\" r=\"{}\" s=\"{}\"/>", esc(a), esc(s)),
+                    );
+                }
+                continue;
+            }
             // A cell cleared of its value and format (Clear All) goes.
             if sheet["cells"].get(a).is_none()
                 && sheet["officeStyles"].get(a).is_none()
@@ -552,7 +648,8 @@ fn patch_sheet(
             // Clear Formats removes character runs: the text is rewritten.
             let runs_cleared = before["cellStyles"][a].get("_richText").is_some()
                 && sheet["cellStyles"][a].get("_richText").is_none();
-            if value == was && !runs_cleared {
+            // A dynamic-array anchor is rewritten: its range follows the spill.
+            if value == was && !runs_cleared && dynamic.formula(a).is_none() {
                 let font_edits = sheet["cellStyles"][a].get("_fontOverrides");
                 let style_changed = sheet["officeStyles"][a] != before["officeStyles"][a];
                 let mut updated = raw(xml, cell).to_string();
@@ -601,6 +698,7 @@ fn patch_sheet(
                         errors[a] == true,
                         xml,
                         sheet["officeStyles"][a].as_str(),
+                        dynamic.formula(a),
                     ),
                 );
             }
@@ -608,13 +706,7 @@ fn patch_sheet(
         for (c, a, v) in wanted.remove(&r).unwrap_or_default() {
             if let std::collections::btree_map::Entry::Vacant(e) = cells.entry(c) {
                 changed = true;
-                e.insert(value_xml(
-                    &a,
-                    &v,
-                    sheet["officeStyles"][&a].as_str(),
-                    &calc[&a],
-                    errors[&a] == true,
-                ));
+                e.insert(fresh_cell(sheet, &a, &v, calc, errors, dynamic));
             }
         }
         if changed {
@@ -643,13 +735,7 @@ fn patch_sheet(
                 r + 1,
                 cells
                     .iter()
-                    .map(|(_, a, v)| value_xml(
-                        a,
-                        v,
-                        sheet["officeStyles"][a].as_str(),
-                        &calc[a],
-                        errors[a] == true
-                    ))
+                    .map(|(_, a, v)| fresh_cell(sheet, a, v, calc, errors, dynamic))
                     .collect::<String>()
             ),
         );
@@ -661,6 +747,7 @@ fn patch_sheet(
             .as_object()
             .unwrap()
             .keys()
+            .chain(dynamic.spilled.iter())
             .filter_map(|a| parse_address(a).ok())
             .collect::<Vec<_>>();
         let r = used.iter().map(|p| p.0).max().unwrap_or(0);
@@ -679,7 +766,28 @@ pub fn export(
     pkg: Option<&Package>,
     baseline: Option<&Value>,
 ) -> Result<Vec<u8>, String> {
-    export_impl(sheets, calculated, errors, pkg, baseline, false)
+    export_impl(
+        sheets,
+        calculated,
+        errors,
+        &Value::Null,
+        pkg,
+        baseline,
+        false,
+    )
+}
+
+/// Like `export`, writing dynamic-array formulas with the ranges they spill
+/// into (`spills`: the calculator's `spill_ranges`) and the spilled values.
+pub(crate) fn export_spilled(
+    sheets: &Value,
+    calculated: &Value,
+    errors: &Value,
+    spills: &Value,
+    pkg: Option<&Package>,
+    baseline: Option<&Value>,
+) -> Result<Vec<u8>, String> {
+    export_impl(sheets, calculated, errors, spills, pkg, baseline, false)
 }
 
 /// Package-level edits have already changed the baseline XML. Refresh every
@@ -691,13 +799,43 @@ pub(crate) fn export_recalculated(
     pkg: &Package,
     baseline: &Value,
 ) -> Result<Vec<u8>, String> {
-    export_impl(sheets, calculated, errors, Some(pkg), Some(baseline), true)
+    export_impl(
+        sheets,
+        calculated,
+        errors,
+        &Value::Null,
+        Some(pkg),
+        Some(baseline),
+        true,
+    )
+}
+
+/// `export_recalculated` with the spilled ranges, for caches that changed
+/// without a cell edit (a defined name deleted, say).
+pub(crate) fn export_recalculated_spilled(
+    sheets: &Value,
+    calculated: &Value,
+    errors: &Value,
+    spills: &Value,
+    pkg: &Package,
+    baseline: &Value,
+) -> Result<Vec<u8>, String> {
+    export_impl(
+        sheets,
+        calculated,
+        errors,
+        spills,
+        Some(pkg),
+        Some(baseline),
+        true,
+    )
 }
 
 fn export_impl(
     sheets: &Value,
     calculated: &Value,
     errors: &Value,
+    spills: &Value,
     pkg: Option<&Package>,
     baseline: Option<&Value>,
     refresh: bool,
@@ -731,6 +869,19 @@ fn export_impl(
         .and_then(parse)
         .map(|wb| defined_names(&wb))
         .unwrap_or_default();
+    let mut dynamic: Vec<_> = list
+        .iter()
+        .map(|s| {
+            let id = s["id"].as_str().unwrap_or("");
+            crate::xlsx_dynamic::Dynamic::new(s, &spills[id], &calculated[id], &errors[id])
+        })
+        .collect();
+    if dynamic.iter().any(|d| !d.is_empty()) {
+        let cm = crate::xlsx_dynamic::metadata_index(&mut p)?;
+        for d in &mut dynamic {
+            d.cm = cm.clone();
+        }
+    }
     for (index, original_sheet) in list.iter().enumerate() {
         let mut prepared = original_sheet.clone();
         let baseline_sheet = baseline
@@ -815,7 +966,7 @@ fn export_impl(
             .and_then(|b| b.as_array())
             .and_then(|a| a.iter().find(|v| v["id"] == sheet["id"]));
         if let (Some(b), Ok(xml)) = (before, p.text(&path)) {
-            let result = patch_sheet(xml, sheet, b, calc, sheet_errors, &p)?;
+            let result = patch_sheet(xml, sheet, b, calc, sheet_errors, &p, &dynamic[index])?;
             p.set(
                 &path,
                 crate::xlsx_styles::patch_character_formats(&p, &result, sheet)?,
@@ -825,7 +976,7 @@ fn export_impl(
                 &path,
                 crate::xlsx_styles::patch_character_formats(
                     &p,
-                    &sheet_xml(sheet, calc, sheet_errors),
+                    &sheet_xml(sheet, calc, sheet_errors, &dynamic[index]),
                     sheet,
                 )?,
             );
@@ -929,7 +1080,7 @@ pub(crate) fn force_recalculation(p: &mut Package) -> Result<(), String> {
     p.set("xl/workbook.xml", out);
     Ok(())
 }
-fn append_root(p: &mut Package, path: &str, extra: &str) -> Result<(), String> {
+pub(crate) fn append_root(p: &mut Package, path: &str, extra: &str) -> Result<(), String> {
     let xml = p.text(path)?.to_string();
     let d = parse(&xml)?;
     let root = d.root_element();
