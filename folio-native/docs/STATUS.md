@@ -10,11 +10,11 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 
 | Family | Name | Specified | Implemented | Automated verified | Native verified | Office compared | Accepted | Total |
 |---|---|---:|---:|---:|---:|---:|---:|---:|
-| D01 | [Desktop application, windows and Office-like interaction](status/desktop.md#d01-desktop-application-windows-and-office-like-interaction) | 5 | 0 | 3 | 5 | 0 | 0 | 13 |
+| D01 | [Desktop application, windows and Office-like interaction](status/desktop.md#d01-desktop-application-windows-and-office-like-interaction) | 5 | 0 | 2 | 6 | 0 | 0 | 13 |
 | D02 | [Files: new, open, save, recent, templates, autosave and recovery](status/desktop.md#d02-files-new-open-save-recent-templates-autosave-and-recovery) | 4 | 0 | 9 | 4 | 0 | 0 | 17 |
 | D03 | [Clipboard, drag and drop, undo/redo and shortcuts](status/desktop.md#d03-clipboard-drag-and-drop-undoredo-and-shortcuts) | 3 | 0 | 3 | 4 | 0 | 0 | 10 |
 | D04 | [Accessibility, zoom and localization](status/desktop.md#d04-accessibility-zoom-and-localization) | 9 | 0 | 2 | 0 | 0 | 0 | 11 |
-| D05 | [Printing, page setup and PDF](status/desktop.md#d05-printing-page-setup-and-pdf) | 4 | 0 | 2 | 1 | 0 | 0 | 7 |
+| D05 | [Printing, page setup and PDF](status/desktop.md#d05-printing-page-setup-and-pdf) | 4 | 0 | 1 | 2 | 0 | 0 | 7 |
 | D06 | [Security, protection, encryption and trusted automation](status/desktop.md#d06-security-protection-encryption-and-trusted-automation) | 5 | 0 | 2 | 0 | 0 | 0 | 7 |
 | D07 | [Collaboration, sharing and conflict recovery](status/desktop.md#d07-collaboration-sharing-and-conflict-recovery) | 3 | 0 | 2 | 0 | 0 | 0 | 5 |
 | D08 | [Packaging, updates and distribution](status/desktop.md#d08-packaging-updates-and-distribution) | 4 | 1 | 1 | 1 | 0 | 0 | 7 |
@@ -29,7 +29,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | W07 | [Tables](status/word.md#w07-tables) | 4 | 0 | 2 | 9 | 0 | 0 | 15 |
 | W08 | [Pictures, shapes, text boxes, SmartArt and charts](status/word.md#w08-pictures-shapes-text-boxes-smartart-and-charts) | 5 | 0 | 3 | 0 | 0 | 0 | 8 |
 | W09 | [Equations, embedded objects, media and content controls](status/word.md#w09-equations-embedded-objects-media-and-content-controls) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
-| W10 | [Fields, captions, cross-references, TOC and indexes](status/word.md#w10-fields-captions-cross-references-toc-and-indexes) | 3 | 0 | 5 | 0 | 0 | 0 | 8 |
+| W10 | [Fields, captions, cross-references, TOC and indexes](status/word.md#w10-fields-captions-cross-references-toc-and-indexes) | 3 | 0 | 1 | 4 | 0 | 0 | 8 |
 | W11 | [Footnotes, endnotes, citations and bibliography](status/word.md#w11-footnotes-endnotes-citations-and-bibliography) | 4 | 0 | 1 | 0 | 0 | 0 | 5 |
 | W12 | [Proofing](status/word.md#w12-proofing) | 4 | 0 | 4 | 2 | 0 | 0 | 10 |
 | W13 | [Comments, track changes, compare and merge](status/word.md#w13-comments-track-changes-compare-and-merge) | 3 | 0 | 4 | 2 | 0 | 0 | 9 |
@@ -45,7 +45,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X06 | [Sort, filter and tables](status/excel.md#x06-sort-filter-and-tables) | 5 | 0 | 1 | 4 | 0 | 0 | 10 |
 | X07 | [Data validation and conditional formatting](status/excel.md#x07-data-validation-and-conditional-formatting) | 3 | 0 | 2 | 5 | 0 | 0 | 10 |
 | X08 | [Functions and calculation semantics](status/excel.md#x08-functions-and-calculation-semantics) | 5 | 0 | 12 | 2 | 0 | 0 | 19 |
-| X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 2 | 0 | 6 | 0 | 0 | 0 | 8 |
+| X09 | [Arrays, spill, names and external references](status/excel.md#x09-arrays-spill-names-and-external-references) | 2 | 0 | 4 | 2 | 0 | 0 | 8 |
 | X10 | [Auditing](status/excel.md#x10-auditing) | 4 | 0 | 0 | 2 | 0 | 0 | 6 |
 | X11 | [Charts, sparklines and drawings](status/excel.md#x11-charts-sparklines-and-drawings) | 6 | 1 | 1 | 0 | 0 | 0 | 8 |
 | X12 | [PivotTables](status/excel.md#x12-pivottables) | 6 | 0 | 0 | 0 | 0 | 0 | 6 |
@@ -56,7 +56,7 @@ States are defined in [status/README](status/README.md). `test/status_register_t
 | X17 | [Workbook format fidelity](status/excel.md#x17-workbook-format-fidelity) | 4 | 1 | 7 | 1 | 0 | 0 | 13 |
 | X18 | [Page setup, printing and PDF for workbooks](status/excel.md#x18-page-setup-printing-and-pdf-for-workbooks) | 5 | 0 | 0 | 0 | 0 | 0 | 5 |
 | X19 | [Scale and resource limits](status/excel.md#x19-scale-and-resource-limits) | 4 | 0 | 1 | 1 | 0 | 0 | 6 |
-| **All** | | **204** | **5** | **116** | **81** | **0** | **0** | **406** |
+| **All** | | **204** | **5** | **108** | **89** | **0** | **0** | **406** |
 
 By milestone, the M1 (daily report and budget) children are:
 - 136 in total;
@@ -129,6 +129,7 @@ ROADMAP §7 asks for the highest-risk dependencies to be evaluated early. "Evalu
 | Date | Change |
 |---|---|
 | 2026-10-30 | Window frame (D01.09): the window reopens where it was left. It was centred after the autosaved frame was restored, and AppKit moved a frame saved on a display without focus onto the focused one; the saved frame is now applied directly while it is on a screen, and the title-bar style no longer shortens it by 32 pt each launch. D01.09 to Native verified. |
+| 2026-09-26 | Native checks on the owner's Mac ([NATIVE_CHECKS_2026-09](NATIVE_CHECKS_2026-09.md)), packaged 0.82 build on macOS 27.0 with Xcode 27.0: D01.07, D05.05, W10.03, W10.04, W10.05, W10.08, X09.02 and X09.05 to Native verified. D01.09 failed (the window frame is not restored) and D05.04 failed (the PDF drops the TOC dot leaders). Word and Excel are not installed on that Mac, so the Office baseline and comparisons are still open. The build now targets arm64 with macOS 12.0 as the minimum, because Xcode 27 rejects 10.15 and Flutter 3.44.7's universal build check. |
 | 2026-09-26 | PDF export (rank 15): File → Export PDF… writes the page preview as a PDF with text as text (fragments placed and width-matched to the layout), embedded TrueType subsets chosen from the system's fonts with per-character fallback, pictures, links, a heading outline and tags (headings, paragraphs, figures with alt text; headers and footers as artifacts). D05.04 and D05.05 to Automated verified; new D05.07 for tagged tables and lists. |
 | 2026-09-26 | Several open files (rank 16): New Tab, Open in New Tab and Close Tab (File menu, ⌘T, ⌥⌘O, ⌥⌘W). Each tab runs its own engine session with its own recovery file and working-file state; only the tab in front owns the menus and focus. Quitting asks each tab with unsaved work in turn. The open tabs are restored at launch and the window frame is autosaved. D01.07 and D01.09 to Automated verified. |
 | 2026-09-26 | References (rank 14): footnote and endnote references import as inline notes (before, they were dropped, and editing their paragraph lost them), with insert, edit and numbering; SEQ, REF and PAGEREF fields become editable; Insert Caption, Cross-reference (with Word's hidden `_Ref` bookmarks) and Table of contents, and Update Fields with page numbers from the layout. W10.03, W10.04, W10.05, W10.08 and W11.01 to Automated verified; new W11.05 for notes placed on pages. |
