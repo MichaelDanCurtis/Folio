@@ -772,10 +772,11 @@ impl Core {
             .as_str()
             .and_then(|id| self.packages.get(id))
             .map(AsRef::as_ref);
-        crate::xlsx::export(
+        crate::xlsx::export_spilled(
             &self.workspace["sheets"],
             &self.calculator.values,
             &self.calculator.cell_errors,
+            &self.calculator.spill_ranges(),
             pkg,
             self.workspace["officeWorkbook"].get("baseline"),
         )
@@ -903,10 +904,11 @@ impl Core {
     ) -> Result<Value, String> {
         if let Some(id) = self.workspace["officeWorkbook"]["packageId"].as_str() {
             let pkg = self.packages.get(id).ok_or("Workbook source unavailable")?;
-            let bytes = crate::xlsx::export(
+            let bytes = crate::xlsx::export_spilled(
                 &self.workspace["sheets"],
                 &self.calculator.values,
                 &self.calculator.cell_errors,
+                &self.calculator.spill_ranges(),
                 Some(pkg),
                 self.workspace["officeWorkbook"].get("baseline"),
             )?;
@@ -2159,21 +2161,37 @@ impl Core {
                     .as_str()
                     .and_then(|id| self.packages.get(id))
                     .map(AsRef::as_ref);
-                let bytes = crate::xlsx::export(
+                let bytes = crate::xlsx::export_spilled(
                     &self.workspace["sheets"],
                     &self.calculator.values,
                     &self.calculator.cell_errors,
+                    &self.calculator.spill_ranges(),
                     pkg,
                     self.workspace["officeWorkbook"].get("baseline"),
                 )?;
                 let mut updated = crate::office::Package::from_bytes(bytes)?;
                 crate::name_manager::write(&mut updated, &next["sheets"], &edit)?;
-                updated.original = updated.bytes()?;
                 crate::xlsx_tables::bind_paths(
                     &mut next["sheets"],
                     &crate::xlsx::import(&updated)?.0,
                     true,
                 )?;
+                // Formulas using the name now have other results (#NAME? once
+                // it is deleted). The cell values are unchanged, so an export
+                // returns the package as is: write the new results into it.
+                let mut calc = crate::calculation::WorkbookCalculator::default();
+                calc.names = crate::xlsx_names::read(&updated, &next["sheets"]);
+                calc.sync_calendar(&next["sheets"], self.calculator.date1904);
+                updated =
+                    crate::office::Package::from_bytes(crate::xlsx::export_recalculated_spilled(
+                        &next["sheets"],
+                        &calc.values,
+                        &calc.cell_errors,
+                        &calc.spill_ranges(),
+                        &updated,
+                        &next["sheets"],
+                    )?)?;
+                updated.original = updated.bytes()?;
                 let id = format!(
                     "package-{}",
                     SystemTime::now()
@@ -3768,10 +3786,11 @@ impl Core {
                     // First bake in existing cell edits and added worksheets.
                     // Transform only a disposable package; any error leaves both
                     // the current document and its source package untouched.
-                    let bytes = crate::xlsx::export(
+                    let bytes = crate::xlsx::export_spilled(
                         &self.workspace["sheets"],
                         &self.calculator.values,
                         &self.calculator.cell_errors,
+                        &self.calculator.spill_ranges(),
                         Some(pkg),
                         self.workspace["officeWorkbook"].get("baseline"),
                     )?;
@@ -3848,10 +3867,11 @@ impl Core {
                 {
                     // Reuse the OOXML reference transformer for new workbooks as
                     // well, including relative formulas whose anchor is deleted.
-                    let bytes = crate::xlsx::export(
+                    let bytes = crate::xlsx::export_spilled(
                         &self.workspace["sheets"],
                         &self.calculator.values,
                         &self.calculator.cell_errors,
+                        &self.calculator.spill_ranges(),
                         None,
                         None,
                     )?;
@@ -3887,10 +3907,11 @@ impl Core {
                 if let Some(id) = meta["packageId"].as_str() {
                     let pkg = self.packages.get(id).ok_or("Workbook source unavailable")?;
                     let mut before = self.workspace["sheets"].clone();
-                    let bytes = crate::xlsx::export(
+                    let bytes = crate::xlsx::export_spilled(
                         &before,
                         &self.calculator.values,
                         &self.calculator.cell_errors,
+                        &self.calculator.spill_ranges(),
                         Some(pkg),
                         meta.get("baseline"),
                     )?;
@@ -4272,10 +4293,11 @@ impl Core {
                             .clone()
                     }
                     "docx" => crate::docx::export(&self.resolved_document()?, pkg, baseline)?,
-                    "xlsx" => crate::xlsx::export(
+                    "xlsx" => crate::xlsx::export_spilled(
                         &self.workspace["sheets"],
                         &self.calculator.values,
                         &self.calculator.cell_errors,
+                        &self.calculator.spill_ranges(),
                         pkg,
                         baseline,
                     )?,
