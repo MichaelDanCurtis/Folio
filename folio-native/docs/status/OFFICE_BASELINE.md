@@ -1,6 +1,6 @@
 # Office reference baseline
 
-ROADMAP §2 requires a frozen, versioned comparison baseline before any requirement can be "Office compared". **Status: not recorded.** It needs the Microsoft 365 installs, which only the project owner has (program plan, "Dependencies that need you" 1). Until it is filled in, the register's highest reachable state is "Native verified".
+ROADMAP §2 requires a frozen, versioned comparison baseline before any requirement can be "Office compared". **Status: not recorded.** The macOS machine, OS and locale were recorded on 2026-09-26, but Word and Excel are not installed on that Mac yet. It needs the Microsoft 365 installs, which only the project owner has (program plan, "Dependencies that need you" 1). Until it is filled in, the register's highest reachable state is "Native verified".
 
 File-level evidence from real Office output comes from the [Office-created corpus](CORPUS.md#office-created-corpus-real-files) in the meantime. Each file records the Word/Excel build that saved it, and workbooks carry Excel's own calculated results. That covers opening, round trips and calculation. Interaction, layout and printing still need the installs below.
 
@@ -10,17 +10,17 @@ Fill in one column per reference machine. The Windows column is the breadth refe
 
 | Field | macOS reference | Windows reference |
 |---|---|---|
-| Machine and CPU | | |
-| OS version and build | | |
-| Word version and build | | |
-| Excel version and build | | |
+| Machine and CPU | Mac16,5, Apple M4 Max, 128 GiB | |
+| OS version and build | macOS 27.0 (26A428) | |
+| Word version and build | Not installed (checked 2026-09-26) | |
+| Excel version and build | Not installed (checked 2026-09-26) | |
 | Update channel | | |
 | Licence / plan | | |
 | Copilot capabilities enabled | | |
-| UI language and locale (region, date and number formats) | | |
+| UI language and locale (region, date and number formats) | English (en-US), region US; dates M/d/yy and h:mm a; numbers 1,234,567.89; currency USD (−$1,234.50); Gregorian, week starts Sunday; US measurement; America/Los_Angeles | |
 | Installed fonts relevant to the corpus | | |
 | Add-ins and extensions installed | | |
-| Date recorded, and who recorded it | | |
+| Date recorded, and who recorded it | 2026-09-26, native checks ([NATIVE_CHECKS_2026-09](../NATIVE_CHECKS_2026-09.md)); Office rows still empty | |
 
 To collect these:
 - **Word/Excel:** Word or Excel → About (macOS), or File → Account → About (Windows).
