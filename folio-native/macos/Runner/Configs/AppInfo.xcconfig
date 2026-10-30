@@ -12,6 +12,3 @@ PRODUCT_BUNDLE_IDENTIFIER = com.folio.native
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 com.folio. All rights reserved.
-
-// The bundled Rust and Codex runtimes target Apple Silicon for this first build.
-ARCHS = arm64

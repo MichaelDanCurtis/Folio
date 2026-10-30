@@ -1,2 +1,8 @@
 #include "../../Flutter/Flutter-Release.xcconfig"
 #include "Warnings.xcconfig"
+
+// The bundled Rust and Codex runtimes target Apple Silicon for this first build.
+// Set at project level so the Flutter Assemble target also builds arm64 only;
+// a universal build would make Flutter run `lipo -verify_arch arm64 x86_64`,
+// which Xcode 27's lipo rejects.
+ARCHS = arm64
