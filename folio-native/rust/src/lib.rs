@@ -163,6 +163,9 @@ mod office;
 #[cfg(test)]
 mod row_reflow_targets_tests;
 mod xlsx;
+mod xlsx_dynamic;
+#[cfg(test)]
+mod xlsx_dynamic_tests;
 mod xlsx_alignment;
 #[cfg(test)]
 mod xlsx_alignment_tests;

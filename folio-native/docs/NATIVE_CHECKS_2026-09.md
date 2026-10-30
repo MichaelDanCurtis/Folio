@@ -128,6 +128,11 @@ To Native verified: D01.07, D05.05, W10.03, W10.04, W10.05, W10.08, X09.02, X09.
 
 Unchanged, with the finding in their gap column: D01.09 (window frame), D05.04 (TOC leaders). Unchanged, not fully checked: W11.01 (editing a note), X09.04 (LET), X08.03 (Excel comparison).
 
+## Since the check
+
+- [#19](https://github.com/MichaelDanCurtis/Folio/pull/19): the PDF now writes TOC dot leaders, and right-tab page numbers end at the stop. D05.04 needs a native recheck.
+- [#20](https://github.com/MichaelDanCurtis/Folio/pull/20): XLSX export now writes dynamic arrays (`t="array"`, `cm`, `xl/metadata.xml`) with cached spilled values, and writes `#NAME?` for a formula whose name was deleted.
+
 ## Still to do on this Mac
 
 1. Install Microsoft 365, record the Word and Excel builds, then open `native-check-references.docx` in Word and `native-check-sheet.xlsx` in Excel and compare.

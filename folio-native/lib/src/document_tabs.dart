@@ -319,9 +319,22 @@ InlineSpan layoutTabStops(
   double followingWidth(int at, String alignment) {
     if (['left', 'start', 'num'].contains(alignment)) return 0;
     final i = tabOffsets.indexOf(at);
-    final field = i + 1 < tabOffsets.length
-        ? segments[tabOffsets[i + 1]]!
-        : pending;
+    // The field ends at the next tab or line break, whichever comes first;
+    // text after a break belongs to the next line, not this stop.
+    final field = <InlineSpan>[];
+    for (final span
+        in i + 1 < tabOffsets.length ? segments[tabOffsets[i + 1]]! : pending) {
+      final text = (span as TextSpan).text ?? '';
+      final end = text.indexOf('\n');
+      if (end < 0) {
+        field.add(span);
+        continue;
+      }
+      if (end > 0) {
+        field.add(TextSpan(text: text.substring(0, end), style: span.style));
+      }
+      break;
+    }
     final m = TextPainter(
       text: TextSpan(style: source.style, children: field),
       textDirection: textDirection,
