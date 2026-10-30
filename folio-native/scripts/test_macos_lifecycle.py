@@ -24,3 +24,13 @@ with tempfile.TemporaryDirectory(prefix="folio-termination-check-") as temporary
         "-o", str(binary),
     ], check=True)
     subprocess.run([str(binary)], check=True)
+
+with tempfile.TemporaryDirectory(prefix="folio-window-frame-check-") as temporary:
+    binary = Path(temporary) / "verify"
+    subprocess.run([
+        "xcrun", "swiftc",
+        str(root / "macos/Runner/FolioWindowFrame.swift"),
+        str(root / "scripts/verification/verify_window_frame.swift"),
+        "-o", str(binary),
+    ], check=True)
+    subprocess.run([str(binary)], check=True)
