@@ -6,6 +6,13 @@ import 'package:folio_native/src/document_page_layout.dart';
 import 'package:folio_native/src/document_pdf.dart';
 
 void main() {
+  var initialized = false;
+  Future<void> initialize() async {
+    if (initialized) return;
+    await CoreBridge.initialize();
+    initialized = true;
+  }
+
   test('the recorder keeps text, links, decorations and clips', () {
     final painter = TextPainter(
       text: const TextSpan(
@@ -46,7 +53,7 @@ void main() {
     late Directory folder;
     late WorkspaceModel model;
     await t.runAsync(() async {
-      await CoreBridge.initialize();
+      await initialize();
       folder = await Directory.systemTemp.createTemp('folio-pdf-');
       final core = CoreBridge();
       await core.call({'op': 'new', 'blank': true});
@@ -122,5 +129,91 @@ void main() {
     expect(pages, greaterThan(1));
     expect(RegExp(r'/Type /Page\b(?!s)').allMatches(pdf).length, pages);
     model.dispose();
+  });
+
+  testWidgets('a table of contents keeps its dot leaders and right-aligned '
+      'page numbers in the PDF', (t) async {
+    late CoreBridge core;
+    await t.runAsync(() async {
+      await initialize();
+      core = CoreBridge();
+      await core.call({'op': 'new', 'blank': true});
+      await core.call({
+        'op': 'document',
+        'document': {
+          'type': 'doc',
+          'content': [
+            {
+              'type': 'tableOfContents',
+              'attrs': {
+                'levels': 3,
+                'entries': [
+                  {'level': 1, 'text': 'Method', 'page': '1'},
+                  {
+                    'level': 2,
+                    'text': 'A longer sampling section',
+                    'page': '1',
+                  },
+                ],
+              },
+            },
+            {
+              'type': 'heading',
+              'attrs': {'level': 1},
+              'content': [
+                {'type': 'text', 'text': 'Method'},
+              ],
+            },
+            {
+              'type': 'heading',
+              'attrs': {'level': 2},
+              'content': [
+                {'type': 'text', 'text': 'A longer sampling section'},
+              ],
+            },
+          ],
+        },
+      });
+    });
+    final snapshot = await t.runAsync(
+      () => core.call({'op': 'documentPagePreview'}),
+    );
+    final layout = DocumentPageLayout.build(snapshot!);
+    final request = await t.runAsync(
+      () => documentPdfRequest(snapshot, layout, title: 'Contents'),
+    );
+    layout.dispose();
+    final texts = (request!['pages'] as List).first['ops']
+        .where((o) => o['op'] == 'text')
+        .toList()
+        .cast<Map>();
+    // Each entry's leader is a run of dots, as the preview paints it.
+    final leaders = texts
+        .where((o) => RegExp(r'^\.{3,}$').hasMatch(o['text'] as String))
+        .toList();
+    expect(leaders, hasLength(2));
+    // Both page numbers end at the right tab stop (9350 twips from the
+    // left margin), and each leader runs up to its number.
+    final numbers = texts.where((o) => o['text'] == '1').toList();
+    expect(numbers, hasLength(2));
+    num end(Map o) => (o['x'] as num) + (o['width'] as num);
+    expect(end(numbers[0]), closeTo(end(numbers[1]), .5));
+    expect(end(numbers[0]), closeTo(96 + 9350 / 15, 1));
+    for (var i = 0; i < 2; i++) {
+      expect(end(leaders[i]), lessThanOrEqualTo(numbers[i]['x'] as num));
+      expect(end(leaders[i]), greaterThan((numbers[i]['x'] as num) - 8));
+    }
+    // The engine writes them.
+    final folder = await t.runAsync(
+      () => Directory.systemTemp.createTemp('folio-pdf-toc-'),
+    );
+    await t.runAsync(
+      () => core.call({
+        'op': 'exportPdf',
+        'path': '${folder!.path}/contents.pdf',
+        ...request,
+      }),
+    );
+    expect(File('${folder!.path}/contents.pdf').existsSync(), isTrue);
   });
 }

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'document_pdf.dart' show PdfRecorder;
 
 const tabLeaderNames = {
   'none': 'None',
@@ -71,6 +72,17 @@ class TabLeaderDecoration {
                   TextBaseline.alphabetic,
                 );
             final start = bounds.right - count * advance;
+            if (canvas is PdfRecorder) {
+              // A PDF keeps the leader as text, one fragment of glyphs.
+              canvas.leader(
+                glyph * count,
+                Offset(start, y),
+                count * advance,
+                textStyle.copyWith(fontSize: size, color: color),
+              );
+              canvas.restore();
+              return;
+            }
             for (var i = 0; i < count; i++) {
               painter.paint(canvas, Offset(start + i * advance, top));
             }

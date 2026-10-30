@@ -92,6 +92,23 @@ class PdfRecorder implements Canvas {
 
   void end() => ops.add({'op': 'end'});
 
+  /// Repeated tab-leader glyphs as one text fragment on [baseline].
+  void leader(String glyphs, Offset baseline, double width, TextStyle style) {
+    final at = baseline + _origin;
+    ops.add({
+      'op': 'text',
+      'x': at.dx,
+      'y': at.dy,
+      'width': width,
+      'text': glyphs,
+      'size': style.fontSize ?? 14,
+      'family': style.fontFamily ?? '',
+      'bold': (style.fontWeight?.value ?? 400) >= 600,
+      'italic': style.fontStyle == FontStyle.italic,
+      'color': _hex(style.color ?? const Color(0xff000000)),
+    });
+  }
+
   /// A laid-out paragraph's text: one fragment per style, line and tab stop,
   /// with the position and width the layout gave it.
   void text(TextPainter painter, Offset offset) {
