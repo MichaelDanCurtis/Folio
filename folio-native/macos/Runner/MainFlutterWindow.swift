@@ -229,16 +229,15 @@ class MainFlutterWindow: NSWindow {
   override func awakeFromNib() {
     let controller = FolioFlutterViewController()
     contentViewController = controller
-    setContentSize(NSSize(width: 1440, height: 960))
-    // D01.09: the window reopens where it was left.
-    setFrameAutosaveName("FolioMainWindow")
-    minSize = NSSize(width: 1150, height: 720)
-    center()
     title = "Folio Native"
     titleVisibility = .hidden
     titlebarAppearsTransparent = true
+    // Style first: inserting it later would shrink the restored frame.
     styleMask.insert(.fullSizeContentView)
     isMovableByWindowBackground = false
+    setContentSize(NSSize(width: 1440, height: 960))
+    minSize = NSSize(width: 1150, height: 720)
+    FolioWindowFrame.restore(self, name: "FolioMainWindow")
     RegisterGeneratedPlugins(registry: controller)
     activationRecovery = FolioActivationRecovery(
       window: self,
