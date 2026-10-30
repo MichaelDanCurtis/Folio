@@ -23,6 +23,7 @@
 /* Begin PBXBuildFile section */
 		FA0123400000000000000005 /* FolioTextSort.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0123400000000000000006 /* FolioTextSort.swift */; };
 		FA0123400000000000000003 /* FolioTermination.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0123400000000000000004 /* FolioTermination.swift */; };
+		FA0123400000000000000007 /* FolioWindowFrame.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0123400000000000000008 /* FolioWindowFrame.swift */; };
 		FA0123400000000000000001 /* FolioActivationRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0123400000000000000002 /* FolioActivationRecovery.swift */; };
 		331C80D8294CF71000263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C80D7294CF71000263BE5 /* RunnerTests.swift */; };
 		335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335BBD1A22A9A15E00E9071D /* GeneratedPluginRegistrant.swift */; };
@@ -66,6 +67,7 @@
 /* Begin PBXFileReference section */
 		FA0123400000000000000006 /* FolioTextSort.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolioTextSort.swift; sourceTree = "<group>"; };
 		FA0123400000000000000004 /* FolioTermination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolioTermination.swift; sourceTree = "<group>"; };
+		FA0123400000000000000008 /* FolioWindowFrame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolioWindowFrame.swift; sourceTree = "<group>"; };
 		FA0123400000000000000002 /* FolioActivationRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolioActivationRecovery.swift; sourceTree = "<group>"; };
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -177,6 +179,7 @@
 				FA0123400000000000000006 /* FolioTextSort.swift */,
 				FA0123400000000000000002 /* FolioActivationRecovery.swift */,
 				FA0123400000000000000004 /* FolioTermination.swift */,
+				FA0123400000000000000008 /* FolioWindowFrame.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
 				33CC11242044D66E0003C045 /* Resources */,
@@ -367,6 +370,7 @@
 				FA0123400000000000000005 /* FolioTextSort.swift in Sources */,
 				FA0123400000000000000001 /* FolioActivationRecovery.swift in Sources */,
 				FA0123400000000000000003 /* FolioTermination.swift in Sources */,
+				FA0123400000000000000007 /* FolioWindowFrame.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 			);

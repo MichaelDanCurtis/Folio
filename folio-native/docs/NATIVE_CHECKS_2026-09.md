@@ -131,6 +131,7 @@ Unchanged, with the finding in their gap column: D01.09 (window frame), D05.04 (
 ## Since the check
 
 - [#19](https://github.com/MichaelDanCurtis/Folio/pull/19): the PDF now writes TOC dot leaders, and right-tab page numbers end at the stop. D05.04 needs a native recheck.
+- [#21](https://github.com/MichaelDanCurtis/Folio/pull/21): the window frame is restored after a restart, on either display. It was rechecked natively on 2026-10-30, and D01.09 is now Native verified.
 - [#20](https://github.com/MichaelDanCurtis/Folio/pull/20): XLSX export now writes dynamic arrays (`t="array"`, `cm`, `xl/metadata.xml`) with cached spilled values, and writes `#NAME?` for a formula whose name was deleted.
 
 ## Still to do on this Mac
