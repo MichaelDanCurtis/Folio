@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laya Loop</title>
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --ink: #1c1b19; --muted: #6b6860; --line: #e4e1da; --soft: #efede8;
+  --accent: #3b5bdb; --accent-soft: #e7ecff; --on-accent: #ffffff;
+  --high: #d9480f; --high-soft: #fff0e8; --med: #b7791f; --med-soft: #fdf6e3; --low: #2f6fb3; --low-soft: #e8f1fb;
+  --ok: #2b8a3e; --ok-soft: #e6f4ea; --bad: #868e96; --warn: #c2410c; --warn-soft: #fff4e6;
+  --radius: 10px; --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161614; --panel: #1f1f1c; --ink: #ecebe6; --muted: #a09d94; --line: #34332f; --soft: #2a2926;
+    --accent: #8ea2ff; --accent-soft: #262d4d; --on-accent: #10142a;
+    --high: #ff8a5b; --high-soft: #3a2218; --med: #e8b44a; --med-soft: #352c17; --low: #74aee8; --low-soft: #1b2a3a;
+    --ok: #69c47f; --ok-soft: #1b3122; --bad: #8d8a82; --warn: #ffa05c; --warn-soft: #3a2616;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+header h1 { font-size: 15px; margin: 0 8px 0 0; letter-spacing: -0.01em; }
+header h1 span { color: var(--muted); font-weight: 400; }
+.chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--soft); color: var(--muted); white-space: nowrap; }
+.chip b { color: var(--ink); font-weight: 600; }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: 16px; padding: 16px 20px; max-width: 1400px; margin: 0 auto; }
+@media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.toolbar .hint { color: var(--muted); font-size: 12px; margin-left: auto; }
+button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+button:hover { background: var(--soft); }
+button.primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+button.primary:hover { filter: brightness(1.08); }
+button:disabled { opacity: .45; cursor: default; }
+.editor-wrap { position: relative; padding: 28px 40px 60px 56px; }
+#gutter { position: absolute; left: 0; top: 0; width: 48px; height: 100%; pointer-events: none; }
+.mark { position: absolute; left: 16px; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 11px; font-weight: 700; pointer-events: auto; cursor: pointer; color: #fff; }
+.mark.high { background: var(--high); } .mark.medium { background: var(--med); } .mark.low { background: var(--low); }
+.mark.uncertain { background: transparent; border: 2px dashed var(--muted); color: var(--muted); }
+.mark.queued::after { content: ""; position: absolute; right: -4px; top: -4px; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); border: 2px solid var(--panel); }
+#editor { outline: none; min-height: 420px; font: 16px/1.7 "Iowan Old Style", "Charter", Georgia, serif; }
+#editor p { margin: 0 0 14px; padding: 2px 8px; margin-left: -8px; border-radius: 6px; transition: background .2s; }
+#editor p[data-level="high"] { background: var(--high-soft); }
+#editor p[data-level="medium"] { background: var(--med-soft); }
+#editor p[data-level="low"] { background: var(--low-soft); }
+#editor p.selected { box-shadow: inset 3px 0 0 var(--accent); }
+aside { display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 8px; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 12px; color: var(--muted); background: none; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs .count { font-size: 11px; background: var(--soft); border-radius: 999px; padding: 0 6px; margin-left: 4px; }
+.tabs .count.hot { background: var(--accent); color: var(--on-accent); }
+.pane { padding: 14px; overflow: auto; max-height: calc(100vh - 150px); }
+.pane[hidden] { display: none; }
+.empty { color: var(--muted); font-size: 13px; padding: 20px 4px; text-align: center; }
+.item { border: 1px solid var(--line); border-radius: 9px; padding: 11px 12px; margin-bottom: 10px; }
+.item h4 { margin: 0 0 4px; font-size: 13px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.item .sub { color: var(--muted); font-size: 12px; }
+.quote { font: 13px/1.5 "Iowan Old Style", Georgia, serif; background: var(--soft); border-radius: 6px; padding: 7px 9px; margin: 8px 0; white-space: pre-wrap; }
+.quote.new { background: var(--ok-soft); }
+.row { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.pill { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em; background: var(--soft); color: var(--muted); }
+.pill.active { background: var(--ok-soft); color: var(--ok); }
+.pill.probation { background: var(--accent-soft); color: var(--accent); }
+.pill.rejected, .pill.retired, .pill.dismissed { background: var(--soft); color: var(--bad); }
+.pill.high { background: var(--high-soft); color: var(--high); } .pill.medium { background: var(--med-soft); color: var(--med); } .pill.low { background: var(--low-soft); color: var(--low); }
+.pill.running { background: var(--accent-soft); color: var(--accent); } .pill.failed { background: var(--warn-soft); color: var(--warn); } .pill.done { background: var(--ok-soft); color: var(--ok); }
+.meter { position: relative; height: 8px; background: var(--soft); border-radius: 4px; margin: 5px 0 2px; }
+.meter .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--muted); }
+.meter .fill.fired { background: var(--high); }
+.meter .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+.meter .bandz { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, transparent 0 3px, color-mix(in srgb, var(--muted) 35%, transparent) 3px 5px); }
+.sig { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: 12px; }
+details { margin-top: 8px; } summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.ex { display: grid; grid-template-columns: 1fr 46px; gap: 6px; font-size: 12px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.ex .v { text-align: right; font-family: var(--mono); }
+.ex.miss .v { color: var(--warn); font-weight: 700; }
+.banner { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-size: 13px; }
+.log { font-size: 12px; border-bottom: 1px dashed var(--line); padding: 5px 0; }
+.log time { color: var(--muted); font-family: var(--mono); margin-right: 6px; }
+label.switch { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Laya Loop <span>· fast local checks, Claude when unsure</span></h1>
+  <span class="chip" id="chip-laya">Laya loading…</span>
+  <span class="chip" id="chip-speed">–</span>
+  <span class="chip" id="chip-claude">Claude: –</span>
+  <span class="chip" id="chip-budget">–</span>
+</header>
+<main>
+  <section class="card">
+    <div class="toolbar">
+      <button id="btn-sample">Load sample</button>
+      <button id="btn-clear">Clear</button>
+      <button id="btn-ask" disabled>Ask Claude about this paragraph</button>
+      <span class="hint">Laya re-checks each paragraph as you type. Click a paragraph to inspect it.</span>
+    </div>
+    <div class="editor-wrap" id="wrap">
+      <div id="gutter"></div>
+      <div id="editor" contenteditable="true" spellcheck="true"></div>
+    </div>
+  </section>
+  <aside class="card">
+    <div class="tabs" id="tabs">
+      <button data-tab="inspect" class="on">Inspector</button>
+      <button data-tab="claude">Claude <span class="count" id="n-claude">0</span></button>
+      <button data-tab="rules">Rules <span class="count" id="n-rules">0</span></button>
+      <button data-tab="log">Log</button>
+    </div>
+    <div class="pane" id="pane-inspect"></div>
+    <div class="pane" id="pane-claude" hidden></div>
+    <div class="pane" id="pane-rules" hidden></div>
+    <div class="pane" id="pane-log" hidden></div>
+  </aside>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const editor = $("#editor"), gutter = $("#gutter");
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pct = (x) => `${Math.max(0, Math.min(1, x)) * 100}%`;
+let results = {}, state = null, selected = null, analyzedVersion = -1, pidCounter = 0, lastAnalyzeMs = null, lastChecks = 0, lastFresh = 0;
+const openDetails = new Set();
+
+const SAMPLE = [
+  "Team, a quick update on the Atlas launch before Thursday's review.",
+  "We will ship the new billing dashboard to every customer by March 3, including the CSV export.",
+  "The staging admin password is hunter2 if anyone needs to run the demo for the board.",
+  "Per my last three emails, which you clearly ignored, the vendor contract is still unsigned.",
+  "The pilot data proves our new pricing is perfect, and nobody could reasonably disagree with the rollout plan.",
+  "Thanks everyone for the push this quarter; notes from the retro are in the shared folder.",
+];
+
+document.execCommand("defaultParagraphSeparator", false, "p");
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Laya-Loop": "1" }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || `${path}: ${r.status}`);
+  return r.json();
+}
+
+// --- paragraphs ------------------------------------------------------------
+function normalize() {
+  // Wrap stray text nodes / divs into <p> and give every paragraph a unique id.
+  for (const node of [...editor.childNodes]) {
+    if (node.nodeType === 3 && node.textContent.trim()) {
+      const p = document.createElement("p"); node.replaceWith(p); p.appendChild(node);
+    } else if (node.nodeType === 1 && node.tagName !== "P") {
+      const p = document.createElement("p"); p.innerHTML = node.innerHTML; node.replaceWith(p);
+    }
+  }
+  const seen = new Set();
+  for (const p of editor.querySelectorAll(":scope > p")) {
+    if (!p.dataset.pid || seen.has(p.dataset.pid)) { p.dataset.pid = `p${++pidCounter}`; p.removeAttribute("data-level"); }
+    seen.add(p.dataset.pid);
+  }
+}
+const paragraphs = () => [...editor.querySelectorAll(":scope > p")].map((el) => ({ id: el.dataset.pid, text: el.innerText.trim(), el }));
+
+function setDoc(lines) {
+  editor.innerHTML = "";
+  for (const t of lines) { const p = document.createElement("p"); p.textContent = t; editor.appendChild(p); }
+  normalize(); analyze();
+}
+
+// --- fast path: Laya -------------------------------------------------------
+let timer = null;
+editor.addEventListener("input", () => { normalize(); clearTimeout(timer); timer = setTimeout(analyze, 350); render(); });
+let inflight = null;
+async function analyze() {
+  const paras = paragraphs();
+  const req = api("/api/analyze", { paragraphs: paras.map(({ id, text }) => ({ id, text })) });
+  inflight = req;
+  const res = await req;
+  if (inflight !== req) return; // a newer analysis superseded this one
+  results = res.results; lastAnalyzeMs = res.ms; lastChecks = res.checks; lastFresh = res.fresh; analyzedVersion = res.rules_version;
+  render(); refreshState();
+}
+
+function levelFor(pid) {
+  const flags = results[pid]?.flags || [];
+  const fired = flags.filter((f) => f.fired && f.kind === "rule");
+  for (const lvl of ["high", "medium", "low"]) if (fired.some((f) => f.severity === lvl)) return { lvl, n: fired.length };
+  if (flags.some((f) => (f.uncertain && !f.fired && f.kind === "rule") || (f.kind === "sentinel" && f.fired))) return { lvl: "uncertain", n: 0 };
+  return null;
+}
+
+function render() {
+  const wrapTop = $("#wrap").getBoundingClientRect().top;
+  gutter.innerHTML = "";
+  const queued = new Set((state?.queue || []).filter((q) => ["pending", "running"].includes(q.state)).map((q) => q.paragraph_id));
+  for (const { id, el } of paragraphs()) {
+    const l = levelFor(id);
+    if (l && l.lvl !== "uncertain") el.dataset.level = l.lvl; else el.removeAttribute("data-level");
+    el.classList.toggle("selected", id === selected);
+    if (!l && !queued.has(id)) continue;
+    const m = document.createElement("div");
+    m.className = `mark ${l ? l.lvl : "uncertain"} ${queued.has(id) ? "queued" : ""}`;
+    m.textContent = l && l.n ? l.n : "?";
+    m.title = l ? (l.n ? `${l.n} rule(s) fired` : "Laya is unsure or the general detector fired") : "queued for Claude";
+    m.style.top = `${el.getBoundingClientRect().top - wrapTop + 3}px`;
+    m.onclick = () => select(id);
+    gutter.appendChild(m);
+  }
+  $("#chip-speed").innerHTML = lastAnalyzeMs == null ? "–" : `<b>${lastChecks}</b> checks · last pass ran <b>${lastFresh}</b> new Laya evaluations in <b>${lastAnalyzeMs} ms</b>`;
+  renderInspector();
+}
+
+function select(pid) { selected = pid; $("#btn-ask").disabled = !pid; render(); showTab("inspect"); }
+editor.addEventListener("click", () => {
+  const sel = window.getSelection(); let n = sel.anchorNode;
+  while (n && n !== editor && !(n.nodeType === 1 && n.tagName === "P")) n = n.parentNode;
+  if (n && n !== editor) { selected = n.dataset.pid; $("#btn-ask").disabled = false; render(); }
+});
+window.addEventListener("resize", render);
+
+function meter(f) {
+  // Show the signal on the raw 0-1 scale with the learned threshold and its uncertainty band.
+  return `<div class="meter"><div class="fill ${f.fired ? "fired" : ""}" style="width:${pct(f.signal)}"></div>
+    <div class="tick" style="left:${pct(f.threshold)}"></div></div>
+    <div class="sig"><span>signal ${f.signal.toFixed(3)}</span><span>fires ${f.direction === "above" ? "≥" : "≤"} ${f.threshold.toFixed(3)}</span></div>`;
+}
+
+function renderInspector() {
+  const pane = $("#pane-inspect");
+  const p = paragraphs().find((x) => x.id === selected);
+  if (!p) { pane.innerHTML = `<div class="empty">Click a paragraph to see what Laya thinks of it.</div>`; return; }
+  const r = results[p.id];
+  if (!r || !r.flags.length) { pane.innerHTML = `<div class="quote">${esc(p.text)}</div><div class="empty">Too short to check, or no rules are live.</div>`; return; }
+  const flags = [...r.flags].sort((a, b) => (b.fired - a.fired) || (b.uncertain - a.uncertain));
+  pane.innerHTML = `<div class="quote">${esc(p.text)}</div>
+    ${r.reasons.length ? `<div class="banner">Escalation trigger: ${r.reasons.map(esc).join("<br>")}</div>` : ""}
+    ${flags.map((f) => `<div class="item"><h4>${esc(f.label)}
+      ${f.fired ? `<span class="pill ${f.severity}">fired</span>` : ""}${f.uncertain && !f.fired ? `<span class="pill">borderline</span>` : ""}
+      <span class="pill ${f.status}">${f.status}</span>${f.kind === "sentinel" ? `<span class="pill">detector</span>` : ""}</h4>${meter(f)}</div>`).join("")}`;
+}
+
+// --- slow path: Claude -----------------------------------------------------
+$("#btn-ask").onclick = async () => {
+  const p = paragraphs().find((x) => x.id === selected); if (!p) return;
+  await api("/api/ask", { paragraph_id: p.id, text: p.text }); showTab("claude"); refreshState();
+};
+async function act(path) { try { await api(path, {}); } catch (e) { alert(e.message); } refreshState(); }
+
+async function acceptSuggestion(s) {
+  const p = paragraphs().find((x) => x.id === s.paragraph_id);
+  if (!p) { alert("That paragraph no longer exists; copy the rewrite instead."); return; }
+  if (p.text !== s.original.trim() && !confirm("This paragraph changed since Claude saw it. Replace it anyway?")) return;
+  p.el.textContent = s.rewrite;
+  await act(`/api/suggestions/${s.id}/accept`); analyze();
+}
+
+function renderClaude() {
+  const pane = $("#pane-claude");
+  const banner = !state.backend
+    ? `<div class="banner">No Claude backend is configured, so approvals will fail. Set ANTHROPIC_API_KEY or log in to Claude Code, then restart.</div>`
+    : state.simulated ? `<div class="banner"><b>Simulated mode.</b> Responses come from a canned offline stand-in, not Claude. Laya's validation of the checks is real.</div>` : "";
+  const queue = [...state.queue].reverse().filter((q) => q.state !== "dismissed");
+  const sugg = [...state.suggestions].reverse();
+  pane.innerHTML = banner + `<label class="switch"><input type="checkbox" id="auto-verify" ${state.auto_verify ? "checked" : ""}> Auto-send probation checks' hits to Claude for verification</label>`
+    + (queue.length ? "" : `<div class="empty">Nothing waiting. Paragraphs Laya is unsure about land here for your approval.</div>`)
+    + queue.map((q) => `<div class="item"><h4><span class="pill">${q.kind === "review" ? "review" : "verify rule"}</span>
+        <span class="pill ${q.state}">${q.state}</span>${q.manual ? `<span class="pill">asked by you</span>` : ""}</h4>
+        <div class="sub">${q.reasons.map(esc).join("<br>")}</div>
+        <div class="quote">${esc(q.text)}</div>
+        ${q.state === "pending" ? `<div class="sub">Sending shares this paragraph${q.kind === "review" ? " and its current neighbours" : ""} with ${esc(state.backend || "Claude")}.</div>
+          ${q.kind === "review" && q.paragraph_id ? `<details><summary>Neighbouring text that will be sent</summary><div class="quote">${esc(neighbours(q.paragraph_id)) || "(none)"}</div></details>` : ""}
+          <div class="row"><button class="primary" onclick="act('/api/queue/${q.id}/approve')">Send to Claude</button><button onclick="act('/api/queue/${q.id}/dismiss')">Dismiss</button></div>` : ""}
+        ${q.state === "running" ? `<div class="sub">Claude is working on it…</div>` : ""}
+        ${q.error ? `<div class="sub" style="color:var(--warn)">${esc(q.error)}</div>` : ""}
+        ${q.result ? `<div class="sub">${q.kind === "verify" ? "Claude " : ""}${esc(q.result)}</div>` : ""}</div>`).join("")
+    + sugg.map((s) => `<div class="item"><h4>${s.issue_found ? "Claude found an issue" : "Claude: looks fine"} <span class="pill ${s.state === "open" ? "probation" : s.state}">${s.state}</span></h4>
+        <div class="sub">${esc(s.summary)} · via ${esc(s.backend)}</div>
+        <div class="quote">${esc(s.original)}</div>
+        ${s.rewrite ? `<div class="quote new">${esc(s.rewrite)}</div>` : ""}
+        ${s.proposals.length ? `<div class="sub" style="margin-top:6px"><b>New local checks written by Claude:</b></div>` + s.proposals.map((p) =>
+          `<div class="row"><span class="pill ${p.status}">${p.status}</span><span>${esc(p.label)}</span></div><div class="sub">${esc(p.reason)}${p.reworded ? " (after one reword)" : ""}</div>`).join("") : ""}
+        ${s.state === "open" && s.rewrite ? `<div class="row"><button class="primary" data-accept="${s.id}">Accept rewrite</button><button onclick="act('/api/suggestions/${s.id}/dismiss')">Dismiss</button></div>` : ""}</div>`).join("");
+  pane.querySelectorAll("[data-accept]").forEach((b) => b.onclick = () => acceptSuggestion(state.suggestions.find((s) => s.id === b.dataset.accept)));
+  $("#auto-verify").onchange = (e) => api("/api/settings/auto_verify", { enabled: e.target.checked });
+}
+
+function neighbours(pid) {
+  const ps = paragraphs(), i = ps.findIndex((p) => p.id === pid);
+  return i < 0 ? "" : [ps[i - 1]?.text, ps[i + 1]?.text].filter(Boolean).join("\n\n");
+}
+
+function examples(list, shouldFire, t) {
+  return list.map((e) => {
+    const miss = shouldFire ? e.signal < t : e.signal >= t;
+    return `<div class="ex ${miss ? "miss" : ""}"><span>${esc(e.text)}</span><span class="v">${e.signal.toFixed(3)}</span></div>`;
+  }).join("");
+}
+
+function renderRules() {
+  const pane = $("#pane-rules");
+  const order = { active: 0, probation: 1, rejected: 2, retired: 3 };
+  const checks = [...state.checks].sort((a, b) => order[a.status] - order[b.status] || (a.origin === "claude") - (b.origin === "claude"));
+  pane.innerHTML = checks.map((c) => `<div class="item" style="${c.enabled ? "" : "opacity:.55"}">
+      <h4>${esc(c.label)}</h4>
+      <div class="row" style="margin-top:2px"><span class="pill ${c.status}">${c.status}</span><span class="pill ${c.severity}">${c.severity}</span>
+        <span class="pill">${c.origin === "claude" ? "written by Claude" : "seed"}</span>${c.kind === "sentinel" ? `<span class="pill">detector</span>` : ""}</div>
+      <div class="sub mono" style="margin-top:6px">${esc(c.question.type)}: ${esc(c.question.instructions)}</div>
+      <div class="sub">Fires when signal ${c.direction === "above" ? "≥" : "≤"} <b>${c.threshold.toFixed(3)}</b> · separates ${(c.accuracy * 100).toFixed(0)}% of its tests · margin ${c.margin >= 0 ? "+" : ""}${c.margin.toFixed(2)} · fired on ${c.fires} paragraph(s)${c.verified ? ` · Claude agreed ${c.agree}/${c.verified}` : ""}</div>
+      ${c.status === "rejected" ? `<div class="sub" style="color:var(--warn)">Rejected: ${esc(c.reason)}</div>` : ""}
+      <details data-id="${c.id}" ${openDetails.has(c.id) ? "open" : ""}><summary>Test examples and history</summary>
+        <div class="sub" style="margin:6px 0 2px"><b>Should fire</b> (oriented signal; orange = Laya got it wrong)</div>${examples(c.tests.should_fire, true, c.threshold_oriented)}
+        <div class="sub" style="margin:8px 0 2px"><b>Should not fire</b></div>${examples(c.tests.should_not, false, c.threshold_oriented)}
+        ${c.verifications.length ? `<div class="sub" style="margin:8px 0 2px"><b>Claude's verdicts on real paragraphs</b> (✗ = Laya was wrong)</div>` + c.verifications.map((v) => `<div class="ex ${v.applies === v.fired ? "" : "miss"}"><span>${esc(v.text)}<br><i>Laya ${v.fired ? "fired" : "did not fire"}; Claude: ${v.applies ? "applies" : "does not apply"}. ${esc(v.reason)}</i></span><span class="v">${v.applies === v.fired ? "✓" : "✗"}</span></div>`).join("") : ""}
+        <div class="sub" style="margin-top:8px">${c.history.map(esc).join("<br>")}</div>
+      </details>
+      ${["active", "probation"].includes(c.status) ? `<div class="row"><button onclick="toggleRule('${c.id}', ${!c.enabled})">${c.enabled ? "Disable" : "Enable"}</button><button onclick="act('/api/checks/${c.id}/retire')">Retire</button></div>` : ""}
+    </div>`).join("");
+  pane.querySelectorAll("details").forEach((d) => d.ontoggle = () => d.open ? openDetails.add(d.dataset.id) : openDetails.delete(d.dataset.id));
+}
+async function toggleRule(id, enabled) { try { await api(`/api/checks/${id}/enabled`, { enabled }); } catch (e) { alert(e.message); } refreshState(); }
+
+function renderLog() {
+  $("#pane-log").innerHTML = [...state.events].reverse().map((e) =>
+    `<div class="log"><time>${new Date(e.at * 1000).toLocaleTimeString()}</time>${esc(e.msg)}</div>`).join("") || `<div class="empty">No events yet.</div>`;
+}
+
+let lastSig = "";
+async function refreshState() {
+  try { state = await api("/api/state"); } catch { return; }
+  $("#chip-laya").innerHTML = `Laya <b>${esc(state.engine)}</b>`;
+  const cc = $("#chip-claude");
+  cc.innerHTML = `Claude: <b>${esc(state.backend || "not configured")}</b>`;
+  cc.className = `chip ${!state.backend || state.simulated ? "warn" : "ok"}`;
+  $("#chip-budget").innerHTML = `<b>${state.budget_left}</b> Claude calls left this hour`;
+  const pending = state.queue.filter((q) => q.state === "pending").length + state.suggestions.filter((s) => s.state === "open").length;
+  $("#n-claude").textContent = pending; $("#n-claude").classList.toggle("hot", pending > 0);
+  $("#n-rules").textContent = state.checks.filter((c) => ["active", "probation"].includes(c.status) && c.enabled).length;
+  // Re-render panes only when something changed, so open <details> and scroll positions survive polling.
+  const sig = JSON.stringify([state.queue, state.suggestions, state.checks, state.events.length, state.backend, state.auto_verify]);
+  if (sig !== lastSig) { lastSig = sig; renderClaude(); renderRules(); renderLog(); render(); }
+  if (state.rules_version !== analyzedVersion && analyzedVersion !== -1) analyze(); // new/changed rules: re-check the doc
+}
+
+function showTab(name) {
+  document.querySelectorAll("#tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+  document.querySelectorAll(".pane").forEach((p) => p.hidden = p.id !== `pane-${name}`);
+}
+document.querySelectorAll("#tabs button").forEach((b) => b.onclick = () => showTab(b.dataset.tab));
+$("#btn-sample").onclick = () => setDoc(SAMPLE);
+$("#btn-clear").onclick = () => setDoc([""]);
+
+setDoc(SAMPLE);
+setInterval(refreshState, 1200);
+</script>
+</body>
+</html>
