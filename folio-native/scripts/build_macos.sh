@@ -40,5 +40,6 @@ xattr -r -d com.apple.FinderInfo "$release/Folio Native.app" 2>/dev/null || true
 xattr -r -d com.apple.ResourceFork "$release/Folio Native.app" 2>/dev/null || true
 python3 "$project/scripts/release_manifest.py" "$release/Folio Native.zip"
 
+mkdir -p "$project/build"
 printf '%s\n' "$stage" > "$project/build/last-staging-path.txt"
 echo "Built $release/Folio Native.app"
